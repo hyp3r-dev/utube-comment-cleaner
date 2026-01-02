@@ -1,4 +1,4 @@
-# ⚔️ CommentSlash
+# ✦ CommentSlash
 
 > Regret having commented weird stuff but can't find it anymore? WORRY NOT!
 
@@ -14,9 +14,9 @@ CommentSlash is a modern, privacy-focused web application that helps you manage 
 - **🔒 Privacy First** - All data stored in browser's IndexedDB with automatic 24-hour expiration
 - **📊 Smart Filtering** - Filter by video privacy status, comment status, character count, and likes
 - **📈 Sorting Options** - Sort by likes, date posted, or comment length
-- **⚔️ Slash Queue** - Intuitive interface to select comments for precise deletion
+- **✦ Slash Queue** - Intuitive interface to select comments for precise deletion
 - **🌙 Dark Theme** - Beautiful dark theme that's easy on the eyes
-- **⚡ Ninja Animations** - Smooth, slashing animations throughout the UI
+- **⚡ Ninja Animations** - Smooth, spinning ninja star animations throughout the UI
 - **🐳 Docker Ready** - Easy deployment with Docker
 
 ## 🚀 Getting Started
@@ -76,11 +76,36 @@ yarn preview
 
 ## 🐳 Docker Deployment
 
-### Build Locally
+### Quick Start with Docker Compose
+
+Create a `docker-compose.yml` file and copy-paste the following:
+
+```yaml
+version: '3.8'
+services:
+  commentslash:
+    image: hyp3rsonix/commentslash:latest
+    container_name: commentslash
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+```
+
+Then run:
 
 ```bash
-docker build -t commentslash .
-docker run -p 3000:3000 commentslash
+docker-compose up -d
+```
+
+Access the app at [http://localhost:3000](http://localhost:3000)
+
+### Pull from Docker Hub
+
+```bash
+docker pull hyp3rsonix/commentslash:latest
+docker run -p 3000:3000 hyp3rsonix/commentslash:latest
 ```
 
 ### Pull from GitHub Container Registry
@@ -90,20 +115,47 @@ docker pull ghcr.io/hyp3r-dev/utube-comment-cleaner:latest
 docker run -p 3000:3000 ghcr.io/hyp3r-dev/utube-comment-cleaner:latest
 ```
 
-### Docker Compose
+### Build Locally
 
-```yaml
-version: '3.8'
-services:
-  commentslash:
-    image: ghcr.io/hyp3r-dev/utube-comment-cleaner:latest
-    ports:
-      - "3000:3000"
-    environment:
-      - NODE_ENV=production
+```bash
+docker build -t commentslash .
+docker run -p 3000:3000 commentslash
 ```
 
-## 🔒 Security & Privacy
+## 🔧 Setting Up Docker Hub Publishing (For Repository Maintainers)
+
+To enable the GitHub Actions workflow to publish images to Docker Hub:
+
+### Step 1: Create Docker Hub Access Token
+
+1. Log in to [Docker Hub](https://hub.docker.com/)
+2. Go to **Account Settings** → **Security** → **Access Tokens**
+3. Click **New Access Token**
+4. Give it a description (e.g., "GitHub Actions")
+5. Select **Read, Write, Delete** permissions
+6. Click **Generate** and copy the token
+
+### Step 2: Add Secrets to GitHub Repository
+
+1. Go to your GitHub repository
+2. Navigate to **Settings** → **Secrets and variables** → **Actions**
+3. Add the following secrets:
+   - `DOCKERHUB_USERNAME`: Your Docker Hub username (e.g., `hyp3rsonix`)
+   - `DOCKERHUB_TOKEN`: The access token you just created
+
+### Step 3: Run the Workflow
+
+1. Go to **Actions** tab in your GitHub repository
+2. Select **Build and Deploy Docker Image** workflow
+3. Click **Run workflow**
+4. Choose options:
+   - **Tag**: `latest` or a version like `v1.0.0`
+   - **Push to GHCR**: ✅ (optional)
+   - **Push to Docker Hub**: ✅
+
+The workflow will build and push the image to Docker Hub at `hyp3rsonix/commentslash:latest`
+
+## �� Security & Privacy
 
 - **No Server Storage** - Your OAuth token is never stored on any server
 - **Browser-Only Storage** - All comment data is stored in your browser's IndexedDB
@@ -145,4 +197,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-Made with ⚔️ by [hyp3r-dev](https://github.com/hyp3r-dev)
+Made with ✦ by [hyp3r-dev](https://github.com/hyp3r-dev)

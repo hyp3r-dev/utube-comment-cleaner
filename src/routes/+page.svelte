@@ -146,7 +146,7 @@
 			{:else if !$isAuthenticated && $comments.length === 0}
 				<div class="auth-section">
 					<div class="hero animate-slide-up">
-						<div class="hero-icon animate-float">⚔️</div>
+						<div class="hero-icon animate-spin-slow">✦</div>
 						<h1>Welcome to <span class="text-gradient">CommentSlash</span></h1>
 						<p class="hero-subtitle">
 							Find and destroy your YouTube comments with precision. Filter by likes, 
