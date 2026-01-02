@@ -1,0 +1,15 @@
+node_modules
+build
+.svelte-kit
+.git
+.gitignore
+.github
+README.md
+LICENSE
+*.log
+.env*
+.DS_Store
+Thumbs.db
+.idea
+.vscode
+*.md
