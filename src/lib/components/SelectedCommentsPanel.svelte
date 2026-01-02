@@ -47,9 +47,9 @@
 >
 	<div class="panel-header">
 		<div class="header-content">
-			<div class="header-icon">🧹</div>
+			<div class="header-icon">⚔️</div>
 			<div class="header-text">
-				<h3>Sweep Queue</h3>
+				<h3>Slash Queue</h3>
 				<p>{$selectedComments.length} comment{$selectedComments.length !== 1 ? 's' : ''} selected</p>
 			</div>
 		</div>
@@ -123,9 +123,11 @@
 				</button>
 				<button class="btn btn-danger" onclick={onDeleteRequest}>
 					<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
-						<path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+						<path d="M3 17 L15 3 L17 5 L5 19 Z" />
+						<path d="M13 5 L17 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+						<path d="M15 7 L19 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
 					</svg>
-					Delete Selected
+					Slash Selected
 				</button>
 			</div>
 		{/if}

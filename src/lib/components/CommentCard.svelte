@@ -65,6 +65,13 @@
 	onclick={() => toggleComment(comment.id)}
 	onkeydown={(e) => e.key === 'Enter' && toggleComment(comment.id)}
 >
+	<!-- Slash effect overlay when selected -->
+	{#if isSelected}
+		<div class="slash-overlay">
+			<div class="slash-line"></div>
+		</div>
+	{/if}
+	
 	<div class="card-header">
 		<div class="select-indicator">
 			{#if isSelected}
@@ -167,6 +174,38 @@
 
 	.comment-card.selected::before {
 		transform: scaleX(1);
+		background: linear-gradient(90deg, #6366f1, #ef4444, #8b5cf6);
+	}
+
+	.slash-overlay {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+		overflow: hidden;
+		z-index: 1;
+	}
+
+	.slash-line {
+		position: absolute;
+		top: -50%;
+		left: -10%;
+		width: 120%;
+		height: 2px;
+		background: linear-gradient(90deg, transparent, #ef4444, #ef4444, transparent);
+		transform: rotate(-15deg);
+		animation: slashAcross 0.4s ease-out forwards;
+		box-shadow: 0 0 10px #ef4444, 0 0 20px #ef4444;
+	}
+
+	@keyframes slashAcross {
+		0% {
+			top: -50%;
+			opacity: 1;
+		}
+		100% {
+			top: 150%;
+			opacity: 0;
+		}
 	}
 
 	.comment-card.dragging {

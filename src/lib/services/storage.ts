@@ -1,12 +1,12 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { YouTubeComment } from '$lib/types/comment';
 
-const DB_NAME = 'commentsweep-db';
+const DB_NAME = 'commentslash-db';
 const DB_VERSION = 1;
 const STORE_NAME = 'comments';
 const TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-interface CommentSweepDB extends DBSchema {
+interface CommentSlashDB extends DBSchema {
 	comments: {
 		key: string;
 		value: {
@@ -27,12 +27,12 @@ interface CommentSweepDB extends DBSchema {
 	};
 }
 
-let db: IDBPDatabase<CommentSweepDB> | null = null;
+let db: IDBPDatabase<CommentSlashDB> | null = null;
 
-async function getDB(): Promise<IDBPDatabase<CommentSweepDB>> {
+async function getDB(): Promise<IDBPDatabase<CommentSlashDB>> {
 	if (db) return db;
 
-	db = await openDB<CommentSweepDB>(DB_NAME, DB_VERSION, {
+	db = await openDB<CommentSlashDB>(DB_NAME, DB_VERSION, {
 		upgrade(database) {
 			// Comments store
 			if (!database.objectStoreNames.contains('comments')) {

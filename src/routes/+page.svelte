@@ -146,11 +146,11 @@
 			{:else if !$isAuthenticated && $comments.length === 0}
 				<div class="auth-section">
 					<div class="hero animate-slide-up">
-						<div class="hero-icon animate-float">🧹</div>
-						<h1>Welcome to <span class="text-gradient">CommentSweep</span></h1>
+						<div class="hero-icon animate-float">⚔️</div>
+						<h1>Welcome to <span class="text-gradient">CommentSlash</span></h1>
 						<p class="hero-subtitle">
-							Find and clean up your YouTube comments with ease. Filter by likes, 
-							find those embarrassing comments, and sweep them away!
+							Find and destroy your YouTube comments with precision. Filter by likes, 
+							hunt down those embarrassing comments, and slash them away!
 						</p>
 					</div>
 
@@ -246,7 +246,7 @@
 
 	<footer class="footer">
 		<div class="container">
-			<p>CommentSweep — Clean up your YouTube comments with care 🧹✨</p>
+			<p>CommentSlash — Destroy your YouTube comments with precision ⚔️✨</p>
 		</div>
 	</footer>
 </div>

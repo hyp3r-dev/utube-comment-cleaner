@@ -1,8 +1,8 @@
-# 🧹 CommentSweep
+# ⚔️ CommentSlash
 
 > Regret having commented weird stuff but can't find it anymore? WORRY NOT!
 
-CommentSweep is a modern, privacy-focused web application that helps you manage and clean up your YouTube comments. Find embarrassing comments, filter by likes, sort by date, and sweep them away!
+CommentSlash is a modern, privacy-focused web application that helps you manage and destroy your YouTube comments with precision. Find embarrassing comments, filter by likes, sort by date, and slash them away like a ninja!
 
 ![SvelteKit](https://img.shields.io/badge/SvelteKit-FF3E00?style=for-the-badge&logo=svelte&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
@@ -14,9 +14,9 @@ CommentSweep is a modern, privacy-focused web application that helps you manage 
 - **🔒 Privacy First** - All data stored in browser's IndexedDB with automatic 24-hour expiration
 - **📊 Smart Filtering** - Filter by video privacy status, comment status, character count, and likes
 - **📈 Sorting Options** - Sort by likes, date posted, or comment length
-- **🎯 Drag & Drop Selection** - Intuitive interface to select comments for deletion
+- **⚔️ Slash Queue** - Intuitive interface to select comments for precise deletion
 - **🌙 Dark Theme** - Beautiful dark theme that's easy on the eyes
-- **⚡ Smooth Animations** - Fluid, delightful animations throughout the UI
+- **⚡ Ninja Animations** - Smooth, slashing animations throughout the UI
 - **🐳 Docker Ready** - Easy deployment with Docker
 
 ## 🚀 Getting Started
@@ -79,8 +79,8 @@ yarn preview
 ### Build Locally
 
 ```bash
-docker build -t commentsweep .
-docker run -p 3000:3000 commentsweep
+docker build -t commentslash .
+docker run -p 3000:3000 commentslash
 ```
 
 ### Pull from GitHub Container Registry
@@ -95,7 +95,7 @@ docker run -p 3000:3000 ghcr.io/hyp3r-dev/utube-comment-cleaner:latest
 ```yaml
 version: '3.8'
 services:
-  commentsweep:
+  commentslash:
     image: ghcr.io/hyp3r-dev/utube-comment-cleaner:latest
     ports:
       - "3000:3000"
@@ -145,4 +145,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-Made with 💜 by [hyp3r-dev](https://github.com/hyp3r-dev)
+Made with ⚔️ by [hyp3r-dev](https://github.com/hyp3r-dev)

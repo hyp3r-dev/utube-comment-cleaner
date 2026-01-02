@@ -12,24 +12,38 @@
 
 <div class="loading-container">
 	<div class="spinner" style="--size: {size}px">
-		<div class="broom-wrapper">
-			<svg viewBox="0 0 100 100" class="broom">
-				<!-- Broom bristles -->
-				<g class="bristles">
-					<line x1="60" y1="30" x2="85" y2="5" stroke="#fbbf24" stroke-width="3" stroke-linecap="round"/>
-					<line x1="65" y1="35" x2="90" y2="15" stroke="#fbbf24" stroke-width="3" stroke-linecap="round"/>
-					<line x1="70" y1="40" x2="95" y2="25" stroke="#fbbf24" stroke-width="3" stroke-linecap="round"/>
-				</g>
+		<div class="katana-wrapper">
+			<svg viewBox="0 0 100 100" class="katana">
+				<!-- Katana blade -->
+				<defs>
+					<linearGradient id="spinner-blade" x1="0%" y1="0%" x2="100%" y2="100%">
+						<stop offset="0%" style="stop-color:#e0e7ff"/>
+						<stop offset="50%" style="stop-color:#c7d2fe"/>
+						<stop offset="100%" style="stop-color:#a5b4fc"/>
+					</linearGradient>
+				</defs>
+				<path d="M20 80 L75 20 L80 25 L25 85 Z" fill="url(#spinner-blade)" class="blade"/>
+				<!-- Edge highlight -->
+				<line x1="20" y1="80" x2="75" y2="20" stroke="#ffffff" stroke-width="1" opacity="0.6"/>
 				<!-- Handle -->
-				<line x1="20" y1="80" x2="55" y2="45" stroke="#fbbf24" stroke-width="5" stroke-linecap="round"/>
+				<rect x="12" y="78" width="12" height="6" rx="2" fill="#dc2626" transform="rotate(-45 18 81)"/>
+				<!-- Guard -->
+				<ellipse cx="25" cy="75" rx="4" ry="2" fill="#fbbf24" transform="rotate(-45 25 75)"/>
 			</svg>
 		</div>
 		
-		<!-- Sparkles -->
-		<div class="sparkles">
-			<div class="sparkle s1">✨</div>
-			<div class="sparkle s2">✨</div>
-			<div class="sparkle s3">✨</div>
+		<!-- Slash effects -->
+		<div class="slash-effects">
+			<div class="slash-line s1"></div>
+			<div class="slash-line s2"></div>
+			<div class="slash-line s3"></div>
+		</div>
+		
+		<!-- Impact sparks -->
+		<div class="sparks">
+			<div class="spark sp1">⚡</div>
+			<div class="spark sp2">✦</div>
+			<div class="spark sp3">✦</div>
 		</div>
 	</div>
 
@@ -67,79 +81,124 @@
 		margin-bottom: 1.5rem;
 	}
 
-	.broom-wrapper {
+	.katana-wrapper {
 		width: 100%;
 		height: 100%;
-		animation: sweep 1.2s ease-in-out infinite;
+		animation: slash 0.8s ease-in-out infinite;
 	}
 
-	.broom {
+	.katana {
 		width: 100%;
 		height: 100%;
+		filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.5));
 	}
 
-	.bristles {
-		transform-origin: 60px 30px;
-		animation: bristle 0.3s ease-in-out infinite alternate;
-	}
-
-	@keyframes sweep {
+	@keyframes slash {
 		0%, 100% {
-			transform: translateX(-10px) rotate(-15deg);
+			transform: translateX(-5px) translateY(5px) rotate(0deg);
 		}
 		50% {
-			transform: translateX(10px) rotate(15deg);
+			transform: translateX(5px) translateY(-5px) rotate(-10deg);
 		}
 	}
 
-	@keyframes bristle {
-		0% {
-			transform: rotate(-5deg);
-		}
-		100% {
-			transform: rotate(5deg);
-		}
-	}
-
-	.sparkles {
+	.slash-effects {
 		position: absolute;
 		inset: 0;
 		pointer-events: none;
 	}
 
-	.sparkle {
+	.slash-line {
 		position: absolute;
-		font-size: calc(var(--size) * 0.3);
+		width: 60%;
+		height: 2px;
+		background: linear-gradient(90deg, transparent, #ef4444, transparent);
+		transform: rotate(-45deg);
 		opacity: 0;
-		animation: sparkle 1.5s ease-in-out infinite;
+		animation: slashLine 0.8s ease-in-out infinite;
 	}
 
 	.s1 {
-		top: 0;
+		top: 20%;
 		right: 10%;
 		animation-delay: 0s;
 	}
 
 	.s2 {
-		top: 30%;
-		right: 0;
-		animation-delay: 0.5s;
+		top: 35%;
+		right: 5%;
+		animation-delay: 0.1s;
+		width: 40%;
 	}
 
 	.s3 {
-		top: 60%;
-		right: 20%;
-		animation-delay: 1s;
+		top: 50%;
+		right: 15%;
+		animation-delay: 0.2s;
+		width: 30%;
 	}
 
-	@keyframes sparkle {
-		0%, 100% {
+	@keyframes slashLine {
+		0%, 40% {
 			opacity: 0;
-			transform: scale(0.5) translateY(10px);
+			transform: rotate(-45deg) scaleX(0);
 		}
 		50% {
 			opacity: 1;
-			transform: scale(1) translateY(-10px);
+			transform: rotate(-45deg) scaleX(1);
+		}
+		60%, 100% {
+			opacity: 0;
+			transform: rotate(-45deg) scaleX(0);
+		}
+	}
+
+	.sparks {
+		position: absolute;
+		inset: 0;
+		pointer-events: none;
+	}
+
+	.spark {
+		position: absolute;
+		font-size: calc(var(--size) * 0.25);
+		opacity: 0;
+		animation: sparkBurst 0.8s ease-out infinite;
+	}
+
+	.sp1 {
+		top: 15%;
+		right: 20%;
+		animation-delay: 0.4s;
+		color: #fbbf24;
+	}
+
+	.sp2 {
+		top: 25%;
+		right: 10%;
+		animation-delay: 0.5s;
+		color: #ef4444;
+	}
+
+	.sp3 {
+		top: 35%;
+		right: 25%;
+		animation-delay: 0.6s;
+		color: #a78bfa;
+	}
+
+	@keyframes sparkBurst {
+		0%, 40% {
+			opacity: 0;
+			transform: scale(0.5) translate(0, 0);
+		}
+		50% {
+			opacity: 1;
+			transform: scale(1.2) translate(-5px, -5px);
+		}
+		100% {
+			opacity: 0;
+			transform: scale(0.5) translate(-10px, -10px);
 		}
 	}
 
@@ -165,9 +224,16 @@
 
 	.progress-fill {
 		height: 100%;
-		background: var(--gradient-primary);
+		background: linear-gradient(90deg, #6366f1, #ef4444, #8b5cf6);
+		background-size: 200% 100%;
+		animation: gradientShift 2s ease infinite;
 		border-radius: 3px;
 		transition: width 0.3s ease;
+	}
+
+	@keyframes gradientShift {
+		0%, 100% { background-position: 0% 50%; }
+		50% { background-position: 100% 50%; }
 	}
 
 	.progress-text {

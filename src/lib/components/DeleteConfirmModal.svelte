@@ -35,12 +35,24 @@
 	<div class="modal" onclick={(e) => e.stopPropagation()} role="document">
 		<div class="modal-header">
 			<div class="warning-icon">
-				<svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
-					<path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+				<svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+					<defs>
+						<linearGradient id="modal-blade" x1="0%" y1="0%" x2="100%" y2="100%">
+							<stop offset="0%" style="stop-color:#e0e7ff"/>
+							<stop offset="100%" style="stop-color:#a5b4fc"/>
+						</linearGradient>
+					</defs>
+					<!-- Katana -->
+					<path d="M8 40 L36 8 L40 12 L12 44 Z" fill="url(#modal-blade)"/>
+					<rect x="4" y="38" width="10" height="6" rx="2" fill="#dc2626" transform="rotate(-45 9 41)"/>
+					<ellipse cx="14" cy="36" rx="3" ry="1.5" fill="#fbbf24" transform="rotate(-45 14 36)"/>
+					<!-- Slash effects -->
+					<path d="M30 14 L38 6" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/>
+					<path d="M34 18 L42 10" stroke="#ef4444" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
 				</svg>
 			</div>
-			<h2 id="modal-title">Confirm Deletion</h2>
-			<p>Are you sure you want to delete these comments? This action cannot be undone.</p>
+			<h2 id="modal-title">Confirm Slash</h2>
+			<p>Are you sure you want to slash these comments? This action cannot be undone.</p>
 		</div>
 
 		{#if !isDeleting}
@@ -76,8 +88,8 @@
 		{:else}
 			<div class="modal-body deleting">
 				<div class="delete-progress">
-					<div class="progress-icon animate-spin">🧹</div>
-					<p>Sweeping away your comments...</p>
+					<div class="progress-icon">⚔️</div>
+					<p>Slashing your comments...</p>
 					{#if deleteProgress}
 						<div class="progress-bar">
 							<div 
@@ -100,9 +112,10 @@
 				</button>
 				<button class="btn btn-danger" onclick={onConfirm}>
 					<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
-						<path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+						<path d="M3 17 L15 3 L17 5 L5 19 Z" />
+						<path d="M13 5 L17 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
 					</svg>
-					Yes, Delete {comments.length} Comment{comments.length !== 1 ? 's' : ''}
+					Yes, Slash {comments.length} Comment{comments.length !== 1 ? 's' : ''}
 				</button>
 			{/if}
 		</div>
@@ -269,6 +282,12 @@
 		font-size: 3rem;
 		display: block;
 		margin-bottom: 1rem;
+		animation: slashSwing 0.8s ease-in-out infinite;
+	}
+
+	@keyframes slashSwing {
+		0%, 100% { transform: rotate(-15deg); }
+		50% { transform: rotate(15deg); }
 	}
 
 	.delete-progress p {
@@ -287,9 +306,16 @@
 
 	.progress-fill {
 		height: 100%;
-		background: var(--gradient-primary);
+		background: linear-gradient(90deg, #6366f1, #ef4444, #8b5cf6);
+		background-size: 200% 100%;
+		animation: gradientFlow 2s ease infinite;
 		border-radius: 3px;
 		transition: width 0.3s ease;
+	}
+
+	@keyframes gradientFlow {
+		0%, 100% { background-position: 0% 50%; }
+		50% { background-position: 100% 50%; }
 	}
 
 	.progress-text {
