@@ -594,10 +594,12 @@ export class YouTubeService {
 	 * Enrich comments with data from YouTube API using comments.list
 	 * Batches requests in groups of 50 (API limit)
 	 * Returns enriched comments and list of missing comment IDs (deleted/unavailable)
+	 * Now supports real-time updates via onBatchComplete callback
 	 */
 	async enrichComments(
 		comments: YouTubeComment[],
-		onProgress?: (enriched: number, total: number) => void
+		onProgress?: (enriched: number, total: number) => void,
+		onBatchComplete?: (enrichedBatch: Map<string, Partial<YouTubeComment>>) => void
 	): Promise<{ enriched: YouTubeComment[]; missing: string[] }> {
 		const enrichedComments: YouTubeComment[] = [];
 		const missingIds: string[] = [];
@@ -609,12 +611,13 @@ export class YouTubeService {
 		
 		for (let i = 0; i < commentIds.length; i += batchSize) {
 			const batch = commentIds.slice(i, i + batchSize);
+			const batchUpdates = new Map<string, Partial<YouTubeComment>>();
 			
 			try {
 				const url = new URL(`${YOUTUBE_API_BASE}/comments`);
 				url.searchParams.set('part', 'snippet');
 				url.searchParams.set('id', batch.join(','));
-				url.searchParams.set('textFormat', 'html');
+				url.searchParams.set('textFormat', 'plainText');
 				
 				const response = await fetch(url.toString(), {
 					headers: {
@@ -640,9 +643,7 @@ export class YouTubeService {
 					const original = commentMap.get(id);
 					
 					if (original) {
-						// Merge API data with existing comment
-						enrichedComments.push({
-							...original,
+						const enrichedData: Partial<YouTubeComment> = {
 							textDisplay: item.snippet?.textDisplay || original.textDisplay,
 							textOriginal: item.snippet?.textOriginal || original.textOriginal,
 							likeCount: item.snippet?.likeCount ?? original.likeCount,
@@ -654,6 +655,15 @@ export class YouTubeService {
 							canRate: item.snippet?.canRate ?? original.canRate,
 							viewerRating: item.snippet?.viewerRating || original.viewerRating,
 							isEnriched: true
+						};
+						
+						// Add to batch updates for real-time callback
+						batchUpdates.set(id, enrichedData);
+						
+						// Merge API data with existing comment
+						enrichedComments.push({
+							...original,
+							...enrichedData
 						});
 					}
 				}
@@ -668,6 +678,11 @@ export class YouTubeService {
 							enrichedComments.push(original);
 						}
 					}
+				}
+				
+				// Fire real-time update callback
+				if (onBatchComplete && batchUpdates.size > 0) {
+					onBatchComplete(batchUpdates);
 				}
 				
 			} catch (e) {

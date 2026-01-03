@@ -34,7 +34,8 @@
 		removeComments,
 		selectAllFiltered,
 		deselectAll,
-		logout
+		logout,
+		updateComments
 	} from '$lib/stores/comments';
 	import type { YouTubeComment } from '$lib/types/comment';
 	import JSZip from 'jszip';
@@ -75,6 +76,9 @@
 		
 		return Array.from(groups.values());
 	});
+
+	// Count unenriched comments for enrichment banner
+	const unenrichedCount = $derived($comments.filter(c => !c.isEnriched).length);
 
 	onMount(async () => {
 		// Try to load cached comments
@@ -193,7 +197,7 @@
 			error.set(null);
 			
 			// Show success message
-			alert(`Connected to YouTube as "${validationResult.channelTitle}". You can now delete comments.`);
+			toasts.success(`Connected to YouTube as "${validationResult.channelTitle}". You can now enrich and delete comments.`);
 		} catch (e) {
 			error.set(getErrorMessage(e));
 		} finally {
@@ -240,21 +244,35 @@
 	async function handleEnrichComments() {
 		if (!youtubeService || $comments.length === 0) return;
 		
+		// Only enrich comments that haven't been enriched yet
+		const unenrichedComments = $comments.filter(c => !c.isEnriched);
+		if (unenrichedComments.length === 0) return;
+		
 		isEnriching = true;
-		enrichProgress = { enriched: 0, total: $comments.length };
+		enrichProgress = { enriched: 0, total: unenrichedComments.length };
 		error.set(null);
 		
 		try {
-			const result = await youtubeService.enrichComments($comments, (enriched, total) => {
-				enrichProgress = { enriched, total };
-			});
+			const result = await youtubeService.enrichComments(
+				unenrichedComments, 
+				// Progress callback
+				(enriched, total) => {
+					enrichProgress = { enriched, total };
+				},
+				// Real-time batch update callback
+				(batchUpdates) => {
+					// Update comments in place for immediate UI feedback
+					updateComments(batchUpdates);
+				}
+			);
 			
-			// Update comments with enriched data
-			comments.set(result.enriched);
-			await saveComments(result.enriched);
+			// Final save to storage after all batches complete
+			await saveComments($comments);
 			
 			if (result.missing.length > 0) {
-				error.set(`${result.missing.length} comment(s) could not be enriched (may be deleted or private).`);
+				toasts.warning(`${result.missing.length} comment(s) could not be enriched (may be deleted or private).`);
+			} else {
+				toasts.success(`Successfully enriched ${result.enriched.filter(c => c.isEnriched).length} comments!`);
 			}
 		} catch (e) {
 			error.set(getErrorMessage(e));
@@ -414,7 +432,6 @@
 
 	// Count of enriched vs unenriched comments
 	const enrichedCount = $derived($comments.filter(c => c.isEnriched).length);
-	const unenrichedCount = $derived($comments.length - enrichedCount);
 </script>
 
 <div class="app">
