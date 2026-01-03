@@ -8,7 +8,8 @@
 	import SelectedCommentsPanel from '$lib/components/SelectedCommentsPanel.svelte';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import DeleteConfirmModal from '$lib/components/DeleteConfirmModal.svelte';
-	import StatsBar from '$lib/components/StatsBar.svelte';
+	import NavbarStats from '$lib/components/NavbarStats.svelte';
+	import YouTubeStatusIcon from '$lib/components/YouTubeStatusIcon.svelte';
 	import QuotaProgressBar from '$lib/components/QuotaProgressBar.svelte';
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
 	import { toasts } from '$lib/stores/toast';
@@ -100,6 +101,15 @@
 			return $filteredComments.length;
 		}
 		return $filteredComments.filter(c => !$selectedIds.has(c.id)).length;
+	});
+
+	// YouTube connection status for the navbar icon
+	type ConnectionStatus = 'disconnected' | 'connected' | 'working' | 'error';
+	const youtubeConnectionStatus: ConnectionStatus = $derived.by(() => {
+		if (!$apiKey) return 'disconnected';
+		if (isEnriching) return 'working';
+		if ($error && $error.includes('token')) return 'error';
+		return 'connected';
 	});
 
 	onMount(async () => {
@@ -480,17 +490,34 @@
 		<div class="container header-content">
 			<Logo size={36} />
 			
+			<!-- Navbar stats - only show when we have comments -->
+			{#if $comments.length > 0}
+				<NavbarStats />
+			{/if}
+			
 			<div class="header-actions">
 				{#if $isAuthenticated || $comments.length > 0}
 					<QuotaProgressBar />
 				{/if}
 				
+				<!-- YouTube connection status icon - only show when we have comments -->
+				{#if $comments.length > 0}
+					<YouTubeStatusIcon 
+						status={youtubeConnectionStatus} 
+						onConnect={() => {
+							if (!$apiKey) {
+								// Scroll to connect section or show modal
+								document.querySelector('.token-connect-banner')?.scrollIntoView({ behavior: 'smooth' });
+							}
+						}} 
+					/>
+				{/if}
+				
 				{#if $isAuthenticated}
-					<button class="btn btn-ghost" onclick={handleLogout}>
+					<button class="btn btn-ghost btn-icon-only" onclick={handleLogout} title="Logout">
 						<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
 							<path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V4a1 1 0 00-1-1H3zm9 4a1 1 0 10-2 0v4a1 1 0 102 0V7zm-3 1a1 1 0 10-2 0v3a1 1 0 102 0V8z" clip-rule="evenodd" />
 						</svg>
-						Logout
 					</button>
 				{/if}
 			</div>
@@ -572,8 +599,6 @@
 				</div>
 			{:else}
 				<div class="dashboard">
-					<StatsBar />
-
 					{#if $error}
 						<div class="error-message mb-4">
 							<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
@@ -635,54 +660,25 @@
 						</div>
 					{/if}
 
-					<!-- Action bar with export/import -->
-					<div class="action-bar">
-						<div class="action-group">
-							<button class="btn btn-ghost btn-sm" onclick={() => handleExportComments(false)}>
-								<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-									<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
-								</svg>
-								Export JSON
-							</button>
-							<button class="btn btn-ghost btn-sm" onclick={() => handleExportComments(true)}>
-								<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-									<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
-								</svg>
-								Export ZIP
-							</button>
-							<input
-								type="file"
-								accept=".json,.zip"
-								onchange={handleImportJson}
-								bind:this={importJsonInput}
-								class="hidden-input"
-							/>
-							<button class="btn btn-ghost btn-sm" onclick={() => importJsonInput?.click()}>
-								<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-									<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
-								</svg>
-								Import
-							</button>
-							<button class="btn btn-ghost btn-sm btn-danger-text" onclick={() => showWipeConfirm = true}>
-								<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-									<path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
-								</svg>
-								Wipe Data
-							</button>
-						</div>
-						<div class="action-group">
-							<label class="toggle-label">
-								<input type="checkbox" bind:checked={groupByVideo} />
-								<span>Group by video</span>
-							</label>
-							<label class="toggle-label">
-								<input type="checkbox" bind:checked={hideSelectedFromList} />
-								<span>Hide selected</span>
-							</label>
-						</div>
-					</div>
+					<!-- Hidden file input for import -->
+					<input
+						type="file"
+						accept=".json,.zip"
+						onchange={handleImportJson}
+						bind:this={importJsonInput}
+						class="hidden-input"
+					/>
 
-					<FilterPanel />
+					<FilterPanel 
+						{groupByVideo}
+						{hideSelectedFromList}
+						onGroupByVideoChange={(v) => groupByVideo = v}
+						onHideSelectedChange={(v) => hideSelectedFromList = v}
+						onExportJson={() => handleExportComments(false)}
+						onExportZip={() => handleExportComments(true)}
+						onImport={() => importJsonInput?.click()}
+						onWipeData={() => showWipeConfirm = true}
+					/>
 
 					<div class="dashboard-layout">
 						<div class="comments-section">
@@ -1369,57 +1365,13 @@
 		font-size: 0.9rem;
 	}
 
-	/* Action bar */
-	.action-bar {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		flex-wrap: wrap;
-		gap: 1rem;
-		margin-bottom: 1rem;
-		padding: 0.75rem 1rem;
-		background: var(--bg-card);
-		border-radius: var(--radius-md);
-		border: 1px solid var(--bg-tertiary);
-	}
-
-	.action-group {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		flex-wrap: wrap;
-	}
-
-	.btn-sm {
-		padding: 0.4rem 0.75rem;
-		font-size: 0.8rem;
-	}
-
 	.hidden-input {
 		display: none;
 	}
 
-	.toggle-label {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		font-size: 0.8rem;
-		color: var(--text-secondary);
-		cursor: pointer;
-		padding: 0.35rem 0.75rem;
-		border-radius: var(--radius-sm);
-		transition: all 0.2s ease;
-	}
-
-	.toggle-label:hover {
-		background: var(--bg-tertiary);
-		color: var(--text-primary);
-	}
-
-	.toggle-label input[type="checkbox"] {
-		width: 16px;
-		height: 16px;
-		accent-color: var(--accent-primary);
+	/* Icon-only button style for navbar */
+	.btn-icon-only {
+		padding: 0.5rem;
 	}
 
 	/* 
@@ -1443,29 +1395,11 @@
 	}
 
 	@media (max-width: 640px) {
-		.action-bar {
-			flex-direction: column;
-			align-items: stretch;
-		}
-
-		.action-group {
-			justify-content: center;
-		}
 
 		.enrich-banner {
 			flex-direction: column;
 			align-items: stretch;
 		}
-	}
-
-	/* Wipe button danger text */
-	.btn-danger-text {
-		color: var(--error);
-	}
-
-	.btn-danger-text:hover {
-		background: rgba(239, 68, 68, 0.1);
-		color: var(--error);
 	}
 
 	/* Wipe confirmation modal */

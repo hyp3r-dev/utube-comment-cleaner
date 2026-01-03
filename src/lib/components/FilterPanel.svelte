@@ -3,6 +3,26 @@
 	import SearchBar from './SearchBar.svelte';
 	import type { CommentFilters, SortField, SortOrder } from '$lib/types/comment';
 
+	let {
+		groupByVideo = true,
+		hideSelectedFromList = true,
+		onGroupByVideoChange,
+		onHideSelectedChange,
+		onExportJson,
+		onExportZip,
+		onImport,
+		onWipeData
+	}: {
+		groupByVideo?: boolean;
+		hideSelectedFromList?: boolean;
+		onGroupByVideoChange?: (value: boolean) => void;
+		onHideSelectedChange?: (value: boolean) => void;
+		onExportJson?: () => void;
+		onExportZip?: () => void;
+		onImport?: () => void;
+		onWipeData?: () => void;
+	} = $props();
+
 	let isExpanded = $state(false);
 
 	const videoPrivacyOptions = [
@@ -65,27 +85,82 @@
 </script>
 
 <div class="filter-panel">
-	<div class="search-bar">
-		<SearchBar />
+	<div class="search-row">
+		<div class="search-bar">
+			<SearchBar />
 
-		<button 
-			class="filter-toggle btn btn-secondary" 
-			class:active={hasActiveFilters}
-			onclick={() => isExpanded = !isExpanded}
-		>
-			<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-				<path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" />
-			</svg>
-			<span>Filters</span>
-			{#if hasActiveFilters}
-				<span class="filter-badge">!</span>
-			{/if}
-			<span class="filter-arrow" class:rotated={isExpanded}>
-				<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-					<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+			<button 
+				class="filter-toggle btn btn-secondary" 
+				class:active={hasActiveFilters}
+				onclick={() => isExpanded = !isExpanded}
+			>
+				<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+					<path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" />
 				</svg>
-			</span>
-		</button>
+				<span>Filters</span>
+				{#if hasActiveFilters}
+					<span class="filter-badge">!</span>
+				{/if}
+				<span class="filter-arrow" class:rotated={isExpanded}>
+					<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+						<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+					</svg>
+				</span>
+			</button>
+		</div>
+		
+		<!-- Actions integrated into the search row -->
+		<div class="search-actions">
+			<div class="action-buttons">
+				<!-- Export JSON - arrow pointing UP (data going out) -->
+				<button class="btn btn-ghost btn-sm" onclick={onExportJson} title="Export as JSON">
+					<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+						<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+					</svg>
+					<span class="btn-text">JSON</span>
+				</button>
+				<!-- Export ZIP - arrow pointing UP (data going out) -->
+				<button class="btn btn-ghost btn-sm" onclick={onExportZip} title="Export as ZIP">
+					<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+						<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+					</svg>
+					<span class="btn-text">ZIP</span>
+				</button>
+				<!-- Import - arrow pointing DOWN (data coming in) -->
+				<button class="btn btn-ghost btn-sm" onclick={onImport} title="Import JSON/ZIP">
+					<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+						<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
+					</svg>
+					<span class="btn-text">Import</span>
+				</button>
+				<!-- Wipe data -->
+				<button class="btn btn-ghost btn-sm btn-danger-text" onclick={onWipeData} title="Wipe all data">
+					<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+						<path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+					</svg>
+				</button>
+			</div>
+			
+			<!-- Toggles -->
+			<div class="action-toggles">
+				<label class="toggle-label">
+					<input 
+						type="checkbox" 
+						checked={groupByVideo} 
+						onchange={(e) => onGroupByVideoChange?.(e.currentTarget.checked)} 
+					/>
+					<span>Group</span>
+				</label>
+				<label class="toggle-label">
+					<input 
+						type="checkbox" 
+						checked={hideSelectedFromList} 
+						onchange={(e) => onHideSelectedChange?.(e.currentTarget.checked)} 
+					/>
+					<span>Hide ✓</span>
+				</label>
+			</div>
+		</div>
 	</div>
 
 	{#if isExpanded}
@@ -208,10 +283,71 @@
 		margin-bottom: 1.5rem;
 	}
 
-	.search-bar {
+	.search-row {
 		display: flex;
 		gap: 1rem;
 		align-items: center;
+		flex-wrap: wrap;
+	}
+
+	.search-bar {
+		display: flex;
+		gap: 0.75rem;
+		align-items: center;
+		flex: 1;
+		min-width: 280px;
+	}
+
+	.search-actions {
+		display: flex;
+		gap: 0.75rem;
+		align-items: center;
+		flex-wrap: wrap;
+	}
+
+	.action-buttons {
+		display: flex;
+		gap: 0.25rem;
+		align-items: center;
+	}
+
+	.action-buttons .btn {
+		padding: 0.4rem 0.6rem;
+	}
+
+	.action-buttons .btn-text {
+		display: inline;
+	}
+
+	.action-toggles {
+		display: flex;
+		gap: 0.5rem;
+		align-items: center;
+	}
+
+	.toggle-label {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-size: 0.75rem;
+		color: var(--text-secondary);
+		cursor: pointer;
+		padding: 0.35rem 0.5rem;
+		border-radius: var(--radius-sm);
+		background: var(--bg-tertiary);
+		border: 1px solid transparent;
+		transition: all 0.2s ease;
+	}
+
+	.toggle-label:hover {
+		background: var(--bg-hover);
+		color: var(--text-primary);
+	}
+
+	.toggle-label input[type="checkbox"] {
+		width: 14px;
+		height: 14px;
+		accent-color: var(--accent-primary);
 	}
 
 	.filter-toggle {
@@ -388,6 +524,21 @@
 		transform: rotate(180deg);
 	}
 
+	@media (max-width: 900px) {
+		.search-row {
+			flex-direction: column;
+			align-items: stretch;
+		}
+
+		.search-bar {
+			min-width: unset;
+		}
+
+		.search-actions {
+			justify-content: space-between;
+		}
+	}
+
 	@media (max-width: 640px) {
 		.search-bar {
 			flex-direction: column;
@@ -403,6 +554,14 @@
 
 		.sort-bar {
 			flex-wrap: wrap;
+		}
+
+		.action-buttons .btn-text {
+			display: none;
+		}
+
+		.action-buttons .btn {
+			padding: 0.4rem;
 		}
 	}
 </style>
