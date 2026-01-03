@@ -8,6 +8,7 @@
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import DeleteConfirmModal from '$lib/components/DeleteConfirmModal.svelte';
 	import StatsBar from '$lib/components/StatsBar.svelte';
+	import QuotaProgressBar from '$lib/components/QuotaProgressBar.svelte';
 	import { YouTubeService } from '$lib/services/youtube';
 	import { saveComments, loadComments, deleteComments as deleteFromStorage, clearAllData } from '$lib/services/storage';
 	import {
@@ -122,14 +123,20 @@
 		<div class="container header-content">
 			<Logo size={36} />
 			
-			{#if $isAuthenticated}
-				<button class="btn btn-ghost" onclick={handleLogout}>
-					<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
-						<path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V4a1 1 0 00-1-1H3zm9 4a1 1 0 10-2 0v4a1 1 0 102 0V7zm-3 1a1 1 0 10-2 0v3a1 1 0 102 0V8z" clip-rule="evenodd" />
-					</svg>
-					Logout
-				</button>
-			{/if}
+			<div class="header-actions">
+				{#if $isAuthenticated || $comments.length > 0}
+					<QuotaProgressBar />
+				{/if}
+				
+				{#if $isAuthenticated}
+					<button class="btn btn-ghost" onclick={handleLogout}>
+						<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
+							<path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V4a1 1 0 00-1-1H3zm9 4a1 1 0 10-2 0v4a1 1 0 102 0V7zm-3 1a1 1 0 10-2 0v3a1 1 0 102 0V8z" clip-rule="evenodd" />
+						</svg>
+						Logout
+					</button>
+				{/if}
+			</div>
 		</div>
 	</header>
 
@@ -146,15 +153,12 @@
 			{:else if !$isAuthenticated && $comments.length === 0}
 				<div class="auth-section">
 					<div class="hero animate-slide-up">
-						<div class="hero-icon animate-spin-slow">✦</div>
 						<h1>Welcome to <span class="text-gradient">CommentSlash</span></h1>
 						<p class="hero-subtitle">
 							Find and destroy your YouTube comments with precision. Filter by likes, 
 							hunt down those embarrassing comments, and slash them away!
 						</p>
 					</div>
-
-					<OAuthGuide />
 
 					<div class="auth-form animate-fade-in">
 						<h2>Enter Your Access Token</h2>
@@ -188,6 +192,8 @@
 							All data is stored locally in your browser and auto-expires after 24 hours.
 						</p>
 					</div>
+
+					<OAuthGuide />
 				</div>
 			{:else}
 				<div class="dashboard">
@@ -285,6 +291,12 @@
 		padding-bottom: 1rem;
 	}
 
+	.header-actions {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
 	.main {
 		flex: 1;
 		padding: 2rem 0;
@@ -304,13 +316,7 @@
 
 	.hero {
 		text-align: center;
-		margin-bottom: 2.5rem;
-	}
-
-	.hero-icon {
-		font-size: 4rem;
 		margin-bottom: 1.5rem;
-		display: inline-block;
 	}
 
 	.hero h1 {
