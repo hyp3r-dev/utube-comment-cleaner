@@ -739,7 +739,7 @@
 						{#if showMobileSidebar}
 							<!-- svelte-ignore a11y_click_events_have_key_events -->
 							<!-- svelte-ignore a11y_no_static_element_interactions -->
-							<div class="sidebar-overlay" onclick={() => showMobileSidebar = false}></div>
+							<div class="sidebar-overlay" onclick={() => showMobileSidebar = false} onkeydown={(e) => e.key === 'Escape' && (showMobileSidebar = false)}></div>
 						{/if}
 					</div>
 				</div>
