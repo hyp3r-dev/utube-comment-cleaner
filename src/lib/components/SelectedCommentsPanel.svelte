@@ -434,18 +434,33 @@
 		.selected-panel {
 			min-height: 100%;
 			max-height: none;
-			border-radius: 0;
+			/* Glassy transparent look */
+			background: transparent;
+			border-radius: var(--radius-xl) 0 0 var(--radius-xl);
 			border: none;
-			border-left: 2px dashed var(--bg-tertiary);
 		}
 
 		.selected-panel.has-items {
-			border-left-style: solid;
-			border-left-color: var(--accent-primary);
+			/* Keep consistent look */
+			border: none;
+		}
+		
+		.panel-header {
+			/* Slightly more opaque header */
+			background: rgba(37, 37, 66, 0.6);
+			border-bottom: 1px solid rgba(99, 102, 241, 0.2);
 		}
 
 		.panel-body {
 			max-height: none;
+			/* Allow scrolling in the panel */
+			flex: 1;
+			overflow-y: auto;
+		}
+		
+		.panel-footer {
+			background: rgba(37, 37, 66, 0.6);
+			border-top: 1px solid rgba(99, 102, 241, 0.2);
 		}
 	}
 </style>

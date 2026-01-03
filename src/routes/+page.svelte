@@ -8,7 +8,8 @@
 	import SelectedCommentsPanel from '$lib/components/SelectedCommentsPanel.svelte';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import DeleteConfirmModal from '$lib/components/DeleteConfirmModal.svelte';
-	import StatsBar from '$lib/components/StatsBar.svelte';
+	import NavbarStats from '$lib/components/NavbarStats.svelte';
+	import YouTubeStatusIcon from '$lib/components/YouTubeStatusIcon.svelte';
 	import QuotaProgressBar from '$lib/components/QuotaProgressBar.svelte';
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
 	import { toasts } from '$lib/stores/toast';
@@ -46,8 +47,8 @@
 	let isDeleting = $state(false);
 	let deleteProgress = $state<{ deleted: number; total: number } | undefined>();
 	let youtubeService: YouTubeService | null = null;
-	let fileInput: HTMLInputElement;
-	let importJsonInput: HTMLInputElement;
+	let fileInput = $state<HTMLInputElement | null>(null);
+	let importJsonInput = $state<HTMLInputElement | null>(null);
 	let isDragging = $state(false);
 	let isEnriching = $state(false);
 	let enrichProgress = $state<{ enriched: number; total: number } | undefined>();
@@ -93,6 +94,23 @@
 	
 	const unenrichedCount = $derived(enrichmentStats().unenriched);
 	const enrichedCount = $derived(enrichmentStats().enriched);
+
+	// Count visible comments (excluding those in slash queue when hideSelectedFromList is enabled)
+	const visibleCommentsCount = $derived(() => {
+		if (!hideSelectedFromList) {
+			return $filteredComments.length;
+		}
+		return $filteredComments.filter(c => !$selectedIds.has(c.id)).length;
+	});
+
+	// YouTube connection status for the navbar icon
+	type ConnectionStatus = 'disconnected' | 'connected' | 'working' | 'error';
+	const youtubeConnectionStatus: ConnectionStatus = $derived.by(() => {
+		if (!$apiKey) return 'disconnected';
+		if (isEnriching) return 'working';
+		if ($error && $error.includes('token')) return 'error';
+		return 'connected';
+	});
 
 	onMount(async () => {
 		// Try to load cached comments
@@ -472,17 +490,34 @@
 		<div class="container header-content">
 			<Logo size={36} />
 			
+			<!-- Navbar stats - only show when we have comments -->
+			{#if $comments.length > 0}
+				<NavbarStats />
+			{/if}
+			
 			<div class="header-actions">
 				{#if $isAuthenticated || $comments.length > 0}
 					<QuotaProgressBar />
 				{/if}
 				
+				<!-- YouTube connection status icon - only show when we have comments -->
+				{#if $comments.length > 0}
+					<YouTubeStatusIcon 
+						status={youtubeConnectionStatus} 
+						onConnect={() => {
+							if (!$apiKey) {
+								// Scroll to connect section or show modal
+								document.querySelector('.token-connect-banner')?.scrollIntoView({ behavior: 'smooth' });
+							}
+						}} 
+					/>
+				{/if}
+				
 				{#if $isAuthenticated}
-					<button class="btn btn-ghost" onclick={handleLogout}>
+					<button class="btn btn-ghost btn-icon-only" onclick={handleLogout} title="Logout">
 						<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
 							<path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V4a1 1 0 00-1-1H3zm9 4a1 1 0 10-2 0v4a1 1 0 102 0V7zm-3 1a1 1 0 10-2 0v3a1 1 0 102 0V8z" clip-rule="evenodd" />
 						</svg>
-						Logout
 					</button>
 				{/if}
 			</div>
@@ -546,7 +581,7 @@
 									Drag & drop your Google Takeout export here
 								</p>
 								<p class="drop-subtext">Supports <strong>ZIP files</strong> or CSV • or click to browse</p>
-								<button class="btn btn-primary" onclick={() => fileInput.click()}>
+								<button class="btn btn-primary" onclick={() => fileInput?.click()}>
 									<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
 										<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd" />
 									</svg>
@@ -564,8 +599,6 @@
 				</div>
 			{:else}
 				<div class="dashboard">
-					<StatsBar />
-
 					{#if $error}
 						<div class="error-message mb-4">
 							<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
@@ -627,54 +660,25 @@
 						</div>
 					{/if}
 
-					<!-- Action bar with export/import -->
-					<div class="action-bar">
-						<div class="action-group">
-							<button class="btn btn-ghost btn-sm" onclick={() => handleExportComments(false)}>
-								<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-									<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
-								</svg>
-								Export JSON
-							</button>
-							<button class="btn btn-ghost btn-sm" onclick={() => handleExportComments(true)}>
-								<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-									<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
-								</svg>
-								Export ZIP
-							</button>
-							<input
-								type="file"
-								accept=".json,.zip"
-								onchange={handleImportJson}
-								bind:this={importJsonInput}
-								class="hidden-input"
-							/>
-							<button class="btn btn-ghost btn-sm" onclick={() => importJsonInput.click()}>
-								<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-									<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
-								</svg>
-								Import
-							</button>
-							<button class="btn btn-ghost btn-sm btn-danger-text" onclick={() => showWipeConfirm = true}>
-								<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-									<path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
-								</svg>
-								Wipe Data
-							</button>
-						</div>
-						<div class="action-group">
-							<label class="toggle-label">
-								<input type="checkbox" bind:checked={groupByVideo} />
-								<span>Group by video</span>
-							</label>
-							<label class="toggle-label">
-								<input type="checkbox" bind:checked={hideSelectedFromList} />
-								<span>Hide selected</span>
-							</label>
-						</div>
-					</div>
+					<!-- Hidden file input for import -->
+					<input
+						type="file"
+						accept=".json,.zip"
+						onchange={handleImportJson}
+						bind:this={importJsonInput}
+						class="hidden-input"
+					/>
 
-					<FilterPanel />
+					<FilterPanel 
+						{groupByVideo}
+						{hideSelectedFromList}
+						onGroupByVideoChange={(v) => groupByVideo = v}
+						onHideSelectedChange={(v) => hideSelectedFromList = v}
+						onExportJson={() => handleExportComments(false)}
+						onExportZip={() => handleExportComments(true)}
+						onImport={() => importJsonInput?.click()}
+						onWipeData={() => showWipeConfirm = true}
+					/>
 
 					<div class="dashboard-layout">
 						<div class="comments-section">
@@ -682,7 +686,7 @@
 								<h2>Your Comments</h2>
 								<div class="header-actions">
 									<button class="btn btn-ghost" onclick={selectAllFiltered}>
-										Select All Visible ({$filteredComments.length})
+										Select All Visible ({visibleCommentsCount()})
 									</button>
 								</div>
 							</div>
@@ -723,13 +727,18 @@
 							</div>
 						</div>
 
-						<aside class="sidebar" class:sidebar-expanded={showMobileSidebar}>
-							<div class="sidebar-toggle" onclick={() => showMobileSidebar = !showMobileSidebar}>
-								<span class="queue-badge">{$selectedComments.length}</span>
+						<aside class="sidebar" class:sidebar-expanded={showMobileSidebar} class:has-items={$selectedComments.length > 0}>
+							<button 
+								class="sidebar-toggle" 
+								onclick={() => showMobileSidebar = !showMobileSidebar}
+								aria-label={showMobileSidebar ? 'Close slash queue' : 'Open slash queue'}
+								aria-expanded={showMobileSidebar}
+							>
+								<span class="queue-badge" class:has-count={$selectedComments.length > 0}>{$selectedComments.length}</span>
 								<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" class:flipped={showMobileSidebar}>
 									<path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
 								</svg>
-							</div>
+							</button>
 							<div class="sidebar-content">
 								<SelectedCommentsPanel onDeleteRequest={() => showDeleteModal = true} />
 							</div>
@@ -789,11 +798,23 @@
 <ToastContainer />
 
 <style>
+	/* 
+	 * Safari-compatible viewport heights using progressive enhancement.
+	 * Older browsers use 100vh, modern browsers override with 100dvh.
+	 * This pattern works because browsers ignore properties they don't understand,
+	 * and later declarations override earlier ones.
+	 */
+	:global(:root) {
+		--app-height: 100vh; /* Fallback for older browsers */
+		--app-height: 100dvh; /* Dynamic viewport height for modern browsers (Safari, mobile) */
+	}
+
 	.app {
-		height: 100vh;
+		height: var(--app-height);
+		min-height: var(--app-height);
+		max-height: var(--app-height);
 		display: flex;
 		flex-direction: column;
-		overflow: hidden;
 	}
 
 	.header {
@@ -802,6 +823,7 @@
 		z-index: 100;
 		background: rgba(15, 15, 26, 0.95);
 		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
 		border-bottom: 1px solid var(--bg-tertiary);
 		flex-shrink: 0;
 	}
@@ -821,18 +843,18 @@
 	}
 
 	.main {
-		flex: 1;
+		flex: 1 1 0;
 		display: flex;
 		flex-direction: column;
-		overflow: hidden;
+		min-height: 0; /* Critical for flex children to shrink properly */
 		padding: 1rem 0;
 	}
 
 	.main > .container {
-		flex: 1;
+		flex: 1 1 0;
 		display: flex;
 		flex-direction: column;
-		overflow: hidden;
+		min-height: 0; /* Allow shrinking */
 	}
 
 	.loading-section {
@@ -912,27 +934,38 @@
 		line-height: 1.5;
 	}
 
+	.dashboard {
+		flex: 1 1 0;
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+	}
+
 	.dashboard-layout {
 		display: grid;
 		grid-template-columns: 1fr 350px;
 		gap: 1.5rem;
-		flex: 1;
+		flex: 1 1 0;
 		min-height: 0;
-		overflow: hidden;
 		position: relative;
 	}
 
 	.comments-section {
 		min-width: 0;
+		min-height: 0;
 		display: flex;
 		flex-direction: column;
-		overflow: hidden;
 	}
 
 	.comments-scroll-container {
-		flex: 1;
+		flex: 1 1 0;
 		overflow-y: auto;
+		overflow-x: hidden;
 		padding-right: 0.5rem;
+		padding-bottom: 1rem;
+		/* Smooth scrolling for better UX */
+		scroll-behavior: smooth;
+		-webkit-overflow-scrolling: touch;
 	}
 
 	.section-header {
@@ -949,25 +982,28 @@
 		color: var(--text-primary);
 	}
 
-	.comments-grid {
-		display: grid;
-		gap: 1rem;
-	}
-
 	.sidebar {
 		display: flex;
 		flex-direction: column;
-		overflow: hidden;
+		min-height: 0;
 		position: relative;
+		border-radius: var(--radius-xl);
+		overflow: hidden;
 	}
 
 	.sidebar-toggle {
 		display: none;
+		border: none;
+		cursor: pointer;
+	}
+
+	.queue-badge {
+		display: none;
 	}
 
 	.sidebar-content {
-		flex: 1;
-		overflow: hidden;
+		flex: 1 1 0;
+		min-height: 0;
 		display: flex;
 		flex-direction: column;
 	}
@@ -1148,86 +1184,140 @@
 			grid-template-columns: 1fr;
 		}
 
+		/* Modern glassy sliding sidebar */
 		.sidebar {
 			position: fixed;
 			top: 0;
 			right: 0;
 			bottom: 0;
-			width: 350px;
+			width: 380px;
 			max-width: 90vw;
 			z-index: 200;
-			background: var(--bg-primary);
-			transform: translateX(calc(100% - 50px));
-			transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-			border-left: 1px solid var(--bg-tertiary);
-			box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
+			/* Glassy transparent background */
+			background: rgba(15, 15, 26, 0.85);
+			backdrop-filter: blur(20px) saturate(180%);
+			-webkit-backdrop-filter: blur(20px) saturate(180%);
+			/* Slide completely off screen when hidden */
+			transform: translateX(100%);
+			transition: transform 0.4s cubic-bezier(0.32, 0.72, 0, 1);
+			border-left: 1px solid rgba(99, 102, 241, 0.2);
+			box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
+			border-radius: var(--radius-xl) 0 0 var(--radius-xl);
 		}
-
+		
+		/* Peek effect when there are items but sidebar is closed */
+		.sidebar.has-items:not(.sidebar-expanded) {
+			transform: translateX(calc(100% - 12px));
+		}
+		
+		/* Fully expanded state */
 		.sidebar.sidebar-expanded {
 			transform: translateX(0);
 		}
 
+		/* Toggle button - sleek pill design */
 		.sidebar-toggle {
 			display: flex;
 			align-items: center;
 			justify-content: center;
-			gap: 0.25rem;
+			gap: 0.35rem;
 			position: absolute;
-			left: 0;
+			left: -48px;
 			top: 50%;
 			transform: translateY(-50%);
-			width: 50px;
-			height: 80px;
-			background: var(--bg-tertiary);
-			border-radius: var(--radius-md) 0 0 var(--radius-md);
+			width: auto;
+			min-width: 48px;
+			height: 48px;
+			padding: 0 0.75rem;
+			/* Glassy toggle button */
+			background: rgba(99, 102, 241, 0.15);
+			backdrop-filter: blur(12px);
+			-webkit-backdrop-filter: blur(12px);
+			border: 1px solid rgba(99, 102, 241, 0.3);
+			border-radius: 24px 0 0 24px;
 			cursor: pointer;
 			color: var(--text-primary);
-			flex-direction: column;
-			transition: background 0.2s ease;
+			flex-direction: row;
+			transition: all 0.3s cubic-bezier(0.32, 0.72, 0, 1);
 			z-index: 1;
+			box-shadow: -4px 0 16px rgba(0, 0, 0, 0.3);
 		}
-
+		
 		.sidebar-toggle:hover {
-			background: var(--bg-hover);
+			background: rgba(99, 102, 241, 0.25);
+			border-color: rgba(99, 102, 241, 0.5);
+			transform: translateY(-50%) translateX(-4px);
+		}
+		
+		.sidebar-toggle:focus-visible {
+			outline: 2px solid var(--accent-primary);
+			outline-offset: 2px;
 		}
 
 		.sidebar-toggle svg {
 			transition: transform 0.3s ease;
+			flex-shrink: 0;
 		}
 
 		.sidebar-toggle svg.flipped {
 			transform: rotate(180deg);
 		}
 
+		/* Queue badge - only show when there are items */
 		.queue-badge {
-			background: var(--accent-primary);
+			display: none;
+			background: var(--gradient-primary);
 			color: white;
 			font-size: 0.75rem;
 			font-weight: 700;
-			padding: 0.15rem 0.5rem;
+			padding: 0.2rem 0.6rem;
 			border-radius: 9999px;
-			min-width: 20px;
+			min-width: 22px;
 			text-align: center;
+			box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+			animation: badgePulse 2s ease-in-out infinite;
+		}
+		
+		.queue-badge.has-count {
+			display: inline-block;
+		}
+		
+		@keyframes badgePulse {
+			0%, 100% { box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4); }
+			50% { box-shadow: 0 2px 16px rgba(99, 102, 241, 0.6); }
 		}
 
+		/* Sidebar content - no left margin since toggle is outside */
 		.sidebar-content {
-			margin-left: 50px;
 			height: 100%;
-			overflow: hidden;
+			min-height: 0;
+			display: flex;
+			flex-direction: column;
 		}
 
+		/* Overlay with smooth fade */
 		.sidebar-overlay {
 			display: block;
 			position: fixed;
 			inset: 0;
-			background: rgba(0, 0, 0, 0.5);
+			background: rgba(0, 0, 0, 0.6);
+			backdrop-filter: blur(4px);
+			-webkit-backdrop-filter: blur(4px);
 			z-index: 150;
-			animation: fadeIn 0.2s ease;
+			animation: overlayFadeIn 0.3s ease forwards;
 		}
 
-		@keyframes fadeIn {
-			from { opacity: 0; }
-			to { opacity: 1; }
+		@keyframes overlayFadeIn {
+			from { 
+				opacity: 0;
+				backdrop-filter: blur(0px);
+				-webkit-backdrop-filter: blur(0px);
+			}
+			to { 
+				opacity: 1;
+				backdrop-filter: blur(4px);
+				-webkit-backdrop-filter: blur(4px);
+			}
 		}
 	}
 
@@ -1275,90 +1365,41 @@
 		font-size: 0.9rem;
 	}
 
-	/* Action bar */
-	.action-bar {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		flex-wrap: wrap;
-		gap: 1rem;
-		margin-bottom: 1rem;
-		padding: 0.75rem 1rem;
-		background: var(--bg-card);
-		border-radius: var(--radius-md);
-		border: 1px solid var(--bg-tertiary);
-	}
-
-	.action-group {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		flex-wrap: wrap;
-	}
-
-	.btn-sm {
-		padding: 0.4rem 0.75rem;
-		font-size: 0.8rem;
-	}
-
 	.hidden-input {
 		display: none;
 	}
 
-	.toggle-label {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		font-size: 0.8rem;
-		color: var(--text-secondary);
-		cursor: pointer;
-		padding: 0.35rem 0.75rem;
-		border-radius: var(--radius-sm);
-		transition: all 0.2s ease;
+	/* Icon-only button style for navbar */
+	.btn-icon-only {
+		padding: 0.5rem;
 	}
 
-	.toggle-label:hover {
-		background: var(--bg-tertiary);
-		color: var(--text-primary);
-	}
-
-	.toggle-label input[type="checkbox"] {
-		width: 16px;
-		height: 16px;
-		accent-color: var(--accent-primary);
-	}
-
-	/* Video groups */
+	/* 
+	 * Video groups spacing - 1rem gap creates visual separation between 
+	 * grouped video containers and standalone comment cards.
+	 */
 	.video-groups {
 		display: flex;
 		flex-direction: column;
-		gap: 0;
+		gap: 1rem;
+	}
+	
+	/* 
+	 * Comments grid (used when "Group by video" is disabled) - consistent 
+	 * 1rem gap between individual comment cards.
+	 */
+	.comments-grid {
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
 	}
 
 	@media (max-width: 640px) {
-		.action-bar {
-			flex-direction: column;
-			align-items: stretch;
-		}
-
-		.action-group {
-			justify-content: center;
-		}
 
 		.enrich-banner {
 			flex-direction: column;
 			align-items: stretch;
 		}
-	}
-
-	/* Wipe button danger text */
-	.btn-danger-text {
-		color: var(--error);
-	}
-
-	.btn-danger-text:hover {
-		background: rgba(239, 68, 68, 0.1);
-		color: var(--error);
 	}
 
 	/* Wipe confirmation modal */

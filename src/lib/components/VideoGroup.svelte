@@ -161,11 +161,11 @@
 	}
 	
 	.group-content {
-		padding: 1rem;
+		padding: 1.25rem;
 		display: flex;
 		flex-direction: column;
-		gap: 0.75rem;
-		background: rgba(0, 0, 0, 0.1);
+		gap: 0.875rem;
+		background: rgba(0, 0, 0, 0.15);
 		animation: slideDown 0.2s ease;
 	}
 	

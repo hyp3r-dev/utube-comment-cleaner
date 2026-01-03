@@ -60,6 +60,7 @@ body {
 	background: var(--gradient-dark);
 	color: var(--text-primary);
 	min-height: 100vh;
+	min-height: 100dvh; /* Modern viewport unit for mobile Safari */
 	overflow-x: hidden;
 }
 
@@ -176,6 +177,22 @@ button {
 	border-radius: 50%;
 	width: 2.5rem;
 	height: 2.5rem;
+}
+
+/* Danger text variant for ghost buttons */
+.btn-danger-text {
+	color: var(--error);
+}
+
+.btn-danger-text:hover {
+	background: rgba(239, 68, 68, 0.1);
+	color: var(--error);
+}
+
+/* Small button variant */
+.btn-sm {
+	padding: 0.4rem 0.75rem;
+	font-size: 0.8rem;
 }
 
 /* Form elements */
