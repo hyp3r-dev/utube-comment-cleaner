@@ -19,14 +19,15 @@ interface TakeoutComment {
 
 /**
  * Extract video ID from YouTube URL
+ * YouTube video IDs are exactly 11 characters: [a-zA-Z0-9_-]
  */
 function extractVideoId(url: string): string | null {
 	if (!url) return null;
 	
-	// Handle various YouTube URL formats
+	// Handle various YouTube URL formats - video IDs are exactly 11 chars
 	const patterns = [
-		/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\s?#]+)/,
-		/youtube\.com\/watch\?.*v=([^&\s]+)/
+		/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+		/youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]{11})/
 	];
 	
 	for (const pattern of patterns) {
@@ -52,7 +53,31 @@ function generateCommentId(text: string, videoId: string, timestamp: string): st
 }
 
 /**
+ * Clean comment text by removing video title and metadata
+ */
+function cleanCommentText(rawText: string, videoTitle?: string): string {
+	let text = rawText.trim();
+	
+	// Remove common metadata patterns
+	// Google Takeout often includes "Commented on: Video Title" or similar
+	text = text.replace(/^Commented\s+on:?\s*/i, '');
+	text = text.replace(/^Comment\s+on:?\s*/i, '');
+	
+	// Remove video title if present at the start
+	if (videoTitle && text.startsWith(videoTitle)) {
+		text = text.substring(videoTitle.length).trim();
+	}
+	
+	// Remove timestamp patterns often appended
+	text = text.replace(/\s*\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\s*$/g, '');
+	text = text.replace(/\s*\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2}\s*$/g, '');
+	
+	return text.trim();
+}
+
+/**
  * Parse Google Takeout HTML export (my-comments.html)
+ * Google Takeout uses a specific structure with outer-cell/content-cell classes
  */
 export function parseTakeoutHTML(htmlContent: string): YouTubeComment[] {
 	const comments: YouTubeComment[] = [];
@@ -61,20 +86,58 @@ export function parseTakeoutHTML(htmlContent: string): YouTubeComment[] {
 	const parser = new DOMParser();
 	const doc = parser.parseFromString(htmlContent, 'text/html');
 	
-	// Find all comment entries - Takeout typically uses specific class names or structure
-	// The structure varies but usually contains divs with comment text and video links
-	const commentContainers = doc.querySelectorAll('.content-cell, .outer-cell, [class*="comment"], li');
+	// Google Takeout HTML structure typically uses:
+	// - outer-cell containers for each activity
+	// - content-cell for the actual content
+	// First try the specific Takeout structure
+	let commentContainers = doc.querySelectorAll('.outer-cell.mdl-cell');
+	
+	// Fallback to more generic selectors if specific ones don't match
+	if (commentContainers.length === 0) {
+		commentContainers = doc.querySelectorAll('.content-cell, [class*="comment"], li');
+	}
 	
 	commentContainers.forEach((container) => {
-		const textElement = container.querySelector('a[href*="youtube.com/watch"], a[href*="youtu.be"]');
-		if (!textElement) return;
+		// Look for YouTube video link
+		const linkElement = container.querySelector('a[href*="youtube.com/watch"], a[href*="youtu.be"]');
+		if (!linkElement) return;
 		
-		const videoUrl = textElement.getAttribute('href') || '';
+		const videoUrl = linkElement.getAttribute('href') || '';
 		const videoId = extractVideoId(videoUrl);
 		if (!videoId) return;
 		
-		// Get the comment text - usually in adjacent element or parent
-		const commentText = container.textContent?.trim() || '';
+		const videoTitle = linkElement.textContent?.trim();
+		
+		// Try to find the comment text in a content-cell or the container itself
+		const contentCell = container.querySelector('.content-cell') || container;
+		
+		// Get text content but try to isolate just the comment
+		// The structure often has the comment as direct text node before/after links
+		let commentText = '';
+		
+		// Try to get text that's not inside anchor tags (which are video titles)
+		const walker = document.createTreeWalker(
+			contentCell,
+			NodeFilter.SHOW_TEXT,
+			null
+		);
+		
+		let node;
+		while ((node = walker.nextNode())) {
+			const parent = node.parentElement;
+			if (parent && parent.tagName !== 'A') {
+				const text = node.textContent?.trim();
+				if (text && text.length > 5) { // Skip very short text fragments
+					commentText = text;
+					break; // Take the first substantial text block
+				}
+			}
+		}
+		
+		// If no isolated text found, fall back to cleaning the full text
+		if (!commentText) {
+			commentText = cleanCommentText(contentCell.textContent || '', videoTitle);
+		}
 		
 		// Try to extract timestamp
 		const timeElement = container.querySelector('time, .timestamp, [class*="date"]');
@@ -94,7 +157,7 @@ export function parseTakeoutHTML(htmlContent: string): YouTubeComment[] {
 				publishedAt: timestamp,
 				updatedAt: timestamp,
 				videoId,
-				videoTitle: textElement.textContent?.trim(),
+				videoTitle: videoTitle,
 				videoPrivacyStatus: 'unknown',
 				moderationStatus: 'published',
 				canRate: false,

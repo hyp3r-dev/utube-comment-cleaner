@@ -90,7 +90,7 @@
 			const importedComments = parseTakeoutFile(content, file.name);
 			
 			if (importedComments.length === 0) {
-				error.set('No comments found in the uploaded file. Make sure you uploaded a Google Takeout comments file (my-comments.html or comments.json).');
+				error.set('No comments found in the uploaded file. Make sure you uploaded the correct Google Takeout file (typically "my-comments.html" from the YouTube export folder).');
 				isLoading.set(false);
 				return;
 			}
@@ -279,9 +279,9 @@
 							<div class="drop-zone-content">
 								<div class="drop-icon">📁</div>
 								<p class="drop-text">
-									Drag & drop your <strong>my-comments.html</strong> file here
+									Drag & drop your Google Takeout comments file here
 								</p>
-								<p class="drop-subtext">or click to browse</p>
+								<p class="drop-subtext">Typically named <strong>my-comments.html</strong> • or click to browse</p>
 								<button class="btn btn-primary" onclick={() => fileInput.click()}>
 									<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
 										<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd" />
