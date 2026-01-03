@@ -20,6 +20,8 @@ export interface YouTubeComment {
 	totalReplyCount?: number;
 	// Externally deleted flag (detected when merging new takeout)
 	isExternallyDeleted?: boolean;
+	// Flag for comments that couldn't be enriched (not found in YouTube API)
+	isUnenrichable?: boolean;
 }
 
 export interface CommentFilters {

@@ -185,6 +185,12 @@
 		width: 100%;
 	}
 
+	/* Override global focus styles - the wrapper handles focus state */
+	.search-input:focus {
+		box-shadow: none;
+		border-color: transparent;
+	}
+
 	.search-input::placeholder {
 		color: var(--text-muted);
 	}

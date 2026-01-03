@@ -48,25 +48,6 @@
 		return text.slice(0, maxLength) + '...';
 	}
 
-	function getPrivacyBadge(status?: string) {
-		switch (status) {
-			case 'public': return { text: 'Public', class: 'badge-success' };
-			case 'private': return { text: 'Private', class: 'badge-error' };
-			case 'unlisted': return { text: 'Unlisted', class: 'badge-warning' };
-			default: return { text: 'Unknown', class: 'badge-info' };
-		}
-	}
-
-	function getModerationBadge(status?: string) {
-		switch (status) {
-			case 'published': return { text: 'Published', class: 'badge-success' };
-			case 'heldForReview': return { text: 'Held', class: 'badge-warning' };
-			case 'likelySpam': return { text: 'Spam', class: 'badge-error' };
-			case 'rejected': return { text: 'Rejected', class: 'badge-error' };
-			default: return { text: 'Unknown', class: 'badge-info' };
-		}
-	}
-
 	function handleCardClick(e: MouseEvent) {
 		// Don't toggle selection, just expand/collapse
 		e.stopPropagation();
@@ -84,9 +65,6 @@
 		e.dataTransfer!.effectAllowed = 'move';
 		onDragStart?.();
 	}
-
-	const privacyBadge = $derived(getPrivacyBadge(comment.videoPrivacyStatus));
-	const moderationBadge = $derived(getModerationBadge(comment.moderationStatus));
 	
 	// Check if text is long enough to need expansion
 	const needsExpansion = $derived(comment.textDisplay.length > 200 || comment.textOriginal.length > 200);
@@ -138,8 +116,6 @@
 		</button>
 		
 		<div class="badges">
-			<span class="badge {privacyBadge.class}">{privacyBadge.text}</span>
-			<span class="badge {moderationBadge.class}">{moderationBadge.text}</span>
 			{#if comment.isEnriched}
 				<span class="badge badge-enriched" title="Enriched with YouTube API data">✓ API</span>
 			{/if}

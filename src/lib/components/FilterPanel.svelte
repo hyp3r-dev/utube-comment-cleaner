@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { filters, sortField, sortOrder, searchQuery, resetFilters } from '$lib/stores/comments';
+	import { filters, sortField, sortOrder, resetFilters } from '$lib/stores/comments';
 	import SearchBar from './SearchBar.svelte';
-	import type { CommentFilters, SortField, SortOrder } from '$lib/types/comment';
+	import type { SortField } from '$lib/types/comment';
 
 	let {
 		groupByVideo = true,
@@ -25,44 +25,11 @@
 
 	let isExpanded = $state(false);
 
-	const videoPrivacyOptions = [
-		{ value: 'public', label: 'Public' },
-		{ value: 'private', label: 'Private' },
-		{ value: 'unlisted', label: 'Unlisted' },
-		{ value: 'unknown', label: 'Unknown' }
-	] as const;
-
-	const moderationOptions = [
-		{ value: 'published', label: 'Published' },
-		{ value: 'heldForReview', label: 'Held for Review' },
-		{ value: 'likelySpam', label: 'Spam' },
-		{ value: 'rejected', label: 'Rejected' },
-		{ value: 'unknown', label: 'Unknown' }
-	] as const;
-
 	const sortOptions = [
 		{ value: 'likeCount', label: 'Likes' },
 		{ value: 'publishedAt', label: 'Date' },
 		{ value: 'textLength', label: 'Length' }
 	] as const;
-
-	function togglePrivacy(value: CommentFilters['videoPrivacy'][number]) {
-		filters.update(f => {
-			const newPrivacy = f.videoPrivacy.includes(value)
-				? f.videoPrivacy.filter(v => v !== value)
-				: [...f.videoPrivacy, value];
-			return { ...f, videoPrivacy: newPrivacy };
-		});
-	}
-
-	function toggleModeration(value: CommentFilters['moderationStatus'][number]) {
-		filters.update(f => {
-			const newStatus = f.moderationStatus.includes(value)
-				? f.moderationStatus.filter(v => v !== value)
-				: [...f.moderationStatus, value];
-			return { ...f, moderationStatus: newStatus };
-		});
-	}
 
 	function handleSortChange(field: SortField) {
 		if ($sortField === field) {
@@ -75,8 +42,6 @@
 	
 	// Check if any filters are active
 	const hasActiveFilters = $derived(
-		$filters.videoPrivacy.length !== 4 ||
-		$filters.moderationStatus.length !== 5 ||
 		$filters.minCharacters > 0 ||
 		$filters.maxCharacters < 10000 ||
 		$filters.minLikes > 0 ||
@@ -165,36 +130,6 @@
 
 	{#if isExpanded}
 		<div class="filter-content">
-			<div class="filter-section">
-				<h4>Video Privacy</h4>
-				<div class="chip-group">
-					{#each videoPrivacyOptions as option}
-						<button
-							class="chip"
-							class:active={$filters.videoPrivacy.includes(option.value)}
-							onclick={() => togglePrivacy(option.value)}
-						>
-							{option.label}
-						</button>
-					{/each}
-				</div>
-			</div>
-
-			<div class="filter-section">
-				<h4>Comment Status</h4>
-				<div class="chip-group">
-					{#each moderationOptions as option}
-						<button
-							class="chip"
-							class:active={$filters.moderationStatus.includes(option.value)}
-							onclick={() => toggleModeration(option.value)}
-						>
-							{option.label}
-						</button>
-					{/each}
-				</div>
-			</div>
-
 			<div class="filter-section">
 				<h4>Character Count</h4>
 				<div class="range-inputs">
@@ -418,32 +353,6 @@
 		text-transform: uppercase;
 		letter-spacing: 0.05em;
 		margin-bottom: 0.75rem;
-	}
-
-	.chip-group {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.5rem;
-	}
-
-	.chip {
-		padding: 0.35rem 0.75rem;
-		border-radius: 9999px;
-		background: var(--bg-tertiary);
-		color: var(--text-secondary);
-		font-size: 0.8rem;
-		font-weight: 500;
-		transition: all 0.2s ease;
-	}
-
-	.chip:hover {
-		background: var(--bg-hover);
-		color: var(--text-primary);
-	}
-
-	.chip.active {
-		background: var(--accent-primary);
-		color: white;
 	}
 
 	.range-inputs {
