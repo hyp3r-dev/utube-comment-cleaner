@@ -50,7 +50,6 @@
 	const totalCount = $derived($comments.length);
 	const hasQuery = $derived($searchQuery.length > 0);
 	const hasLocalQuery = $derived(localQuery.length > 0);
-	const queryChanged = $derived(localQuery !== $searchQuery);
 </script>
 
 <div class="search-container" class:focused={isFocused}>
@@ -106,7 +105,7 @@
 			
 			<button 
 				class="search-btn" 
-				class:highlight={queryChanged && hasLocalQuery}
+				class:highlight={localQuery !== $searchQuery && hasLocalQuery}
 				onclick={executeSearch} 
 				aria-label="Search"
 				type="button"

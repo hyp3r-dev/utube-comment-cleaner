@@ -415,14 +415,12 @@ function parseCommentTextField(value: string): string {
 		
 		// Second attempt: fix unescaped control characters and retry
 		try {
-			// Replace actual newlines/tabs/etc with their escaped versions
+			// Replace unescaped control characters with their escaped versions
+			// Use negative lookbehind to avoid double-escaping already-escaped sequences
 			const fixed = trimmed
-				.replace(/([^\\])\n/g, '$1\\n')
-				.replace(/([^\\])\r/g, '$1\\r')
-				.replace(/([^\\])\t/g, '$1\\t')
-				.replace(/^\n/g, '\\n')
-				.replace(/^\r/g, '\\r')
-				.replace(/^\t/g, '\\t');
+				.replace(/(?<!\\)\n/g, '\\n')
+				.replace(/(?<!\\)\r/g, '\\r')
+				.replace(/(?<!\\)\t/g, '\\t');
 			const wrapped = '[' + fixed + ']';
 			const parsed = JSON.parse(wrapped);
 			if (Array.isArray(parsed)) {
