@@ -589,4 +589,193 @@ export class YouTubeService {
 
 		return { success, failed };
 	}
+
+	/**
+	 * Enrich comments with data from YouTube API using comments.list
+	 * Batches requests in groups of 50 (API limit)
+	 * Returns enriched comments and list of missing comment IDs (deleted/unavailable)
+	 */
+	async enrichComments(
+		comments: YouTubeComment[],
+		onProgress?: (enriched: number, total: number) => void
+	): Promise<{ enriched: YouTubeComment[]; missing: string[] }> {
+		const enrichedComments: YouTubeComment[] = [];
+		const missingIds: string[] = [];
+		const commentIds = comments.map(c => c.id);
+		const commentMap = new Map(comments.map(c => [c.id, c]));
+		
+		const batchSize = 50;
+		let processed = 0;
+		
+		for (let i = 0; i < commentIds.length; i += batchSize) {
+			const batch = commentIds.slice(i, i + batchSize);
+			
+			try {
+				const url = new URL(`${YOUTUBE_API_BASE}/comments`);
+				url.searchParams.set('part', 'snippet');
+				url.searchParams.set('id', batch.join(','));
+				url.searchParams.set('textFormat', 'html');
+				
+				const response = await fetch(url.toString(), {
+					headers: {
+						'Authorization': `Bearer ${this.accessToken}`
+					}
+				});
+				
+				// Track quota usage
+				quotaStore.addUsage(QUOTA_COSTS.commentsList);
+				
+				if (!response.ok) {
+					const errorData = await response.json() as YouTubeErrorResponse;
+					this.parseAndThrowError(errorData);
+				}
+				
+				const data = await response.json();
+				const returnedIds = new Set<string>();
+				
+				// Process returned comments
+				for (const item of data.items || []) {
+					const id = item.id;
+					returnedIds.add(id);
+					const original = commentMap.get(id);
+					
+					if (original) {
+						// Merge API data with existing comment
+						enrichedComments.push({
+							...original,
+							textDisplay: item.snippet?.textDisplay || original.textDisplay,
+							textOriginal: item.snippet?.textOriginal || original.textOriginal,
+							likeCount: item.snippet?.likeCount ?? original.likeCount,
+							publishedAt: item.snippet?.publishedAt || original.publishedAt,
+							updatedAt: item.snippet?.updatedAt || original.updatedAt,
+							authorDisplayName: item.snippet?.authorDisplayName || original.authorDisplayName,
+							authorProfileImageUrl: item.snippet?.authorProfileImageUrl || original.authorProfileImageUrl,
+							authorChannelUrl: item.snippet?.authorChannelUrl || original.authorChannelUrl,
+							canRate: item.snippet?.canRate ?? original.canRate,
+							viewerRating: item.snippet?.viewerRating || original.viewerRating,
+							isEnriched: true
+						});
+					}
+				}
+				
+				// Mark comments not returned as missing (deleted/unavailable)
+				for (const id of batch) {
+					if (!returnedIds.has(id)) {
+						missingIds.push(id);
+						// Keep original comment but don't mark as enriched
+						const original = commentMap.get(id);
+						if (original) {
+							enrichedComments.push(original);
+						}
+					}
+				}
+				
+			} catch (e) {
+				// If batch fails, keep originals without enrichment
+				for (const id of batch) {
+					const original = commentMap.get(id);
+					if (original) {
+						enrichedComments.push(original);
+					}
+				}
+				
+				// Re-throw if it's a critical error
+				if (e instanceof QuotaExceededError || e instanceof TokenExpiredError) {
+					throw e;
+				}
+			}
+			
+			processed += batch.length;
+			onProgress?.(processed, commentIds.length);
+			
+			// Rate limit between batches
+			await this.delay(this.rateLimitDelay);
+		}
+		
+		return { enriched: enrichedComments, missing: missingIds };
+	}
+
+	/**
+	 * Fetch video details for comments to get video titles and reply counts
+	 * Uses commentThreads.list to get reply counts for top-level comments
+	 */
+	async fetchCommentThreadDetails(
+		comments: YouTubeComment[],
+		onProgress?: (processed: number, total: number) => void
+	): Promise<YouTubeComment[]> {
+		// Filter to only top-level comments (no parentId)
+		const topLevelComments = comments.filter(c => !c.parentId);
+		const replyComments = comments.filter(c => c.parentId);
+		
+		const enrichedComments: Map<string, YouTubeComment> = new Map();
+		const batchSize = 50;
+		let processed = 0;
+		
+		// Process top-level comments to get reply counts
+		for (let i = 0; i < topLevelComments.length; i += batchSize) {
+			const batch = topLevelComments.slice(i, i + batchSize);
+			const ids = batch.map(c => c.id);
+			
+			try {
+				const url = new URL(`${YOUTUBE_API_BASE}/commentThreads`);
+				url.searchParams.set('part', 'snippet,replies');
+				url.searchParams.set('id', ids.join(','));
+				
+				const response = await fetch(url.toString(), {
+					headers: {
+						'Authorization': `Bearer ${this.accessToken}`
+					}
+				});
+				
+				quotaStore.addUsage(QUOTA_COSTS.commentThreadsList);
+				
+				if (response.ok) {
+					const data = await response.json();
+					
+					for (const item of data.items || []) {
+						const commentId = item.snippet?.topLevelComment?.id;
+						const original = batch.find(c => c.id === commentId);
+						
+						if (original) {
+							enrichedComments.set(commentId, {
+								...original,
+								totalReplyCount: item.snippet?.totalReplyCount || 0
+							});
+						}
+					}
+				}
+				
+				// Add any that weren't returned
+				for (const comment of batch) {
+					if (!enrichedComments.has(comment.id)) {
+						enrichedComments.set(comment.id, comment);
+					}
+				}
+				
+			} catch (e) {
+				// On error, keep originals
+				for (const comment of batch) {
+					if (!enrichedComments.has(comment.id)) {
+						enrichedComments.set(comment.id, comment);
+					}
+				}
+				
+				if (e instanceof QuotaExceededError || e instanceof TokenExpiredError) {
+					throw e;
+				}
+			}
+			
+			processed += batch.length;
+			onProgress?.(processed, topLevelComments.length + replyComments.length);
+			
+			await this.delay(this.rateLimitDelay);
+		}
+		
+		// Add reply comments as-is
+		for (const comment of replyComments) {
+			enrichedComments.set(comment.id, comment);
+		}
+		
+		return Array.from(enrichedComments.values());
+	}
 }

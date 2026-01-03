@@ -121,7 +121,7 @@
 				<div class="tip-icon">💡</div>
 				<div class="tip-content">
 					<strong>Pro Tip:</strong> Google Takeout exports can take a few minutes to hours depending on your data size. 
-					You'll receive an email when your export is ready to download. We support ZIP files, CSV, HTML, and JSON formats — even with localized folder names!
+					You'll receive an email when your export is ready to download. Simply upload the ZIP file directly — we'll handle the rest!
 				</div>
 			</div>
 

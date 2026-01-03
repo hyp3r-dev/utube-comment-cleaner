@@ -362,13 +362,29 @@ function normalizeHeader(header: string): string {
 
 /**
  * Parse the comment text field which may contain JSON-like structure
- * Example: {"text":"Actual comment content"}
+ * Examples: 
+ * - {"text":"Actual comment content"}
+ * - [{"text":"First line"},{"text":"\n"},{"text":"Second line"}]
+ * - {"text":"Line 1"},{"text":"\n"},{"text":"Line 2"}
  */
 function parseCommentTextField(value: string): string {
 	if (!value) return '';
 	
-	// Try to parse as JSON object
 	const trimmed = value.trim();
+	
+	// Try to parse as JSON array first
+	if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+		try {
+			const parsed = JSON.parse(trimmed);
+			if (Array.isArray(parsed)) {
+				return parsed.map(item => item.text || '').join('');
+			}
+		} catch {
+			// Not valid JSON, try other approaches
+		}
+	}
+	
+	// Try to parse as single JSON object
 	if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
 		try {
 			const parsed = JSON.parse(trimmed);
@@ -376,7 +392,21 @@ function parseCommentTextField(value: string): string {
 				return parsed.text;
 			}
 		} catch {
-			// Not valid JSON, use as-is
+			// Not valid JSON, try as comma-separated objects
+		}
+	}
+	
+	// Try to parse as comma-separated JSON objects: {"text":"a"},{"text":"b"}
+	// Wrap in array brackets and try again
+	if (trimmed.includes('},{')) {
+		try {
+			const wrapped = '[' + trimmed + ']';
+			const parsed = JSON.parse(wrapped);
+			if (Array.isArray(parsed)) {
+				return parsed.map(item => item.text || '').join('');
+			}
+		} catch {
+			// Not valid JSON
 		}
 	}
 	

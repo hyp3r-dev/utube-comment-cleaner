@@ -15,6 +15,11 @@ export interface YouTubeComment {
 	canRate: boolean;
 	viewerRating: string;
 	parentId?: string;
+	// API-enriched data
+	isEnriched?: boolean;
+	totalReplyCount?: number;
+	// Externally deleted flag (detected when merging new takeout)
+	isExternallyDeleted?: boolean;
 }
 
 export interface CommentFilters {

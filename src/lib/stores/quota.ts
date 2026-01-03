@@ -14,6 +14,7 @@ export const QUOTA_COSTS = {
 	channelsList: 1,            // List channels (for getting user's channel)
 	videosList: 1,              // List videos (for getting video details)
 	activitiesList: 1,          // List activities
+	commentsList: 1,            // List comments by ID
 	
 	// Write operations
 	commentsDelete: 50,         // Delete a comment
