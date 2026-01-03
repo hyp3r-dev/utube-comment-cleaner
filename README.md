@@ -90,7 +90,18 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
+    volumes:
+      - commentslash_data:/app/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  commentslash_data:
 ```
 
 Then run:
@@ -121,6 +132,8 @@ services:
       - GOOGLE_REDIRECT_URI=https://your-domain.com/api/auth/callback
       # Privacy settings (optional)
       - DETAILED_LOGGING=false  # Set to 'true' for verbose logs
+    volumes:
+      - commentslash_data:/app/data
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
@@ -128,6 +141,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+
+volumes:
+  commentslash_data:
 ```
 
 **Environment Variables:**
@@ -138,17 +154,18 @@ services:
 | `GOOGLE_CLIENT_SECRET` | OAuth 2.0 Client Secret | For Google Login |
 | `GOOGLE_REDIRECT_URI` | Full URL to your callback endpoint (e.g., `https://example.com/api/auth/callback`) | For Google Login |
 | `DETAILED_LOGGING` | Enable detailed server logs (default: `false`) | No |
+| `DATA_DIR` | Directory for persistent data (default: `/app/data`) | No |
 
 **Note:** When Google Login is enabled:
 - Users see a "Sign in with Google" button instead of manual token entry
-- Server-side quota tracking is enabled across all users
+- Server-side quota tracking is enabled across all users and persists across restarts
 - All logs are privacy-focused with automatic PII redaction
 
 ### Pull from Docker Hub
 
 ```bash
 docker pull hyp3rsonix/commentslash:latest
-docker run -p 3000:3000 hyp3rsonix/commentslash:latest
+docker run -p 3000:3000 -v commentslash_data:/app/data hyp3rsonix/commentslash:latest
 ```
 
 ### Pull from GitHub Container Registry

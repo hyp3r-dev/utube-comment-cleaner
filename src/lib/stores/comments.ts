@@ -273,6 +273,28 @@ export function clearDeleteError(id: string): void {
 	);
 }
 
+// Move a comment to the bottom of the selection queue
+export function moveToBottomOfQueue(id: string): void {
+	selectionOrder.update(order => {
+		// Remove the id from its current position
+		const filtered = order.filter(i => i !== id);
+		// Add it to the end (bottom of queue)
+		return [...filtered, id];
+	});
+}
+
+// Move multiple comments to the bottom of the selection queue
+export function moveToBottomOfQueueBatch(ids: string[]): void {
+	selectionOrder.update(order => {
+		const idsSet = new Set(ids);
+		// Remove all the ids from their current positions
+		const filtered = order.filter(i => !idsSet.has(i));
+		// Add them to the end (bottom of queue) in their relative order
+		const toMove = order.filter(i => idsSet.has(i));
+		return [...filtered, ...toMove];
+	});
+}
+
 export function resetFilters(): void {
 	filters.set({
 		videoPrivacy: ['public', 'private', 'unlisted', 'unknown'],

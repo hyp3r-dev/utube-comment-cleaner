@@ -22,6 +22,7 @@
 	let isDragOver = $state(false);
 	let isMinimized = $state(false);
 	let isHoveringDelete = $state(false);
+	let expandedErrorId = $state<string | null>(null);
 
 	function handleDragOver(e: DragEvent) {
 		e.preventDefault();
@@ -68,6 +69,18 @@
 	function getCommentError(commentId: string): string | undefined {
 		if (!deleteProgress) return undefined;
 		return deleteProgress.statuses.get(commentId)?.error;
+	}
+	
+	function toggleErrorExpand(commentId: string) {
+		if (expandedErrorId === commentId) {
+			expandedErrorId = null;
+		} else {
+			expandedErrorId = commentId;
+		}
+	}
+	
+	function hasDeleteError(comment: YouTubeComment): boolean {
+		return !!comment.lastDeleteError;
 	}
 
 	const totalLikes = $derived($selectedComments.reduce((sum, c) => sum + c.likeCount, 0));
@@ -121,50 +134,92 @@
 				<div class="selected-list">
 					{#each $selectedComments as comment (comment.id)}
 						{@const status = getCommentStatus(comment.id)}
+						{@const hasError = hasDeleteError(comment)}
+						{@const isExpanded = expandedErrorId === comment.id}
 						<div 
 							class="selected-item" 
 							class:deleting={status === 'deleting'}
 							class:success={status === 'success'}
 							class:failed={status === 'failed'}
+							class:has-error={hasError}
+							class:expanded={isExpanded}
 						>
-							<div class="item-content">
-								<p class="item-text">{truncateText(comment.textOriginal, 60)}</p>
-								<div class="item-meta">
-									<span class="likes">❤️ {comment.likeCount}</span>
-									<span class="chars">{comment.textOriginal.length} chars</span>
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<div 
+								class="item-main"
+								class:clickable={hasError}
+								onclick={() => hasError && toggleErrorExpand(comment.id)}
+							>
+								<div class="item-content">
+									<p class="item-text">{truncateText(comment.textOriginal, 60)}</p>
+									<div class="item-meta">
+										<span class="likes">❤️ {comment.likeCount}</span>
+										<span class="chars">{comment.textOriginal.length} chars</span>
+										{#if hasError}
+											<span class="error-badge">❌ Error</span>
+										{/if}
+									</div>
 								</div>
+								
+								<!-- Status indicator -->
+								{#if status === 'deleting'}
+									<div class="status-icon deleting">
+										<svg class="spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+											<path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
+										</svg>
+									</div>
+								{:else if status === 'success'}
+									<div class="status-icon success">
+										<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+											<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+										</svg>
+									</div>
+								{:else if status === 'failed'}
+									<div class="status-icon failed" title={getCommentError(comment.id) || 'Delete failed'}>
+										<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+											<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+										</svg>
+									</div>
+								{:else if hasError}
+									<div class="expand-icon" class:expanded={isExpanded}>
+										<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+											<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
+										</svg>
+									</div>
+								{:else if !isDeleting}
+									<button 
+										class="remove-btn" 
+										onclick={(e) => { e.stopPropagation(); deselectComment(comment.id); }}
+										title="Remove from queue"
+									>
+										<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+											<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+										</svg>
+									</button>
+								{/if}
 							</div>
 							
-							<!-- Status indicator -->
-							{#if status === 'deleting'}
-								<div class="status-icon deleting">
-									<svg class="spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-										<circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
-										<path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
-									</svg>
+							<!-- Error details section (expandable) -->
+							{#if hasError && isExpanded}
+								<div class="error-details">
+									<div class="error-message">
+										<span class="error-label">Error:</span>
+										<span class="error-text">{comment.lastDeleteError}</span>
+									</div>
+									{#if comment.lastDeleteAttempt}
+										<div class="error-time">
+											Last attempt: {new Date(comment.lastDeleteAttempt).toLocaleString()}
+										</div>
+									{/if}
+									<button 
+										class="btn btn-sm btn-ghost remove-from-queue-btn"
+										onclick={(e) => { e.stopPropagation(); deselectComment(comment.id); }}
+									>
+										Remove from queue
+									</button>
 								</div>
-							{:else if status === 'success'}
-								<div class="status-icon success">
-									<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-										<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-									</svg>
-								</div>
-							{:else if status === 'failed'}
-								<div class="status-icon failed" title={getCommentError(comment.id) || 'Delete failed'}>
-									<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-										<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-									</svg>
-								</div>
-							{:else if !isDeleting}
-								<button 
-									class="remove-btn" 
-									onclick={() => deselectComment(comment.id)}
-									title="Remove from queue"
-								>
-									<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-										<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-									</svg>
-								</button>
 							{/if}
 						</div>
 					{/each}
@@ -340,9 +395,7 @@
 
 	.selected-item {
 		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-		padding: 0.75rem;
+		flex-direction: column;
 		background: var(--bg-tertiary);
 		border-radius: var(--radius-md);
 		transition: all 0.4s ease;
@@ -350,8 +403,32 @@
 		overflow: hidden;
 	}
 
+	.item-main {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.75rem;
+	}
+
+	.item-main.clickable {
+		cursor: pointer;
+	}
+
+	.item-main.clickable:hover {
+		background: var(--bg-hover);
+	}
+
 	.selected-item:hover {
 		background: var(--bg-hover);
+	}
+
+	.selected-item.has-error {
+		border-left: 3px solid var(--error);
+		background: rgba(239, 68, 68, 0.1);
+	}
+
+	.selected-item.expanded {
+		background: rgba(239, 68, 68, 0.15);
 	}
 
 	/* Deleting state - pulsing effect */
@@ -468,6 +545,77 @@
 		gap: 0.75rem;
 		font-size: 0.7rem;
 		color: var(--text-muted);
+		flex-wrap: wrap;
+		align-items: center;
+	}
+
+	.error-badge {
+		color: var(--error);
+		font-weight: 600;
+		background: rgba(239, 68, 68, 0.2);
+		padding: 0.1rem 0.4rem;
+		border-radius: var(--radius-sm);
+	}
+
+	.expand-icon {
+		color: var(--text-muted);
+		transition: transform 0.2s ease;
+		flex-shrink: 0;
+	}
+
+	.expand-icon.expanded {
+		transform: rotate(180deg);
+	}
+
+	.error-details {
+		padding: 0.75rem;
+		padding-top: 0;
+		background: rgba(239, 68, 68, 0.05);
+		border-top: 1px solid rgba(239, 68, 68, 0.2);
+		animation: slideDown 0.2s ease;
+	}
+
+	@keyframes slideDown {
+		from {
+			opacity: 0;
+			max-height: 0;
+		}
+		to {
+			opacity: 1;
+			max-height: 200px;
+		}
+	}
+
+	.error-message {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+		margin-bottom: 0.5rem;
+	}
+
+	.error-label {
+		font-size: 0.7rem;
+		font-weight: 600;
+		color: var(--error);
+		text-transform: uppercase;
+	}
+
+	.error-text {
+		font-size: 0.8rem;
+		color: var(--text-secondary);
+		word-break: break-word;
+	}
+
+	.error-time {
+		font-size: 0.7rem;
+		color: var(--text-muted);
+		margin-bottom: 0.5rem;
+	}
+
+	.remove-from-queue-btn {
+		margin-top: 0.5rem;
+		width: 100%;
+		justify-content: center;
 	}
 
 	.remove-btn {

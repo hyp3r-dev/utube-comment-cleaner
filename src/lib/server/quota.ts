@@ -1,7 +1,10 @@
 // Server-side quota tracking for multi-user scenarios
 // Tracks all API usage across all users when using developer OAuth mode
+// Persists quota data to disk to survive restarts
 
 import { privacyLogger } from './config';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { join, dirname } from 'path';
 
 /**
  * YouTube API quota costs
@@ -20,6 +23,13 @@ export const QUOTA_COSTS = {
 const DAILY_QUOTA_LIMIT = 10000;
 
 /**
+ * Data directory for persistent storage
+ * Uses DATA_DIR environment variable or falls back to ./data
+ */
+const DATA_DIR = process.env.DATA_DIR || './data';
+const QUOTA_FILE = join(DATA_DIR, 'quota.json');
+
+/**
  * Quota usage record
  */
 interface QuotaUsage {
@@ -29,29 +39,55 @@ interface QuotaUsage {
 }
 
 /**
- * In-memory quota tracker
- * 
- * NOTE: This is stored in memory and will be lost on server restarts.
- * For production deployments with multiple instances or high availability
- * requirements, consider:
- * - Using a database (e.g., Redis, PostgreSQL)
- * - Using a distributed cache
- * - Using a file-based persistence
- * 
- * For single-instance deployments, this in-memory approach is sufficient
- * since YouTube's quota resets daily anyway.
+ * In-memory quota tracker with file-based persistence
  */
-let quotaUsage: QuotaUsage = {
-	date: getToday(),
-	totalUsed: 0,
-	lastReset: Date.now()
-};
+let quotaUsage: QuotaUsage = loadQuotaFromDisk();
 
 /**
  * Get today's date in YYYY-MM-DD format (UTC)
  */
 function getToday(): string {
 	return new Date().toISOString().split('T')[0];
+}
+
+/**
+ * Load quota data from disk
+ */
+function loadQuotaFromDisk(): QuotaUsage {
+	try {
+		if (existsSync(QUOTA_FILE)) {
+			const data = readFileSync(QUOTA_FILE, 'utf-8');
+			const loaded = JSON.parse(data) as QuotaUsage;
+			privacyLogger.info(`Loaded quota from disk: ${loaded.totalUsed}/${DAILY_QUOTA_LIMIT} used on ${loaded.date}`);
+			return loaded;
+		}
+	} catch (e) {
+		privacyLogger.error(`Failed to load quota from disk: ${e instanceof Error ? e.message : 'Unknown error'}`);
+	}
+	
+	// Return default quota
+	return {
+		date: getToday(),
+		totalUsed: 0,
+		lastReset: Date.now()
+	};
+}
+
+/**
+ * Save quota data to disk
+ */
+function saveQuotaToDisk(): void {
+	try {
+		// Ensure data directory exists
+		const dir = dirname(QUOTA_FILE);
+		if (!existsSync(dir)) {
+			mkdirSync(dir, { recursive: true });
+		}
+		
+		writeFileSync(QUOTA_FILE, JSON.stringify(quotaUsage, null, 2), 'utf-8');
+	} catch (e) {
+		privacyLogger.error(`Failed to save quota to disk: ${e instanceof Error ? e.message : 'Unknown error'}`);
+	}
 }
 
 /**
@@ -66,6 +102,7 @@ function checkDayReset(): void {
 			totalUsed: 0,
 			lastReset: Date.now()
 		};
+		saveQuotaToDisk();
 	}
 }
 
@@ -76,6 +113,7 @@ export function addQuotaUsage(cost: number): void {
 	checkDayReset();
 	quotaUsage.totalUsed += cost;
 	privacyLogger.info(`Quota used: +${cost} (total: ${quotaUsage.totalUsed}/${DAILY_QUOTA_LIMIT})`);
+	saveQuotaToDisk();
 }
 
 /**

@@ -40,7 +40,8 @@
 		deselectAll,
 		logout,
 		updateComments,
-		setDeleteError
+		setDeleteError,
+		moveToBottomOfQueueBatch
 	} from '$lib/stores/comments';
 	import type { YouTubeComment } from '$lib/types/comment';
 	import JSZip from 'jszip';
@@ -672,7 +673,7 @@
 						successIds.push(comment.id);
 						successCount++;
 					} else if (result.failed.length > 0) {
-						// Failed - animate left
+						// Failed - animate left, then move to bottom of queue
 						const failedInfo = result.failed.find(f => f.id === comment.id);
 						const errorMsg = failedInfo?.error || 'Delete failed';
 						deleteStatuses = new Map(deleteStatuses);
@@ -710,14 +711,22 @@
 			}
 			
 			// Mark failed comments with their error messages (keep them in the store)
+			// and move them to the bottom of the queue so users can review them
 			for (const failedItem of failedItems) {
 				setDeleteError(failedItem.id, failedItem.error);
 			}
 			
+			// Move all failed comments to the bottom of the queue
+			if (failedItems.length > 0) {
+				moveToBottomOfQueueBatch(failedItems.map(f => f.id));
+			}
+			
 			if (failedCount > 0) {
-				toasts.warning(`Deleted ${successCount} comment(s). ${failedCount} failed and are labeled with errors.`);
+				toasts.warning(`Deleted ${successCount} comment(s). ${failedCount} failed and remain in queue with error details. Click on them to see the error.`);
 			} else {
 				toasts.success(`Successfully deleted ${successCount} comment(s)!`);
+				// Only deselect all if everything succeeded
+				deselectAll();
 			}
 		} catch (e) {
 			error.set(getErrorMessage(e));
@@ -726,7 +735,8 @@
 			backgroundDeleteProgress = undefined;
 			deleteStatuses = new Map();
 			currentDeletingId = undefined;
-			deselectAll();
+			// Note: We don't deselect all here anymore - failed comments stay selected
+			// so users can review them and decide what to do
 		}
 	}
 </script>
