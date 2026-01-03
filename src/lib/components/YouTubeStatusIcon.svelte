@@ -42,10 +42,10 @@
 		<!-- Working spinner with shurikens -->
 		{#if status === 'working'}
 			<div class="working-spinner"></div>
-			<!-- Flying shurikens around the icon -->
-			<div class="shuriken shuriken-1">⚔️</div>
-			<div class="shuriken shuriken-2">🗡️</div>
-			<div class="shuriken shuriken-3">⚔️</div>
+			<!-- Flying shurikens around the icon (decorative, hidden from screen readers) -->
+			<div class="shuriken shuriken-1" aria-hidden="true">⚔️</div>
+			<div class="shuriken shuriken-2" aria-hidden="true">🗡️</div>
+			<div class="shuriken shuriken-3" aria-hidden="true">⚔️</div>
 		{/if}
 	</div>
 	
