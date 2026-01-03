@@ -142,27 +142,22 @@
 		// Check for OAuth callback success
 		const params = new URLSearchParams(window.location.search);
 		if (params.get('auth_success') === 'true') {
-			// Try to get the token from the cookie
-			const tokenCookie = document.cookie
-				.split('; ')
-				.find(row => row.startsWith('oauth_token='));
-			
-			if (tokenCookie) {
-				try {
-					const tokenData = JSON.parse(decodeURIComponent(tokenCookie.split('=')[1]));
-					if (tokenData.access_token) {
-						// Clear the cookie immediately for security
-						document.cookie = 'oauth_token=; Path=/; Max-Age=0';
-						
-						// Set the token
+			// Fetch the token securely from the server
+			try {
+				const tokenResponse = await fetch('/api/auth/token');
+				if (tokenResponse.ok) {
+					const tokenData = await tokenResponse.json();
+					if (tokenData.success && tokenData.access_token) {
 						inputApiKey = tokenData.access_token;
 						handleConnectToken();
 						toasts.success('Successfully signed in with Google!');
 					}
-				} catch (e) {
-					console.error('Failed to parse OAuth token:', e);
+				} else {
 					toasts.error('Failed to complete sign-in. Please try again.');
 				}
+			} catch (e) {
+				console.error('Failed to fetch OAuth token:', e);
+				toasts.error('Failed to complete sign-in. Please try again.');
 			}
 			
 			// Clean up the URL
@@ -171,6 +166,29 @@
 			const authError = params.get('auth_error');
 			toasts.error(`Sign-in failed: ${authError}`);
 			window.history.replaceState({}, '', '/');
+		}
+		
+		// Check if we have an existing auth status cookie (developer mode)
+		if (developerModeEnabled && !$apiKey) {
+			const authStatusCookie = document.cookie
+				.split('; ')
+				.find(row => row.startsWith('youtube_auth_status='));
+			
+			if (authStatusCookie) {
+				// Try to restore the connection from the secure token
+				try {
+					const tokenResponse = await fetch('/api/auth/token');
+					if (tokenResponse.ok) {
+						const tokenData = await tokenResponse.json();
+						if (tokenData.success && tokenData.access_token) {
+							inputApiKey = tokenData.access_token;
+							handleConnectToken();
+						}
+					}
+				} catch (e) {
+					console.debug('Failed to restore OAuth session:', e);
+				}
+			}
 		}
 		
 		// Try to load cached comments

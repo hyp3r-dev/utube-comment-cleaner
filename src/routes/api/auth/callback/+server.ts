@@ -79,22 +79,24 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 		
 		privacyLogger.info('OAuth token exchange successful');
 		
-		// Redirect back to the app with the access token
-		// The token is passed via URL fragment so it's not sent to the server on page load
-		// This is more secure as it stays client-side only
-		const redirectUrl = new URL('/', url.origin);
-		const tokenData = {
-			access_token: tokens.access_token,
-			expires_in: tokens.expires_in
-		};
-		
-		// Set the token data as a short-lived cookie that the client will read and clear
-		cookies.set('oauth_token', JSON.stringify(tokenData), {
+		// Store the token in an HTTP-only cookie for security
+		// The client will use this cookie when making API requests
+		// This prevents XSS attacks from accessing the token
+		cookies.set('youtube_access_token', tokens.access_token, {
 			path: '/',
-			httpOnly: false, // Client needs to read this
+			httpOnly: true,
 			secure: url.protocol === 'https:',
 			sameSite: 'lax',
-			maxAge: 60 // Very short-lived - client should read immediately and clear
+			maxAge: tokens.expires_in // Expire with the token
+		});
+		
+		// Set a non-sensitive flag cookie that client can read to know auth succeeded
+		cookies.set('youtube_auth_status', 'connected', {
+			path: '/',
+			httpOnly: false,
+			secure: url.protocol === 'https:',
+			sameSite: 'lax',
+			maxAge: tokens.expires_in
 		});
 		
 		return redirect(302, '/?auth_success=true');

@@ -30,7 +30,16 @@ interface QuotaUsage {
 
 /**
  * In-memory quota tracker
- * In production, this should be persisted to a database
+ * 
+ * NOTE: This is stored in memory and will be lost on server restarts.
+ * For production deployments with multiple instances or high availability
+ * requirements, consider:
+ * - Using a database (e.g., Redis, PostgreSQL)
+ * - Using a distributed cache
+ * - Using a file-based persistence
+ * 
+ * For single-instance deployments, this in-memory approach is sufficient
+ * since YouTube's quota resets daily anyway.
  */
 let quotaUsage: QuotaUsage = {
 	date: getToday(),
