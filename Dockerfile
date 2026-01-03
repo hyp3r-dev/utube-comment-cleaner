@@ -4,16 +4,16 @@ FROM woahbase/alpine-nodejs:24.11.1 AS builder
 WORKDIR /app
 
 # Copy package files
-COPY package.json yarn.lock ./
+COPY package.json package-lock.json ./
 
 # Install dependencies
-RUN yarn install --frozen-lockfile
+RUN npm ci
 
 # Copy source code
 COPY . .
 
 # Build the application
-RUN yarn build
+RUN npm run build
 
 # Production stage
 FROM woahbase/alpine-nodejs:24.11.1 AS production
@@ -26,11 +26,11 @@ RUN addgroup -g 1001 -S nodejs && \
 
 # Copy built application from builder stage
 COPY --from=builder --chown=sveltekit:nodejs /app/build ./build
-COPY --from=builder --chown=sveltekit:nodejs /app/package.json /app/yarn.lock ./
+COPY --from=builder --chown=sveltekit:nodejs /app/package.json /app/package-lock.json ./
 
 # Install only production dependencies
-RUN yarn install --production --frozen-lockfile && \
-    yarn cache clean
+RUN npm ci --omit=dev && \
+    npm cache clean --force
 
 # Switch to non-root user
 USER sveltekit
