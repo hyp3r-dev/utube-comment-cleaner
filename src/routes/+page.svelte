@@ -90,7 +90,7 @@
 			});
 			
 			if (importedComments.length === 0) {
-				error.set('No comments found in the uploaded file(s). Make sure you uploaded the correct Google Takeout export. You can upload:\n• A ZIP file from Google Takeout\n• Individual CSV, HTML, or JSON comment files');
+				error.set('No comments found in the uploaded file(s). Make sure you uploaded the correct Google Takeout export. Supported formats: ZIP files from Google Takeout, individual CSV, HTML, or JSON comment files.');
 				isLoading.set(false);
 				return;
 			}

@@ -98,10 +98,8 @@ const CSV_HEADER_MAPPINGS: Record<string, string> = {
 	'reactie-id': 'commentId',
 	'kanaal-id': 'channelId',
 	'tijdstempel van het aanmaken van de reactie': 'timestamp',
-	// 'prijs' same as German, already mapped above
 	'id van bovenliggende reactie': 'parentCommentId',
 	'bericht-id': 'postId',
-	// 'video-id' is same as English, already mapped above
 	'reactietekst': 'commentText',
 	'id van reactie op het hoogste niveau': 'topLevelCommentId',
 	
@@ -419,8 +417,10 @@ export function parseTakeoutCSV(csvContent: string): YouTubeComment[] {
 		const videoId = videoIdIdx >= 0 ? row[videoIdIdx]?.trim() : '';
 		const rawCommentText = commentTextIdx >= 0 ? row[commentTextIdx] : '';
 		const commentText = parseCommentTextField(rawCommentText);
-		const timestamp = timestampIdx >= 0 ? row[timestampIdx]?.trim() : new Date().toISOString();
-		const parentId = parentCommentIdIdx >= 0 ? row[parentCommentIdIdx]?.trim() : undefined;
+		const rawTimestamp = timestampIdx >= 0 ? row[timestampIdx]?.trim() : '';
+		// Use the raw timestamp if available, otherwise use empty string (unknown date)
+		const timestamp = rawTimestamp || '';
+		const parentId = parentCommentIdIdx >= 0 ? row[parentCommentIdIdx]?.trim() : '';
 		
 		// Skip rows without essential data
 		if (!videoId || !commentText) continue;
