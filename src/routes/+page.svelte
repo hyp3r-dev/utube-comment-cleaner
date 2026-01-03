@@ -21,12 +21,13 @@
 		YouTubeAPIError 
 	} from '$lib/services/youtube';
 	import { parseTakeoutFile, readFileAsText, parseZipFile, parseMultipleFiles } from '$lib/services/takeout';
-	import { saveComments, loadComments, deleteComments as deleteFromStorage, clearAllData } from '$lib/services/storage';
+	import { saveComments, loadComments, deleteComments as deleteFromStorage, clearAllData, clearCommentsOnly } from '$lib/services/storage';
 	import {
 		apiKey,
 		isAuthenticated,
 		comments,
 		selectedComments,
+		selectedIds,
 		filteredComments,
 		isLoading,
 		loadingProgress,
@@ -52,6 +53,8 @@
 	let enrichProgress = $state<{ enriched: number; total: number } | undefined>();
 	let groupByVideo = $state(true);
 	let hideSelectedFromList = $state(true);
+	let showWipeConfirm = $state(false);
+	let showMobileSidebar = $state(false);
 
 	// Group comments by video ID
 	const groupedComments = $derived(() => {
@@ -440,6 +443,28 @@
 			isLoading.set(false);
 		}
 	}
+
+	async function handleWipeData() {
+		showWipeConfirm = false;
+		isLoading.set(true);
+		error.set(null);
+		
+		try {
+			// Clear comments from storage but preserve quota
+			await clearCommentsOnly();
+			
+			// Reset the stores
+			comments.set([]);
+			selectedIds.set(new Set());
+			isAuthenticated.set(false);
+			
+			toasts.success('All comment data has been wiped. You can now re-import your files.');
+		} catch (e) {
+			error.set(e instanceof Error ? e.message : 'Failed to wipe data');
+		} finally {
+			isLoading.set(false);
+		}
+	}
 </script>
 
 <div class="app">
@@ -630,6 +655,12 @@
 								</svg>
 								Import
 							</button>
+							<button class="btn btn-ghost btn-sm btn-danger-text" onclick={() => showWipeConfirm = true}>
+								<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+									<path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+								</svg>
+								Wipe Data
+							</button>
 						</div>
 						<div class="action-group">
 							<label class="toggle-label">
@@ -656,35 +687,60 @@
 								</div>
 							</div>
 
-							{#if $filteredComments.length === 0}
-								<div class="empty-state">
-									<div class="empty-icon">🔍</div>
-									<h3>No comments found</h3>
-									<p>Try adjusting your filters or search query</p>
-								</div>
-							{:else if groupByVideo}
-								<div class="video-groups">
-									{#each groupedComments() as group (group.videoId)}
-										<VideoGroup 
-											videoId={group.videoId}
-											videoTitle={group.videoTitle}
-											comments={group.comments}
-											hideSelectedComments={hideSelectedFromList}
-										/>
-									{/each}
-								</div>
-							{:else}
-								<div class="comments-grid">
-									{#each $filteredComments as comment (comment.id)}
-										<CommentCard {comment} hideWhenSelected={hideSelectedFromList} />
-									{/each}
-								</div>
-							{/if}
+							<div class="comments-scroll-container">
+								{#if $filteredComments.length === 0}
+									<div class="empty-state">
+										<div class="empty-icon">🔍</div>
+										<h3>No comments found</h3>
+										<p>Try adjusting your filters or search query</p>
+									</div>
+								{:else if groupByVideo}
+									<div class="video-groups">
+										{#each groupedComments() as group (group.videoId)}
+											{#if group.comments.length >= 2}
+												<!-- Show grouped container for videos with 2+ comments -->
+												<VideoGroup 
+													videoId={group.videoId}
+													videoTitle={group.videoTitle}
+													comments={group.comments}
+													hideSelectedComments={hideSelectedFromList}
+												/>
+											{:else}
+												<!-- Show individual card for videos with single comment -->
+												{#each group.comments as comment (comment.id)}
+													<CommentCard {comment} hideWhenSelected={hideSelectedFromList} />
+												{/each}
+											{/if}
+										{/each}
+									</div>
+								{:else}
+									<div class="comments-grid">
+										{#each $filteredComments as comment (comment.id)}
+											<CommentCard {comment} hideWhenSelected={hideSelectedFromList} />
+										{/each}
+									</div>
+								{/if}
+							</div>
 						</div>
 
-						<aside class="sidebar">
-							<SelectedCommentsPanel onDeleteRequest={() => showDeleteModal = true} />
+						<aside class="sidebar" class:sidebar-expanded={showMobileSidebar}>
+							<div class="sidebar-toggle" onclick={() => showMobileSidebar = !showMobileSidebar}>
+								<span class="queue-badge">{$selectedComments.length}</span>
+								<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" class:flipped={showMobileSidebar}>
+									<path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/>
+								</svg>
+							</div>
+							<div class="sidebar-content">
+								<SelectedCommentsPanel onDeleteRequest={() => showDeleteModal = true} />
+							</div>
 						</aside>
+						
+						<!-- Mobile sidebar overlay -->
+						{#if showMobileSidebar}
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<div class="sidebar-overlay" onclick={() => showMobileSidebar = false} onkeydown={(e) => e.key === 'Escape' && (showMobileSidebar = false)}></div>
+						{/if}
 					</div>
 				</div>
 			{/if}
@@ -708,22 +764,46 @@
 	/>
 {/if}
 
+{#if showWipeConfirm}
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<!-- svelte-ignore a11y_interactive_supports_focus -->
+	<div class="modal-overlay" onclick={() => showWipeConfirm = false} onkeydown={(e) => e.key === 'Escape' && (showWipeConfirm = false)} role="dialog" aria-modal="true">
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="modal-content wipe-modal" onclick={(e) => e.stopPropagation()}>
+			<div class="modal-header">
+				<h3>⚠️ Wipe All Data?</h3>
+			</div>
+			<div class="modal-body">
+				<p>This will permanently delete all cached comment data from your browser.</p>
+				<p class="modal-note">Your quota usage will be preserved. You can re-import your Google Takeout files after wiping.</p>
+			</div>
+			<div class="modal-actions">
+				<button class="btn btn-ghost" onclick={() => showWipeConfirm = false}>Cancel</button>
+				<button class="btn btn-danger" onclick={handleWipeData}>Wipe All Data</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
 <ToastContainer />
 
 <style>
 	.app {
-		min-height: 100vh;
+		height: 100vh;
 		display: flex;
 		flex-direction: column;
+		overflow: hidden;
 	}
 
 	.header {
 		position: sticky;
 		top: 0;
 		z-index: 100;
-		background: rgba(15, 15, 26, 0.9);
+		background: rgba(15, 15, 26, 0.95);
 		backdrop-filter: blur(12px);
 		border-bottom: 1px solid var(--bg-tertiary);
+		flex-shrink: 0;
 	}
 
 	.header-content {
@@ -742,7 +822,17 @@
 
 	.main {
 		flex: 1;
-		padding: 2rem 0;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+		padding: 1rem 0;
+	}
+
+	.main > .container {
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
 	}
 
 	.loading-section {
@@ -755,6 +845,7 @@
 	.auth-section {
 		max-width: 700px;
 		margin: 0 auto;
+		overflow-y: auto;
 	}
 
 	.hero {
@@ -825,10 +916,23 @@
 		display: grid;
 		grid-template-columns: 1fr 350px;
 		gap: 1.5rem;
+		flex: 1;
+		min-height: 0;
+		overflow: hidden;
+		position: relative;
 	}
 
 	.comments-section {
 		min-width: 0;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+	}
+
+	.comments-scroll-container {
+		flex: 1;
+		overflow-y: auto;
+		padding-right: 0.5rem;
 	}
 
 	.section-header {
@@ -836,6 +940,7 @@
 		justify-content: space-between;
 		align-items: center;
 		margin-bottom: 1rem;
+		flex-shrink: 0;
 	}
 
 	.section-header h2 {
@@ -850,9 +955,25 @@
 	}
 
 	.sidebar {
-		position: sticky;
-		top: 100px;
-		height: fit-content;
+		display: flex;
+		flex-direction: column;
+		overflow: hidden;
+		position: relative;
+	}
+
+	.sidebar-toggle {
+		display: none;
+	}
+
+	.sidebar-content {
+		flex: 1;
+		overflow: hidden;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.sidebar-overlay {
+		display: none;
 	}
 
 	.empty-state {
@@ -881,11 +1002,12 @@
 	}
 
 	.footer {
-		padding: 2rem 0;
+		padding: 0.5rem 0;
 		text-align: center;
 		color: var(--text-muted);
-		font-size: 0.875rem;
+		font-size: 0.75rem;
 		border-top: 1px solid var(--bg-tertiary);
+		flex-shrink: 0;
 	}
 
 	/* Import section styles */
@@ -1027,8 +1149,85 @@
 		}
 
 		.sidebar {
-			position: relative;
+			position: fixed;
 			top: 0;
+			right: 0;
+			bottom: 0;
+			width: 350px;
+			max-width: 90vw;
+			z-index: 200;
+			background: var(--bg-primary);
+			transform: translateX(calc(100% - 50px));
+			transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+			border-left: 1px solid var(--bg-tertiary);
+			box-shadow: -4px 0 20px rgba(0, 0, 0, 0.3);
+		}
+
+		.sidebar.sidebar-expanded {
+			transform: translateX(0);
+		}
+
+		.sidebar-toggle {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			gap: 0.25rem;
+			position: absolute;
+			left: 0;
+			top: 50%;
+			transform: translateY(-50%);
+			width: 50px;
+			height: 80px;
+			background: var(--bg-tertiary);
+			border-radius: var(--radius-md) 0 0 var(--radius-md);
+			cursor: pointer;
+			color: var(--text-primary);
+			flex-direction: column;
+			transition: background 0.2s ease;
+			z-index: 1;
+		}
+
+		.sidebar-toggle:hover {
+			background: var(--bg-hover);
+		}
+
+		.sidebar-toggle svg {
+			transition: transform 0.3s ease;
+		}
+
+		.sidebar-toggle svg.flipped {
+			transform: rotate(180deg);
+		}
+
+		.queue-badge {
+			background: var(--accent-primary);
+			color: white;
+			font-size: 0.75rem;
+			font-weight: 700;
+			padding: 0.15rem 0.5rem;
+			border-radius: 9999px;
+			min-width: 20px;
+			text-align: center;
+		}
+
+		.sidebar-content {
+			margin-left: 50px;
+			height: 100%;
+			overflow: hidden;
+		}
+
+		.sidebar-overlay {
+			display: block;
+			position: fixed;
+			inset: 0;
+			background: rgba(0, 0, 0, 0.5);
+			z-index: 150;
+			animation: fadeIn 0.2s ease;
+		}
+
+		@keyframes fadeIn {
+			from { opacity: 0; }
+			to { opacity: 1; }
 		}
 	}
 
@@ -1150,5 +1349,64 @@
 			flex-direction: column;
 			align-items: stretch;
 		}
+	}
+
+	/* Wipe button danger text */
+	.btn-danger-text {
+		color: var(--error);
+	}
+
+	.btn-danger-text:hover {
+		background: rgba(239, 68, 68, 0.1);
+		color: var(--error);
+	}
+
+	/* Wipe confirmation modal */
+	.modal-overlay {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.7);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 1000;
+		backdrop-filter: blur(4px);
+	}
+
+	.modal-content {
+		background: var(--bg-card);
+		border-radius: var(--radius-xl);
+		border: 1px solid var(--bg-tertiary);
+		max-width: 400px;
+		width: 90%;
+		padding: 1.5rem;
+		box-shadow: var(--shadow-lg);
+	}
+
+	.modal-header h3 {
+		font-size: 1.25rem;
+		font-weight: 700;
+		color: var(--text-primary);
+		margin-bottom: 1rem;
+	}
+
+	.modal-body {
+		margin-bottom: 1.5rem;
+	}
+
+	.modal-body p {
+		color: var(--text-secondary);
+		margin-bottom: 0.5rem;
+	}
+
+	.modal-note {
+		font-size: 0.85rem;
+		color: var(--text-muted);
+	}
+
+	.modal-actions {
+		display: flex;
+		gap: 0.75rem;
+		justify-content: flex-end;
 	}
 </style>

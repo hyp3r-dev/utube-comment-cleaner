@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { YouTubeComment } from '$lib/types/comment';
+	import { selectedIds } from '$lib/stores/comments';
 	import CommentCard from './CommentCard.svelte';
 	
 	let { 
@@ -19,8 +20,19 @@
 	const displayTitle = $derived(videoTitle || `Video: ${videoId}`);
 	const commentCount = $derived(comments.length);
 	const totalLikes = $derived(comments.reduce((sum, c) => sum + c.likeCount, 0));
+	
+	// Count visible comments (not in slash queue) when hideSelectedComments is enabled
+	const visibleCount = $derived(
+		hideSelectedComments 
+			? comments.filter(c => !$selectedIds.has(c.id)).length
+			: comments.length
+	);
+	
+	// Hide the entire group if all comments are selected (in slash queue)
+	const shouldHideGroup = $derived(hideSelectedComments && visibleCount === 0);
 </script>
 
+{#if !shouldHideGroup}
 <div class="video-group" class:collapsed={!isExpanded}>
 	<button 
 		class="group-header"
@@ -66,6 +78,7 @@
 		</div>
 	{/if}
 </div>
+{/if}
 
 <style>
 	.video-group {

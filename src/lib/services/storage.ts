@@ -156,6 +156,26 @@ export async function clearAllData(): Promise<void> {
 	await database.clear('metadata');
 }
 
+/**
+ * Clear all comment data but preserve quota information
+ * Used for re-importing data without losing quota tracking
+ */
+export async function clearCommentsOnly(): Promise<void> {
+	const database = await getDB();
+	
+	// Save quota before clearing
+	const quota = await database.get('metadata', 'quota');
+	
+	// Clear both stores
+	await database.clear('comments');
+	await database.clear('metadata');
+	
+	// Restore quota if it existed
+	if (quota) {
+		await database.put('metadata', quota);
+	}
+}
+
 // Run cleanup on import
 if (typeof window !== 'undefined') {
 	cleanExpiredData().catch(console.error);

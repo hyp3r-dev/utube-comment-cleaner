@@ -1,36 +1,30 @@
 <script lang="ts">
 	import { searchQuery, filteredComments, comments } from '$lib/stores/comments';
-	import { onDestroy } from 'svelte';
 	
 	let inputElement: HTMLInputElement;
 	let isFocused = $state(false);
 	let localQuery = $state('');
 	let isSearching = $state(false);
-	let debounceTimeout: ReturnType<typeof setTimeout> | undefined;
 	
 	// Sync from store
 	$effect(() => {
 		localQuery = $searchQuery;
 	});
 	
-	// Cleanup on destroy
-	onDestroy(() => {
-		if (debounceTimeout) {
-			clearTimeout(debounceTimeout);
-		}
-	});
-	
 	function handleInput(e: Event) {
 		const value = (e.target as HTMLInputElement).value;
 		localQuery = value;
-		isSearching = true;
-		
-		// Debounce the search
-		if (debounceTimeout) clearTimeout(debounceTimeout);
-		debounceTimeout = setTimeout(() => {
-			searchQuery.set(value);
-			isSearching = false;
-		}, 150);
+	}
+	
+	function executeSearch() {
+		if (localQuery !== $searchQuery) {
+			isSearching = true;
+			// Use setTimeout to allow UI to show searching state
+			setTimeout(() => {
+				searchQuery.set(localQuery);
+				isSearching = false;
+			}, 0);
+		}
 	}
 	
 	function handleClear() {
@@ -40,7 +34,10 @@
 	}
 	
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape') {
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			executeSearch();
+		} else if (e.key === 'Escape') {
 			if (localQuery) {
 				handleClear();
 			} else {
@@ -49,24 +46,10 @@
 		}
 	}
 	
-	// Keyboard shortcut (Cmd/Ctrl + K)
-	function handleGlobalKeydown(e: KeyboardEvent) {
-		if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-			e.preventDefault();
-			inputElement?.focus();
-		}
-	}
-	
-	$effect(() => {
-		if (typeof window !== 'undefined') {
-			window.addEventListener('keydown', handleGlobalKeydown);
-			return () => window.removeEventListener('keydown', handleGlobalKeydown);
-		}
-	});
-	
 	const resultCount = $derived($filteredComments.length);
 	const totalCount = $derived($comments.length);
-	const hasQuery = $derived(localQuery.length > 0);
+	const hasQuery = $derived($searchQuery.length > 0);
+	const hasLocalQuery = $derived(localQuery.length > 0);
 </script>
 
 <div class="search-container" class:focused={isFocused}>
@@ -88,7 +71,7 @@
 		<input
 			bind:this={inputElement}
 			type="text"
-			placeholder="Search comments..."
+			placeholder="Search comments... (press Enter)"
 			value={localQuery}
 			oninput={handleInput}
 			onfocus={() => isFocused = true}
@@ -100,12 +83,14 @@
 		
 		<div class="search-actions">
 			{#if hasQuery}
-				<div class="result-count" class:dimmed={isSearching}>
+				<div class="result-count">
 					<span class="count">{resultCount}</span>
 					<span class="separator">/</span>
 					<span class="total">{totalCount}</span>
 				</div>
-				
+			{/if}
+			
+			{#if hasLocalQuery}
 				<button 
 					class="clear-btn" 
 					onclick={handleClear} 
@@ -116,17 +101,22 @@
 						<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
 					</svg>
 				</button>
-			{:else}
-				<div class="shortcut-hint">
-					<kbd>⌘</kbd><kbd>K</kbd>
-				</div>
 			{/if}
+			
+			<button 
+				class="search-btn" 
+				class:highlight={localQuery !== $searchQuery && hasLocalQuery}
+				onclick={executeSearch} 
+				aria-label="Search"
+				type="button"
+				disabled={isSearching}
+			>
+				<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+					<path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+				</svg>
+			</button>
 		</div>
 	</div>
-	
-	{#if isFocused && hasQuery}
-		<div class="search-overlay"></div>
-	{/if}
 </div>
 
 <style>
@@ -143,14 +133,12 @@
 		background: var(--bg-card);
 		border: 2px solid var(--bg-tertiary);
 		border-radius: 12px;
-		transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-		overflow: hidden;
+		transition: border-color 0.2s ease, box-shadow 0.2s ease;
 	}
 
 	.search-container.focused .search-wrapper {
 		border-color: var(--accent-primary);
-		box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15), 0 4px 20px rgba(0, 0, 0, 0.2);
-		transform: scale(1.01);
+		box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
 	}
 
 	.search-icon-wrapper {
@@ -162,6 +150,7 @@
 		color: var(--text-muted);
 		transition: color 0.2s ease;
 		z-index: 2;
+		pointer-events: none;
 	}
 
 	.search-container.focused .search-icon-wrapper {
@@ -187,29 +176,24 @@
 
 	.search-input {
 		flex: 1;
-		padding: 14px 16px 14px 52px;
+		padding: 12px 16px 12px 48px;
 		background: transparent;
 		border: none;
 		outline: none;
-		font-size: 1rem;
+		font-size: 0.95rem;
 		color: var(--text-primary);
 		width: 100%;
 	}
 
 	.search-input::placeholder {
 		color: var(--text-muted);
-		transition: color 0.2s ease;
-	}
-
-	.search-container.focused .search-input::placeholder {
-		color: var(--text-secondary);
 	}
 
 	.search-actions {
 		display: flex;
 		align-items: center;
-		gap: 8px;
-		padding-right: 12px;
+		gap: 6px;
+		padding-right: 8px;
 	}
 
 	.result-count {
@@ -218,11 +202,7 @@
 		gap: 2px;
 		font-size: 0.8rem;
 		font-weight: 500;
-		transition: opacity 0.2s ease;
-	}
-
-	.result-count.dimmed {
-		opacity: 0.5;
+		padding: 4px 0;
 	}
 
 	.result-count .count {
@@ -238,7 +218,8 @@
 		color: var(--text-secondary);
 	}
 
-	.clear-btn {
+	.clear-btn,
+	.search-btn {
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -247,72 +228,49 @@
 		border-radius: 6px;
 		color: var(--text-muted);
 		transition: all 0.2s ease;
+		border: none;
+		cursor: pointer;
 	}
 
 	.clear-btn:hover {
 		background: var(--error);
 		color: white;
-		transform: scale(1.1);
 	}
 
-	.shortcut-hint {
-		display: flex;
-		align-items: center;
-		gap: 3px;
-		opacity: 0.6;
-		transition: opacity 0.2s ease;
+	.search-btn:hover {
+		background: var(--accent-primary);
+		color: white;
 	}
 
-	.search-container:hover .shortcut-hint {
-		opacity: 1;
+	.search-btn.highlight {
+		background: var(--accent-primary);
+		color: white;
+		animation: pulse 1.5s ease-in-out infinite;
 	}
 
-	.shortcut-hint kbd {
-		display: inline-flex;
-		align-items: center;
-		justify-content: center;
-		min-width: 22px;
-		height: 22px;
-		padding: 0 5px;
-		font-size: 0.7rem;
-		font-family: inherit;
-		font-weight: 600;
-		color: var(--text-secondary);
-		background: var(--bg-tertiary);
-		border-radius: 4px;
-		border: 1px solid var(--bg-hover);
+	.search-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
 	}
 
-	.search-overlay {
-		position: absolute;
-		top: 100%;
-		left: 0;
-		right: 0;
-		height: 4px;
-		background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary), var(--accent-primary));
-		background-size: 200% 100%;
-		animation: shimmer 2s linear infinite;
-		border-radius: 0 0 12px 12px;
-		opacity: 0.6;
-	}
-
-	@keyframes shimmer {
-		0% { background-position: -200% 0; }
-		100% { background-position: 200% 0; }
+	@keyframes pulse {
+		0%, 100% { opacity: 1; }
+		50% { opacity: 0.7; }
 	}
 
 	@media (max-width: 640px) {
-		.shortcut-hint {
-			display: none;
-		}
-
 		.search-input {
-			padding: 12px 12px 12px 44px;
-			font-size: 0.95rem;
+			padding: 10px 12px 10px 44px;
+			font-size: 0.9rem;
 		}
 
 		.search-icon-wrapper {
 			left: 12px;
+		}
+
+		.search-actions {
+			gap: 4px;
+			padding-right: 6px;
 		}
 	}
 </style>

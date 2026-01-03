@@ -366,6 +366,10 @@ function normalizeHeader(header: string): string {
  * - {"text":"Actual comment content"}
  * - [{"text":"First line"},{"text":"\n"},{"text":"Second line"}]
  * - {"text":"Line 1"},{"text":"\n"},{"text":"Line 2"}
+ * 
+ * Handles edge cases:
+ * - Actual newline characters in JSON (which break standard parsing)
+ * - Escaped quotes within text values
  */
 function parseCommentTextField(value: string): string {
 	if (!value) return '';
@@ -384,11 +388,11 @@ function parseCommentTextField(value: string): string {
 		}
 	}
 	
-	// Try to parse as single JSON object
-	if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+	// Try to parse as single JSON object (only if not comma-separated)
+	if (trimmed.startsWith('{') && trimmed.endsWith('}') && !trimmed.includes('},{')) {
 		try {
 			const parsed = JSON.parse(trimmed);
-			if (parsed.text) {
+			if (parsed.text !== undefined) {
 				return parsed.text;
 			}
 		} catch {
@@ -397,8 +401,8 @@ function parseCommentTextField(value: string): string {
 	}
 	
 	// Try to parse as comma-separated JSON objects: {"text":"a"},{"text":"b"}
-	// Wrap in array brackets and try again
 	if (trimmed.includes('},{')) {
+		// First attempt: direct JSON parsing
 		try {
 			const wrapped = '[' + trimmed + ']';
 			const parsed = JSON.parse(wrapped);
@@ -406,7 +410,44 @@ function parseCommentTextField(value: string): string {
 				return parsed.map(item => item.text || '').join('');
 			}
 		} catch {
-			// Not valid JSON
+			// JSON parsing failed - might have actual newline/control characters
+		}
+		
+		// Second attempt: fix unescaped control characters and retry
+		try {
+			// Replace unescaped control characters with their escaped versions
+			// Use negative lookbehind to avoid double-escaping already-escaped sequences
+			const fixed = trimmed
+				.replace(/(?<!\\)\n/g, '\\n')
+				.replace(/(?<!\\)\r/g, '\\r')
+				.replace(/(?<!\\)\t/g, '\\t');
+			const wrapped = '[' + fixed + ']';
+			const parsed = JSON.parse(wrapped);
+			if (Array.isArray(parsed)) {
+				return parsed.map(item => item.text || '').join('');
+			}
+		} catch {
+			// Still failed, try regex extraction as fallback
+		}
+		
+		// Fallback: extract text values using regex
+		// This handles severely malformed JSON that can't be parsed normally
+		const textMatches: string[] = [];
+		const regex = /\{"text":"((?:[^"\\]|\\.)*)"\}/g;
+		let match;
+		while ((match = regex.exec(trimmed)) !== null) {
+			// Unescape the captured text
+			const text = match[1]
+				.replace(/\\"/g, '"')
+				.replace(/\\n/g, '\n')
+				.replace(/\\r/g, '\r')
+				.replace(/\\t/g, '\t')
+				.replace(/\\\\/g, '\\');
+			textMatches.push(text);
+		}
+		
+		if (textMatches.length > 0) {
+			return textMatches.join('');
 		}
 	}
 	
