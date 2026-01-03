@@ -1,16 +1,23 @@
 <script lang="ts">
 	import { searchQuery, filteredComments, comments } from '$lib/stores/comments';
-	import { tick } from 'svelte';
+	import { onDestroy } from 'svelte';
 	
 	let inputElement: HTMLInputElement;
 	let isFocused = $state(false);
 	let localQuery = $state('');
 	let isSearching = $state(false);
-	let debounceTimeout: ReturnType<typeof setTimeout>;
+	let debounceTimeout: ReturnType<typeof setTimeout> | undefined;
 	
 	// Sync from store
 	$effect(() => {
 		localQuery = $searchQuery;
+	});
+	
+	// Cleanup on destroy
+	onDestroy(() => {
+		if (debounceTimeout) {
+			clearTimeout(debounceTimeout);
+		}
 	});
 	
 	function handleInput(e: Event) {
@@ -19,7 +26,7 @@
 		isSearching = true;
 		
 		// Debounce the search
-		clearTimeout(debounceTimeout);
+		if (debounceTimeout) clearTimeout(debounceTimeout);
 		debounceTimeout = setTimeout(() => {
 			searchQuery.set(value);
 			isSearching = false;

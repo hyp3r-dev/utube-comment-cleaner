@@ -5,7 +5,6 @@
 	
 	let shurikenElement: SVGGElement;
 	let currentSpeed = $state(8); // seconds per rotation (higher = slower)
-	let targetSpeed = 8;
 	let isHovering = $state(false);
 	let animationFrame: number;
 	let rotation = 0;

@@ -77,8 +77,19 @@
 		return Array.from(groups.values());
 	});
 
-	// Count unenriched comments for enrichment banner
-	const unenrichedCount = $derived($comments.filter(c => !c.isEnriched).length);
+	// Count enriched and unenriched comments (single pass for efficiency)
+	const enrichmentStats = $derived(() => {
+		let enriched = 0;
+		let unenriched = 0;
+		for (const c of $comments) {
+			if (c.isEnriched) enriched++;
+			else unenriched++;
+		}
+		return { enriched, unenriched };
+	});
+	
+	const unenrichedCount = $derived(enrichmentStats().unenriched);
+	const enrichedCount = $derived(enrichmentStats().enriched);
 
 	onMount(async () => {
 		// Try to load cached comments
@@ -429,9 +440,6 @@
 			isLoading.set(false);
 		}
 	}
-
-	// Count of enriched vs unenriched comments
-	const enrichedCount = $derived($comments.filter(c => c.isEnriched).length);
 </script>
 
 <div class="app">
