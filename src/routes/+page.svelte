@@ -10,6 +10,8 @@
 	import DeleteConfirmModal from '$lib/components/DeleteConfirmModal.svelte';
 	import StatsBar from '$lib/components/StatsBar.svelte';
 	import QuotaProgressBar from '$lib/components/QuotaProgressBar.svelte';
+	import ToastContainer from '$lib/components/ToastContainer.svelte';
+	import { toasts } from '$lib/stores/toast';
 	import { 
 		YouTubeService, 
 		TokenExpiredError, 
@@ -337,8 +339,10 @@
 			const addedCount = newComments.length;
 			const skippedCount = importData.comments.length - addedCount;
 			
-			if (addedCount > 0 || skippedCount > 0) {
-				alert(`Import complete: ${addedCount} new comment(s) added, ${skippedCount} duplicate(s) skipped.`);
+			if (addedCount > 0) {
+				toasts.success(`Import complete: ${addedCount} new comment(s) added, ${skippedCount} duplicate(s) skipped.`);
+			} else {
+				toasts.info(`All ${skippedCount} comment(s) were already in your collection.`);
 			}
 			
 			isAuthenticated.set(true);
@@ -391,11 +395,15 @@
 			comments.set(merged);
 			await saveComments(merged);
 			
-			let message = `Merge complete: ${addedComments.length} new comment(s) added.`;
-			if (externallyDeleted.length > 0) {
-				message += ` ${externallyDeleted.length} comment(s) marked as externally deleted.`;
+			if (addedComments.length > 0) {
+				toasts.success(`Merge complete: ${addedComments.length} new comment(s) added.`);
+			} else {
+				toasts.info('No new comments found in the takeout export.');
 			}
-			alert(message);
+			
+			if (externallyDeleted.length > 0) {
+				toasts.warning(`${externallyDeleted.length} comment(s) marked as externally deleted.`);
+			}
 			
 		} catch (e) {
 			error.set(e instanceof Error ? e.message : 'Failed to merge takeout data');
@@ -674,6 +682,8 @@
 		onCancel={() => showDeleteModal = false}
 	/>
 {/if}
+
+<ToastContainer />
 
 <style>
 	.app {

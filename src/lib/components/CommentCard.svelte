@@ -36,6 +36,12 @@
 			return 'Unknown date';
 		}
 	}
+	
+	function escapeHtml(text: string): string {
+		const div = document.createElement('div');
+		div.textContent = text;
+		return div.innerHTML;
+	}
 
 	function truncateText(text: string, maxLength: number): string {
 		if (text.length <= maxLength) return text;
@@ -85,11 +91,11 @@
 	// Check if text is long enough to need expansion
 	const needsExpansion = $derived(comment.textDisplay.length > 200 || comment.textOriginal.length > 200);
 	
-	// Format the display text, converting newlines to <br>
+	// Format the display text: escape HTML first for XSS prevention, then convert newlines to <br>
 	const displayText = $derived(
 		isExpanded 
-			? comment.textDisplay.replace(/\n/g, '<br>')
-			: truncateText(comment.textDisplay.replace(/\n/g, ' '), 200)
+			? escapeHtml(comment.textDisplay).replace(/\n/g, '<br>')
+			: escapeHtml(truncateText(comment.textDisplay.replace(/\n/g, ' '), 200))
 	);
 </script>
 
