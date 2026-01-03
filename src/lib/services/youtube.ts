@@ -85,9 +85,39 @@ export class YouTubeService {
 		}
 	}
 
+	private async fetchMyChannelId(): Promise<string> {
+		const channelUrl = new URL(`${YOUTUBE_API_BASE}/channels`);
+		channelUrl.searchParams.set('part', 'id');
+		channelUrl.searchParams.set('mine', 'true');
+
+		const channelResponse = await fetch(channelUrl.toString(), {
+			headers: {
+				'Authorization': `Bearer ${this.apiKey}`
+			}
+		});
+
+		// Track quota usage for channels list
+		quotaStore.addUsage(QUOTA_COSTS.channelsList);
+
+		if (!channelResponse.ok) {
+			const error = await channelResponse.json();
+			throw new Error(error.error?.message || 'Failed to fetch channel info');
+		}
+
+		const channelData = await channelResponse.json();
+		if (!channelData.items || channelData.items.length === 0) {
+			throw new Error('No channel found for this account');
+		}
+
+		return channelData.items[0].id;
+	}
+
 	async fetchAllComments(
 		onProgress?: (loaded: number, total?: number) => void
 	): Promise<YouTubeComment[]> {
+		// First, get the user's channel ID
+		const channelId = await this.fetchMyChannelId();
+
 		const comments: YouTubeComment[] = [];
 		let pageToken: string | undefined;
 		let totalLoaded = 0;
@@ -95,7 +125,7 @@ export class YouTubeService {
 		do {
 			const url = new URL(`${YOUTUBE_API_BASE}/commentThreads`);
 			url.searchParams.set('part', 'snippet');
-			url.searchParams.set('allThreadsRelatedToChannelId', 'mine');
+			url.searchParams.set('allThreadsRelatedToChannelId', channelId);
 			url.searchParams.set('maxResults', '100'); // Maximum batch size
 			url.searchParams.set('moderationStatus', 'published');
 			if (pageToken) {
@@ -151,31 +181,8 @@ export class YouTubeService {
 	private async fetchMyComments(
 		onProgress?: (loaded: number, total?: number) => void
 	): Promise<YouTubeComment[]> {
-		// First, get the user's channel ID
-		const channelUrl = new URL(`${YOUTUBE_API_BASE}/channels`);
-		channelUrl.searchParams.set('part', 'id');
-		channelUrl.searchParams.set('mine', 'true');
-
-		const channelResponse = await fetch(channelUrl.toString(), {
-			headers: {
-				'Authorization': `Bearer ${this.apiKey}`
-			}
-		});
-
-		// Track quota usage for channels list
-		quotaStore.addUsage(QUOTA_COSTS.channelsList);
-
-		if (!channelResponse.ok) {
-			const error = await channelResponse.json();
-			throw new Error(error.error?.message || 'Failed to fetch channel info');
-		}
-
-		const channelData = await channelResponse.json();
-		if (!channelData.items || channelData.items.length === 0) {
-			throw new Error('No channel found for this account');
-		}
-
-		const channelId = channelData.items[0].id;
+		// Get the user's channel ID
+		const channelId = await this.fetchMyChannelId();
 		const comments: YouTubeComment[] = [];
 		let pageToken: string | undefined;
 		let totalLoaded = 0;
