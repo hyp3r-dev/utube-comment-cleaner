@@ -17,7 +17,7 @@
 		QuotaExceededError,
 		YouTubeAPIError 
 	} from '$lib/services/youtube';
-	import { parseTakeoutFile, readFileAsText } from '$lib/services/takeout';
+	import { parseTakeoutFile, readFileAsText, parseZipFile, parseMultipleFiles } from '$lib/services/takeout';
 	import { saveComments, loadComments, deleteComments as deleteFromStorage, clearAllData } from '$lib/services/storage';
 	import {
 		apiKey,
@@ -76,21 +76,21 @@
 		return 'An unexpected error occurred. Please try again.';
 	}
 
-	async function handleFileImport(file: File) {
-		if (!file) return;
+	async function handleFileImport(files: FileList | File[]) {
+		const fileArray = Array.from(files);
+		if (fileArray.length === 0) return;
 		
 		isLoading.set(true);
 		error.set(null);
 		loadingProgress.set({ loaded: 0, total: 1 });
 
 		try {
-			const content = await readFileAsText(file);
-			loadingProgress.set({ loaded: 0.5, total: 1 });
-			
-			const importedComments = parseTakeoutFile(content, file.name);
+			const importedComments = await parseMultipleFiles(fileArray, (progress) => {
+				loadingProgress.set(progress);
+			});
 			
 			if (importedComments.length === 0) {
-				error.set('No comments found in the uploaded file. Make sure you uploaded the correct Google Takeout file (typically "my-comments.html" from the YouTube export folder).');
+				error.set('No comments found in the uploaded file(s). Make sure you uploaded the correct Google Takeout export. You can upload:\n• A ZIP file from Google Takeout\n• Individual CSV, HTML, or JSON comment files');
 				isLoading.set(false);
 				return;
 			}
@@ -101,7 +101,7 @@
 			
 			isAuthenticated.set(true);
 		} catch (e) {
-			error.set(e instanceof Error ? e.message : 'Failed to parse file. Please make sure it\'s a valid Google Takeout export.');
+			error.set(e instanceof Error ? e.message : 'Failed to parse file(s). Please make sure they are valid Google Takeout exports.');
 		} finally {
 			isLoading.set(false);
 		}
@@ -109,18 +109,18 @@
 
 	function handleFileSelect(event: Event) {
 		const input = event.target as HTMLInputElement;
-		const file = input.files?.[0];
-		if (file) {
-			handleFileImport(file);
+		const files = input.files;
+		if (files && files.length > 0) {
+			handleFileImport(files);
 		}
 	}
 
 	function handleDrop(event: DragEvent) {
 		event.preventDefault();
 		isDragging = false;
-		const file = event.dataTransfer?.files?.[0];
-		if (file) {
-			handleFileImport(file);
+		const files = event.dataTransfer?.files;
+		if (files && files.length > 0) {
+			handleFileImport(files);
 		}
 	}
 
@@ -271,22 +271,23 @@
 						>
 							<input
 								type="file"
-								accept=".html,.htm,.json"
+								accept=".html,.htm,.json,.csv,.zip"
 								onchange={handleFileSelect}
 								bind:this={fileInput}
 								class="file-input"
+								multiple
 							/>
 							<div class="drop-zone-content">
-								<div class="drop-icon">📁</div>
+								<div class="drop-icon">📦</div>
 								<p class="drop-text">
-									Drag & drop your Google Takeout comments file here
+									Drag & drop your Google Takeout export here
 								</p>
-								<p class="drop-subtext">Typically named <strong>my-comments.html</strong> • or click to browse</p>
+								<p class="drop-subtext">Supports <strong>ZIP files</strong>, CSV, HTML, or JSON • or click to browse</p>
 								<button class="btn btn-primary" onclick={() => fileInput.click()}>
 									<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
 										<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd" />
 									</svg>
-									Select File
+									Select File(s)
 								</button>
 							</div>
 						</div>
