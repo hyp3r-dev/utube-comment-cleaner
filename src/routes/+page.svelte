@@ -624,6 +624,10 @@
 		toasts.info('Comment removed from your local database.');
 	}
 
+	// Animation timing constants for delete queue
+	const ANIMATION_DELAY_MS = 400;
+	const CLEANUP_DELAY_MS = 600;
+
 	// Background delete for selected comments with animated progress
 	async function handleBackgroundDelete() {
 		if (!youtubeService || $selectedComments.length === 0) return;
@@ -693,11 +697,11 @@
 				};
 				
 				// Small delay to let animation play
-				await new Promise(resolve => setTimeout(resolve, 400));
+				await new Promise(resolve => setTimeout(resolve, ANIMATION_DELAY_MS));
 			}
 			
 			// After all deletions, clean up after a short delay
-			await new Promise(resolve => setTimeout(resolve, 600));
+			await new Promise(resolve => setTimeout(resolve, CLEANUP_DELAY_MS));
 			
 			// Remove successfully deleted comments from stores and storage
 			if (successIds.length > 0) {
