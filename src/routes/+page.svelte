@@ -146,15 +146,12 @@
 			{:else if !$isAuthenticated && $comments.length === 0}
 				<div class="auth-section">
 					<div class="hero animate-slide-up">
-						<div class="hero-icon animate-spin-slow">✦</div>
 						<h1>Welcome to <span class="text-gradient">CommentSlash</span></h1>
 						<p class="hero-subtitle">
 							Find and destroy your YouTube comments with precision. Filter by likes, 
 							hunt down those embarrassing comments, and slash them away!
 						</p>
 					</div>
-
-					<OAuthGuide />
 
 					<div class="auth-form animate-fade-in">
 						<h2>Enter Your Access Token</h2>
@@ -188,6 +185,8 @@
 							All data is stored locally in your browser and auto-expires after 24 hours.
 						</p>
 					</div>
+
+					<OAuthGuide />
 				</div>
 			{:else}
 				<div class="dashboard">
@@ -304,13 +303,7 @@
 
 	.hero {
 		text-align: center;
-		margin-bottom: 2.5rem;
-	}
-
-	.hero-icon {
-		font-size: 4rem;
 		margin-bottom: 1.5rem;
-		display: inline-block;
 	}
 
 	.hero h1 {
