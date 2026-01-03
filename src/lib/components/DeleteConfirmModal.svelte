@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { YouTubeComment } from '$lib/types/comment';
+	import SlashAnimation from './SlashAnimation.svelte';
 	
 	let {
 		comments,
@@ -15,14 +16,26 @@
 		onCancel: () => void;
 	} = $props();
 
+	let showSlashAnimation = $state(false);
+
 	function truncateText(text: string, maxLength: number): string {
 		if (text.length <= maxLength) return text;
 		return text.slice(0, maxLength) + '...';
 	}
 
+	function handleConfirmClick() {
+		showSlashAnimation = true;
+	}
+
+	function handleSlashComplete() {
+		showSlashAnimation = false;
+		onConfirm();
+	}
+
 	const totalLikes = $derived(comments.reduce((sum, c) => sum + c.likeCount, 0));
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div 
 	class="modal-backdrop" 
 	onclick={onCancel} 
@@ -32,7 +45,13 @@
 	aria-labelledby="modal-title"
 	tabindex="-1"
 >
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
 	<div class="modal" onclick={(e) => e.stopPropagation()} role="document">
+		{#if showSlashAnimation}
+			<SlashAnimation onComplete={handleSlashComplete} />
+		{/if}
+		
 		<div class="modal-header">
 			<div class="warning-icon">
 				<svg width="48" height="48" viewBox="0 0 48 48" fill="none">
@@ -110,8 +129,8 @@
 				<button class="btn btn-secondary" onclick={onCancel}>
 					Cancel
 				</button>
-				<button class="btn btn-danger" onclick={onConfirm}>
-					<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
+				<button class="btn btn-danger slash-btn" onclick={handleConfirmClick}>
+					<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" class="slash-icon">
 						<path d="M3 17 L15 3 L17 5 L5 19 Z" />
 						<path d="M13 5 L17 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
 					</svg>
@@ -142,6 +161,7 @@
 	}
 
 	.modal {
+		position: relative;
 		background: var(--bg-card);
 		border-radius: var(--radius-xl);
 		border: 1px solid var(--bg-tertiary);
@@ -330,6 +350,42 @@
 		padding: 1.5rem 2rem;
 		background: var(--bg-tertiary);
 		border-top: 1px solid var(--bg-hover);
+	}
+
+	.slash-btn {
+		position: relative;
+		overflow: hidden;
+	}
+
+	.slash-btn:hover .slash-icon {
+		animation: slashWiggle 0.3s ease-in-out;
+	}
+
+	@keyframes slashWiggle {
+		0%, 100% {
+			transform: rotate(0deg);
+		}
+		25% {
+			transform: rotate(-15deg);
+		}
+		75% {
+			transform: rotate(15deg);
+		}
+	}
+
+	.slash-btn::after {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: -100%;
+		width: 100%;
+		height: 100%;
+		background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+		transition: left 0.5s ease;
+	}
+
+	.slash-btn:hover::after {
+		left: 100%;
 	}
 
 	@media (max-width: 640px) {

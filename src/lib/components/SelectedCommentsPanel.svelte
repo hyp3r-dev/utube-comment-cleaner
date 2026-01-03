@@ -384,6 +384,42 @@
 		font-weight: 500;
 	}
 
+	.delete-btn {
+		position: relative;
+		overflow: hidden;
+	}
+
+	.delete-btn:hover svg {
+		animation: slashWiggle 0.3s ease-in-out;
+	}
+
+	@keyframes slashWiggle {
+		0%, 100% {
+			transform: rotate(0deg);
+		}
+		25% {
+			transform: rotate(-15deg);
+		}
+		75% {
+			transform: rotate(15deg);
+		}
+	}
+
+	.delete-btn::after {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: -100%;
+		width: 100%;
+		height: 100%;
+		background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+		transition: left 0.5s ease;
+	}
+
+	.delete-btn:hover::after {
+		left: 100%;
+	}
+
 	@media (max-width: 1024px) {
 		.selected-panel {
 			min-height: auto;
