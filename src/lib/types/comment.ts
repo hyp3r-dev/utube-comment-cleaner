@@ -1,3 +1,6 @@
+// Comment label types for categorization
+export type CommentLabel = 'api_error' | 'unenrichable' | 'externally_deleted';
+
 export interface YouTubeComment {
 	id: string;
 	textDisplay: string;
@@ -22,6 +25,12 @@ export interface YouTubeComment {
 	isExternallyDeleted?: boolean;
 	// Flag for comments that couldn't be enriched (not found in YouTube API)
 	isUnenrichable?: boolean;
+	// Labels for categorization (API error, unenrichable, etc.)
+	labels?: CommentLabel[];
+	// Last error that occurred when trying to delete this comment
+	lastDeleteError?: string;
+	// Timestamp of last delete attempt
+	lastDeleteAttempt?: string;
 }
 
 export interface CommentFilters {
@@ -31,6 +40,9 @@ export interface CommentFilters {
 	maxCharacters: number;
 	minLikes: number;
 	maxLikes: number;
+	// Label-based filters
+	labels?: CommentLabel[];
+	showOnlyWithErrors?: boolean;
 }
 
 export type SortField = 'likeCount' | 'publishedAt' | 'textLength';

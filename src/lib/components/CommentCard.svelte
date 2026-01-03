@@ -119,6 +119,12 @@
 			{#if comment.isEnriched}
 				<span class="badge badge-enriched" title="Enriched with YouTube API data">✓ API</span>
 			{/if}
+			{#if comment.labels?.includes('api_error')}
+				<span class="badge badge-error" title={comment.lastDeleteError || 'Delete failed'}>❌ Error</span>
+			{/if}
+			{#if comment.isUnenrichable}
+				<span class="badge badge-warning" title="Could not be enriched via YouTube API">⚠️ Unenrichable</span>
+			{/if}
 		</div>
 
 		<div class="drag-handle" title="Drag to slash queue">
@@ -144,6 +150,16 @@
 					<path d="M8 8l4 2-4 2V8z"/>
 				</svg>
 				<span>{isExpanded ? comment.videoTitle : truncateText(comment.videoTitle, 40)}</span>
+			</div>
+		{/if}
+
+		{#if isExpanded && comment.lastDeleteError}
+			<div class="error-details">
+				<span class="error-label">❌ Last delete error:</span>
+				<span class="error-message">{comment.lastDeleteError}</span>
+				{#if comment.lastDeleteAttempt}
+					<span class="error-time">(at {formatDate(comment.lastDeleteAttempt)})</span>
+				{/if}
 			</div>
 		{/if}
 	</div>
@@ -299,12 +315,26 @@
 	.badge {
 		font-size: 0.65rem;
 		padding: 0.2rem 0.5rem;
+		border-radius: var(--radius-sm);
 	}
 	
 	.badge-enriched {
 		background: rgba(34, 197, 94, 0.2);
 		color: rgb(34, 197, 94);
 		border: 1px solid rgba(34, 197, 94, 0.3);
+	}
+
+	.badge-error {
+		background: rgba(239, 68, 68, 0.2);
+		color: rgb(239, 68, 68);
+		border: 1px solid rgba(239, 68, 68, 0.3);
+		cursor: help;
+	}
+
+	.badge-warning {
+		background: rgba(251, 191, 36, 0.2);
+		color: rgb(251, 191, 36);
+		border: 1px solid rgba(251, 191, 36, 0.3);
 	}
 
 	.drag-handle {
@@ -360,6 +390,31 @@
 	.video-info svg {
 		flex-shrink: 0;
 		margin-top: 2px;
+	}
+
+	.error-details {
+		margin-top: 0.75rem;
+		padding: 0.75rem;
+		background: rgba(239, 68, 68, 0.1);
+		border: 1px solid rgba(239, 68, 68, 0.2);
+		border-radius: var(--radius-sm);
+		font-size: 0.8rem;
+	}
+
+	.error-label {
+		color: var(--error);
+		font-weight: 600;
+	}
+
+	.error-message {
+		color: var(--text-secondary);
+		margin-left: 0.25rem;
+	}
+
+	.error-time {
+		color: var(--text-muted);
+		font-size: 0.7rem;
+		margin-left: 0.5rem;
 	}
 
 	.card-footer {

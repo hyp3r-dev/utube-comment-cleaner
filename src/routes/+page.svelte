@@ -38,7 +38,8 @@
 		selectAllFiltered,
 		deselectAll,
 		logout,
-		updateComments
+		updateComments,
+		setDeleteError
 	} from '$lib/stores/comments';
 	import type { YouTubeComment } from '$lib/types/comment';
 	import JSZip from 'jszip';
@@ -510,9 +511,11 @@
 			}
 			
 			// For failed deletions, they're already not on YouTube, so remove from local DB
-			if (result.failed.length > 0) {
-				removeComments(result.failed);
-				await deleteFromStorage(result.failed);
+			// Extract just the IDs from the failed results
+			const failedIds = result.failed.map(f => f.id);
+			if (failedIds.length > 0) {
+				removeComments(failedIds);
+				await deleteFromStorage(failedIds);
 			}
 			
 			await saveComments($comments);
@@ -560,6 +563,11 @@
 			removeComments(result.success);
 			await deleteFromStorage(result.success);
 			
+			// Mark failed comments with their error messages (keep them in the store)
+			for (const failedItem of result.failed) {
+				setDeleteError(failedItem.id, failedItem.error);
+			}
+			
 			backgroundDeleteProgress = { 
 				deleted: result.success.length, 
 				total: commentIds.length, 
@@ -567,7 +575,7 @@
 			};
 			
 			if (result.failed.length > 0) {
-				toasts.warning(`Deleted ${result.success.length} comment(s). ${result.failed.length} could not be deleted.`);
+				toasts.warning(`Deleted ${result.success.length} comment(s). ${result.failed.length} failed and are labeled with errors.`);
 			} else {
 				toasts.success(`Successfully deleted ${result.success.length} comment(s)!`);
 			}

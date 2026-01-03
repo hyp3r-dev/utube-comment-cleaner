@@ -1,5 +1,5 @@
 import { writable, derived, get } from 'svelte/store';
-import type { YouTubeComment, CommentFilters, SortField, SortOrder } from '$lib/types/comment';
+import type { YouTubeComment, CommentFilters, SortField, SortOrder, CommentLabel } from '$lib/types/comment';
 
 // Authentication store
 export const apiKey = writable<string>('');
@@ -23,7 +23,9 @@ export const filters = writable<CommentFilters>({
 	minCharacters: 0,
 	maxCharacters: 10000,
 	minLikes: 0,
-	maxLikes: 1000000
+	maxLikes: 1000000,
+	labels: undefined,
+	showOnlyWithErrors: false
 });
 
 // Sorting
@@ -52,6 +54,16 @@ export const filteredComments = derived(
 
 			// Like count filter
 			if (comment.likeCount < $filters.minLikes || comment.likeCount > $filters.maxLikes) return false;
+
+			// Label filter - if labels are specified, only show comments with those labels
+			if ($filters.labels && $filters.labels.length > 0) {
+				const commentLabels = comment.labels || [];
+				const hasMatchingLabel = $filters.labels.some(label => commentLabels.includes(label));
+				if (!hasMatchingLabel) return false;
+			}
+
+			// Show only comments with delete errors
+			if ($filters.showOnlyWithErrors && !comment.lastDeleteError) return false;
 
 			// Search query filter
 			if ($searchQuery) {
@@ -203,6 +215,64 @@ export function updateComments(updatedComments: Map<string, Partial<YouTubeComme
 	);
 }
 
+// Add a label to a comment
+export function addLabelToComment(id: string, label: CommentLabel): void {
+	comments.update(current =>
+		current.map(c => {
+			if (c.id !== id) return c;
+			const existingLabels = c.labels || [];
+			if (existingLabels.includes(label)) return c;
+			return { ...c, labels: [...existingLabels, label] };
+		})
+	);
+}
+
+// Remove a label from a comment
+export function removeLabelFromComment(id: string, label: CommentLabel): void {
+	comments.update(current =>
+		current.map(c => {
+			if (c.id !== id) return c;
+			const existingLabels = c.labels || [];
+			return { ...c, labels: existingLabels.filter(l => l !== label) };
+		})
+	);
+}
+
+// Set delete error on a comment
+export function setDeleteError(id: string, errorMessage: string): void {
+	comments.update(current =>
+		current.map(c => {
+			if (c.id !== id) return c;
+			const existingLabels = c.labels || [];
+			const newLabels = existingLabels.includes('api_error') 
+				? existingLabels 
+				: [...existingLabels, 'api_error' as CommentLabel];
+			return {
+				...c,
+				labels: newLabels,
+				lastDeleteError: errorMessage,
+				lastDeleteAttempt: new Date().toISOString()
+			};
+		})
+	);
+}
+
+// Clear delete error from a comment
+export function clearDeleteError(id: string): void {
+	comments.update(current =>
+		current.map(c => {
+			if (c.id !== id) return c;
+			const existingLabels = (c.labels || []).filter(l => l !== 'api_error');
+			return {
+				...c,
+				labels: existingLabels.length > 0 ? existingLabels : undefined,
+				lastDeleteError: undefined,
+				lastDeleteAttempt: undefined
+			};
+		})
+	);
+}
+
 export function resetFilters(): void {
 	filters.set({
 		videoPrivacy: ['public', 'private', 'unlisted', 'unknown'],
@@ -210,7 +280,9 @@ export function resetFilters(): void {
 		minCharacters: 0,
 		maxCharacters: 10000,
 		minLikes: 0,
-		maxLikes: 1000000
+		maxLikes: 1000000,
+		labels: undefined,
+		showOnlyWithErrors: false
 	});
 	searchQuery.set('');
 }

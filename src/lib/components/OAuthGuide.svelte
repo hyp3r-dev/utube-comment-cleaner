@@ -135,7 +135,8 @@
 		background: var(--bg-card);
 		border-radius: var(--radius-xl);
 		border: 1px solid var(--bg-tertiary);
-		margin-top: 1.5rem;
+		margin-top: 0.75rem;
+		margin-bottom: 1.5rem;
 		overflow: hidden;
 		transition: all 0.3s ease;
 	}
