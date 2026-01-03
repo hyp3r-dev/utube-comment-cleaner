@@ -13,6 +13,7 @@
 	import QuotaProgressBar from '$lib/components/QuotaProgressBar.svelte';
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
 	import OAuthGuide from '$lib/components/OAuthGuide.svelte';
+	import GoogleSignInButton from '$lib/components/GoogleSignInButton.svelte';
 	import { toasts } from '$lib/stores/toast';
 	import { 
 		YouTubeService, 
@@ -61,6 +62,11 @@
 	// Background deletion state
 	let isDeletingInBackground = $state(false);
 	let backgroundDeleteProgress = $state<{ deleted: number; total: number; failed: number } | undefined>();
+	
+	// Developer OAuth mode state
+	let developerModeEnabled = $state(false);
+	let isCheckingAuth = $state(true);
+	let oauthLoading = $state(false);
 
 	// Group comments by video ID
 	const groupedComments = $derived(() => {
@@ -121,6 +127,52 @@
 	});
 
 	onMount(async () => {
+		// Check if developer OAuth mode is enabled
+		try {
+			const configResponse = await fetch('/api/auth/config');
+			if (configResponse.ok) {
+				const config = await configResponse.json();
+				developerModeEnabled = config.developerModeEnabled;
+			}
+		} catch (e) {
+			console.debug('Developer mode check failed (may not be configured):', e);
+		}
+		isCheckingAuth = false;
+		
+		// Check for OAuth callback success
+		const params = new URLSearchParams(window.location.search);
+		if (params.get('auth_success') === 'true') {
+			// Try to get the token from the cookie
+			const tokenCookie = document.cookie
+				.split('; ')
+				.find(row => row.startsWith('oauth_token='));
+			
+			if (tokenCookie) {
+				try {
+					const tokenData = JSON.parse(decodeURIComponent(tokenCookie.split('=')[1]));
+					if (tokenData.access_token) {
+						// Clear the cookie immediately for security
+						document.cookie = 'oauth_token=; Path=/; Max-Age=0';
+						
+						// Set the token
+						inputApiKey = tokenData.access_token;
+						handleConnectToken();
+						toasts.success('Successfully signed in with Google!');
+					}
+				} catch (e) {
+					console.error('Failed to parse OAuth token:', e);
+					toasts.error('Failed to complete sign-in. Please try again.');
+				}
+			}
+			
+			// Clean up the URL
+			window.history.replaceState({}, '', '/');
+		} else if (params.get('auth_error')) {
+			const authError = params.get('auth_error');
+			toasts.error(`Sign-in failed: ${authError}`);
+			window.history.replaceState({}, '', '/');
+		}
+		
 		// Try to load cached comments
 		try {
 			const cachedComments = await loadComments();
@@ -732,22 +784,34 @@
 								<div class="banner-icon">🔑</div>
 								<div class="banner-text">
 									<strong>Connect your YouTube account to enrich & delete comments</strong>
-									<p>Enter your OAuth access token to fetch likes, reply counts, and enable deletion</p>
+									{#if developerModeEnabled}
+										<p>Sign in with your Google account to authorize access</p>
+									{:else}
+										<p>Enter your OAuth access token to fetch likes, reply counts, and enable deletion</p>
+									{/if}
 								</div>
 							</div>
-							<div class="banner-form">
-								<input
-									type="password"
-									placeholder="Paste your OAuth access token..."
-									bind:value={inputApiKey}
-									onkeydown={(e) => e.key === 'Enter' && handleConnectToken()}
-								/>
-								<button class="btn btn-primary" onclick={handleConnectToken}>
-									Connect
-								</button>
-							</div>
+							{#if developerModeEnabled}
+								<div class="banner-form">
+									<GoogleSignInButton loading={oauthLoading} />
+								</div>
+							{:else}
+								<div class="banner-form">
+									<input
+										type="password"
+										placeholder="Paste your OAuth access token..."
+										bind:value={inputApiKey}
+										onkeydown={(e) => e.key === 'Enter' && handleConnectToken()}
+									/>
+									<button class="btn btn-primary" onclick={handleConnectToken}>
+										Connect
+									</button>
+								</div>
+							{/if}
 						</div>
-						<OAuthGuide />
+						{#if !developerModeEnabled}
+							<OAuthGuide />
+						{/if}
 					{:else if unenrichedCount > 0}
 						<div class="enrich-banner">
 							<div class="banner-content">

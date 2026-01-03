@@ -101,6 +101,43 @@ docker-compose up -d
 
 Access the app at [http://localhost:3000](http://localhost:3000)
 
+### Developer Mode (Google Sign-In)
+
+For multi-user deployments, you can configure Developer OAuth mode which enables Google Sign-In instead of requiring users to manually enter OAuth tokens:
+
+```yaml
+version: '3.8'
+services:
+  commentslash:
+    image: hyp3rsonix/commentslash:latest
+    container_name: commentslash
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      # Developer OAuth (enables Google Sign-In button)
+      - GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+      - GOOGLE_CLIENT_SECRET=your-client-secret
+      - GOOGLE_REDIRECT_URI=https://your-domain.com/api/auth/callback
+      # Privacy settings (optional)
+      - DETAILED_LOGGING=false  # Set to 'true' for verbose logs
+    restart: unless-stopped
+```
+
+**Environment Variables:**
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `GOOGLE_CLIENT_ID` | OAuth 2.0 Client ID from Google Cloud Console | For Developer Mode |
+| `GOOGLE_CLIENT_SECRET` | OAuth 2.0 Client Secret | For Developer Mode |
+| `GOOGLE_REDIRECT_URI` | Full URL to your callback endpoint (e.g., `https://example.com/api/auth/callback`) | For Developer Mode |
+| `DETAILED_LOGGING` | Enable detailed server logs (default: `false`) | No |
+
+**Note:** When Developer Mode is enabled:
+- Users see a "Sign in with Google" button instead of manual token entry
+- Server-side quota tracking is enabled across all users
+- All logs are privacy-focused with automatic PII redaction
+
 ### Pull from Docker Hub
 
 ```bash
@@ -155,12 +192,16 @@ To enable the GitHub Actions workflow to publish images to Docker Hub:
 
 The workflow will build and push the image to Docker Hub at `hyp3rsonix/commentslash:latest`
 
-## �� Security & Privacy
+## 🔐 Security & Privacy
 
 - **No Server Storage** - Your OAuth token is never stored on any server
 - **Browser-Only Storage** - All comment data is stored in your browser's IndexedDB
 - **Auto-Expiration** - Cached data automatically expires after 24 hours
 - **Rate Limiting Aware** - Implements delays and batch operations to respect YouTube API limits
+- **Privacy-Focused Logging** - All server logs automatically redact emails, tokens, and user identifiers
+- **Minimal Data Collection** - The server only processes authentication requests; comment data stays in your browser
+- **PII Redaction** - Email addresses, access tokens, and channel IDs are automatically redacted from logs
+- **No Analytics** - No tracking, no analytics, no third-party scripts
 
 ## 🛠️ Tech Stack
 
