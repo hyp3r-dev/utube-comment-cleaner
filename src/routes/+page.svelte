@@ -63,8 +63,13 @@
 	let isDeletingInBackground = $state(false);
 	let backgroundDeleteProgress = $state<{ deleted: number; total: number; failed: number } | undefined>();
 	
-	// Developer OAuth mode state
-	let developerModeEnabled = $state(false);
+	// Individual delete progress for animated queue feedback
+	type DeleteStatus = 'pending' | 'deleting' | 'success' | 'failed';
+	let deleteStatuses = $state<Map<string, { status: DeleteStatus; error?: string }>>(new Map());
+	let currentDeletingId = $state<string | undefined>();
+	
+	// Google Login mode state
+	let googleLoginEnabled = $state(false);
 	let isCheckingAuth = $state(true);
 	let oauthLoading = $state(false);
 
@@ -127,15 +132,15 @@
 	});
 
 	onMount(async () => {
-		// Check if developer OAuth mode is enabled
+		// Check if Google Login mode is enabled
 		try {
 			const configResponse = await fetch('/api/auth/config');
 			if (configResponse.ok) {
 				const config = await configResponse.json();
-				developerModeEnabled = config.developerModeEnabled;
+				googleLoginEnabled = config.googleLoginEnabled;
 			}
 		} catch (e) {
-			console.debug('Developer mode check failed (may not be configured):', e);
+			console.debug('Google Login check failed (may not be configured):', e);
 		}
 		isCheckingAuth = false;
 		
@@ -168,8 +173,8 @@
 			window.history.replaceState({}, '', '/');
 		}
 		
-		// Check if we have an existing auth status cookie (developer mode)
-		if (developerModeEnabled && !$apiKey) {
+		// Check if we have an existing auth status cookie (Google Login mode)
+		if (googleLoginEnabled && !$apiKey) {
 			const authStatusCookie = document.cookie
 				.split('; ')
 				.find(row => row.startsWith('youtube_auth_status='));
@@ -619,49 +624,104 @@
 		toasts.info('Comment removed from your local database.');
 	}
 
-	// Background delete for selected comments (non-blocking)
+	// Background delete for selected comments with animated progress
 	async function handleBackgroundDelete() {
 		if (!youtubeService || $selectedComments.length === 0) return;
 		
 		showDeleteModal = false;
 		isDeletingInBackground = true;
-		backgroundDeleteProgress = { deleted: 0, total: $selectedComments.length, failed: 0 };
+		
+		// Get ordered list of comment IDs from the queue
+		const commentsToDelete = [...$selectedComments];
+		const totalCount = commentsToDelete.length;
+		
+		// Initialize all statuses as pending
+		deleteStatuses = new Map();
+		for (const comment of commentsToDelete) {
+			deleteStatuses.set(comment.id, { status: 'pending' });
+		}
+		
+		backgroundDeleteProgress = { deleted: 0, total: totalCount, failed: 0 };
+		
+		let successCount = 0;
+		let failedCount = 0;
+		const successIds: string[] = [];
+		const failedItems: { id: string; error: string }[] = [];
 		
 		try {
-			const commentIds = $selectedComments.map(c => c.id);
-			const result = await youtubeService.deleteComments(commentIds, (deleted, total) => {
+			// Process comments one by one in order (top to bottom in queue)
+			for (const comment of commentsToDelete) {
+				currentDeletingId = comment.id;
+				
+				// Update status to deleting
+				deleteStatuses = new Map(deleteStatuses);
+				deleteStatuses.set(comment.id, { status: 'deleting' });
+				
+				try {
+					// Delete single comment
+					const result = await youtubeService.deleteComments([comment.id]);
+					
+					if (result.success.includes(comment.id)) {
+						// Success - animate right
+						deleteStatuses = new Map(deleteStatuses);
+						deleteStatuses.set(comment.id, { status: 'success' });
+						successIds.push(comment.id);
+						successCount++;
+					} else if (result.failed.length > 0) {
+						// Failed - animate left
+						const failedInfo = result.failed.find(f => f.id === comment.id);
+						const errorMsg = failedInfo?.error || 'Delete failed';
+						deleteStatuses = new Map(deleteStatuses);
+						deleteStatuses.set(comment.id, { status: 'failed', error: errorMsg });
+						failedItems.push({ id: comment.id, error: errorMsg });
+						failedCount++;
+					}
+				} catch (e) {
+					// Error - animate left
+					const errorMsg = e instanceof Error ? e.message : 'Delete failed';
+					deleteStatuses = new Map(deleteStatuses);
+					deleteStatuses.set(comment.id, { status: 'failed', error: errorMsg });
+					failedItems.push({ id: comment.id, error: errorMsg });
+					failedCount++;
+				}
+				
+				// Update progress
 				backgroundDeleteProgress = { 
-					deleted, 
-					total, 
-					failed: backgroundDeleteProgress?.failed || 0 
+					deleted: successCount, 
+					total: totalCount, 
+					failed: failedCount 
 				};
-			});
+				
+				// Small delay to let animation play
+				await new Promise(resolve => setTimeout(resolve, 400));
+			}
+			
+			// After all deletions, clean up after a short delay
+			await new Promise(resolve => setTimeout(resolve, 600));
 			
 			// Remove successfully deleted comments from stores and storage
-			removeComments(result.success);
-			await deleteFromStorage(result.success);
+			if (successIds.length > 0) {
+				removeComments(successIds);
+				await deleteFromStorage(successIds);
+			}
 			
 			// Mark failed comments with their error messages (keep them in the store)
-			for (const failedItem of result.failed) {
+			for (const failedItem of failedItems) {
 				setDeleteError(failedItem.id, failedItem.error);
 			}
 			
-			backgroundDeleteProgress = { 
-				deleted: result.success.length, 
-				total: commentIds.length, 
-				failed: result.failed.length 
-			};
-			
-			if (result.failed.length > 0) {
-				toasts.warning(`Deleted ${result.success.length} comment(s). ${result.failed.length} failed and are labeled with errors.`);
+			if (failedCount > 0) {
+				toasts.warning(`Deleted ${successCount} comment(s). ${failedCount} failed and are labeled with errors.`);
 			} else {
-				toasts.success(`Successfully deleted ${result.success.length} comment(s)!`);
+				toasts.success(`Successfully deleted ${successCount} comment(s)!`);
 			}
 		} catch (e) {
 			error.set(getErrorMessage(e));
 		} finally {
 			isDeletingInBackground = false;
 			backgroundDeleteProgress = undefined;
+			deleteStatuses = new Map();
+			currentDeletingId = undefined;
 			deselectAll();
 		}
 	}
@@ -802,14 +862,14 @@
 								<div class="banner-icon">🔑</div>
 								<div class="banner-text">
 									<strong>Connect your YouTube account to enrich & delete comments</strong>
-									{#if developerModeEnabled}
+									{#if googleLoginEnabled}
 										<p>Sign in with your Google account to authorize access</p>
 									{:else}
 										<p>Enter your OAuth access token to fetch likes, reply counts, and enable deletion</p>
 									{/if}
 								</div>
 							</div>
-							{#if developerModeEnabled}
+							{#if googleLoginEnabled}
 								<div class="banner-form">
 									<GoogleSignInButton loading={oauthLoading} />
 								</div>
@@ -827,7 +887,7 @@
 								</div>
 							{/if}
 						</div>
-						{#if !developerModeEnabled}
+						{#if !googleLoginEnabled}
 							<OAuthGuide />
 						{/if}
 					{:else if unenrichedCount > 0}
@@ -969,7 +1029,14 @@
 								</svg>
 							</button>
 							<div class="sidebar-content">
-								<SelectedCommentsPanel onDeleteRequest={() => showDeleteModal = true} />
+								<SelectedCommentsPanel 
+									onDeleteRequest={() => showDeleteModal = true} 
+									isDeleting={isDeletingInBackground}
+									deleteProgress={{
+										currentId: currentDeletingId,
+										statuses: deleteStatuses
+									}}
+								/>
 							</div>
 						</aside>
 						

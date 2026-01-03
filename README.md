@@ -101,9 +101,9 @@ docker-compose up -d
 
 Access the app at [http://localhost:3000](http://localhost:3000)
 
-### Developer Mode (Google Sign-In)
+### Google Login Mode
 
-For multi-user deployments, you can configure Developer OAuth mode which enables Google Sign-In instead of requiring users to manually enter OAuth tokens:
+For multi-user deployments, you can configure Google Login mode which enables Google Sign-In instead of requiring users to manually enter OAuth tokens:
 
 ```yaml
 version: '3.8'
@@ -115,25 +115,31 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      # Developer OAuth (enables Google Sign-In button)
+      # Google Login (enables Google Sign-In button)
       - GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
       - GOOGLE_CLIENT_SECRET=your-client-secret
       - GOOGLE_REDIRECT_URI=https://your-domain.com/api/auth/callback
       # Privacy settings (optional)
       - DETAILED_LOGGING=false  # Set to 'true' for verbose logs
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 ```
 
 **Environment Variables:**
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `GOOGLE_CLIENT_ID` | OAuth 2.0 Client ID from Google Cloud Console | For Developer Mode |
-| `GOOGLE_CLIENT_SECRET` | OAuth 2.0 Client Secret | For Developer Mode |
-| `GOOGLE_REDIRECT_URI` | Full URL to your callback endpoint (e.g., `https://example.com/api/auth/callback`) | For Developer Mode |
+| `GOOGLE_CLIENT_ID` | OAuth 2.0 Client ID from Google Cloud Console | For Google Login |
+| `GOOGLE_CLIENT_SECRET` | OAuth 2.0 Client Secret | For Google Login |
+| `GOOGLE_REDIRECT_URI` | Full URL to your callback endpoint (e.g., `https://example.com/api/auth/callback`) | For Google Login |
 | `DETAILED_LOGGING` | Enable detailed server logs (default: `false`) | No |
 
-**Note:** When Developer Mode is enabled:
+**Note:** When Google Login is enabled:
 - Users see a "Sign in with Google" button instead of manual token entry
 - Server-side quota tracking is enabled across all users
 - All logs are privacy-focused with automatic PII redaction

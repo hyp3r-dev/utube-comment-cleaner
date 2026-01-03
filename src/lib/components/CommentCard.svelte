@@ -243,7 +243,6 @@
 
 	.comment-card:hover {
 		border-color: var(--accent-primary);
-		transform: translateY(-2px);
 		box-shadow: var(--shadow-md);
 	}
 

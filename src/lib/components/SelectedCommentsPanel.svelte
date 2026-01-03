@@ -3,10 +3,20 @@
 	import { pendingQuota, calculateDeleteQuotaCost, QUOTA_COSTS } from '$lib/stores/quota';
 	import type { YouTubeComment } from '$lib/types/comment';
 	
+	// Delete result for each comment
+	type DeleteStatus = 'pending' | 'deleting' | 'success' | 'failed';
+	
 	let {
-		onDeleteRequest
+		onDeleteRequest,
+		isDeleting = false,
+		deleteProgress
 	}: {
 		onDeleteRequest?: () => void;
+		isDeleting?: boolean;
+		deleteProgress?: { 
+			currentId?: string;
+			statuses: Map<string, { status: DeleteStatus; error?: string }>;
+		};
 	} = $props();
 
 	let isDragOver = $state(false);
@@ -48,6 +58,16 @@
 	function handleDeleteHoverEnd() {
 		isHoveringDelete = false;
 		pendingQuota.set(0);
+	}
+	
+	function getCommentStatus(commentId: string): DeleteStatus {
+		if (!deleteProgress) return 'pending';
+		return deleteProgress.statuses.get(commentId)?.status || 'pending';
+	}
+	
+	function getCommentError(commentId: string): string | undefined {
+		if (!deleteProgress) return undefined;
+		return deleteProgress.statuses.get(commentId)?.error;
 	}
 
 	const totalLikes = $derived($selectedComments.reduce((sum, c) => sum + c.likeCount, 0));
@@ -100,7 +120,13 @@
 			{:else}
 				<div class="selected-list">
 					{#each $selectedComments as comment (comment.id)}
-						<div class="selected-item animate-slide-left">
+						{@const status = getCommentStatus(comment.id)}
+						<div 
+							class="selected-item" 
+							class:deleting={status === 'deleting'}
+							class:success={status === 'success'}
+							class:failed={status === 'failed'}
+						>
 							<div class="item-content">
 								<p class="item-text">{truncateText(comment.textOriginal, 60)}</p>
 								<div class="item-meta">
@@ -108,15 +134,38 @@
 									<span class="chars">{comment.textOriginal.length} chars</span>
 								</div>
 							</div>
-							<button 
-								class="remove-btn" 
-								onclick={() => deselectComment(comment.id)}
-								title="Remove from queue"
-							>
-								<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-									<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-								</svg>
-							</button>
+							
+							<!-- Status indicator -->
+							{#if status === 'deleting'}
+								<div class="status-icon deleting">
+									<svg class="spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+										<circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
+										<path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
+									</svg>
+								</div>
+							{:else if status === 'success'}
+								<div class="status-icon success">
+									<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+										<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+									</svg>
+								</div>
+							{:else if status === 'failed'}
+								<div class="status-icon failed" title={getCommentError(comment.id) || 'Delete failed'}>
+									<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+										<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+									</svg>
+								</div>
+							{:else if !isDeleting}
+								<button 
+									class="remove-btn" 
+									onclick={() => deselectComment(comment.id)}
+									title="Remove from queue"
+								>
+									<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+										<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+									</svg>
+								</button>
+							{/if}
 						</div>
 					{/each}
 				</div>
@@ -138,7 +187,7 @@
 
 		{#if $selectedComments.length > 0}
 			<div class="panel-footer">
-				<button class="btn btn-ghost" onclick={deselectAll}>
+				<button class="btn btn-ghost" onclick={deselectAll} disabled={isDeleting}>
 					Clear All
 				</button>
 				<button 
@@ -148,6 +197,7 @@
 					onmouseleave={handleDeleteHoverEnd}
 					onfocus={handleDeleteHoverStart}
 					onblur={handleDeleteHoverEnd}
+					disabled={isDeleting}
 				>
 					<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
 						<path d="M3 17 L15 3 L17 5 L5 19 Z" />
@@ -295,11 +345,109 @@
 		padding: 0.75rem;
 		background: var(--bg-tertiary);
 		border-radius: var(--radius-md);
-		transition: all 0.2s ease;
+		transition: all 0.4s ease;
+		position: relative;
+		overflow: hidden;
 	}
 
 	.selected-item:hover {
 		background: var(--bg-hover);
+	}
+
+	/* Deleting state - pulsing effect */
+	.selected-item.deleting {
+		background: rgba(99, 102, 241, 0.2);
+		border-left: 3px solid var(--accent-primary);
+	}
+
+	/* Success state - swipe right animation */
+	.selected-item.success {
+		animation: swipeRightSuccess 0.6s ease forwards;
+		background: rgba(16, 185, 129, 0.2);
+		border-left: 3px solid var(--success);
+	}
+
+	/* Failed state - swipe left animation */
+	.selected-item.failed {
+		animation: swipeLeftFailed 0.6s ease forwards;
+		background: rgba(239, 68, 68, 0.2);
+		border-left: 3px solid var(--error);
+	}
+
+	@keyframes swipeRightSuccess {
+		0% {
+			transform: translateX(0);
+			opacity: 1;
+		}
+		50% {
+			transform: translateX(10px);
+			opacity: 1;
+		}
+		100% {
+			transform: translateX(100%);
+			opacity: 0;
+		}
+	}
+
+	@keyframes swipeLeftFailed {
+		0% {
+			transform: translateX(0);
+		}
+		15% {
+			transform: translateX(-10px);
+		}
+		30% {
+			transform: translateX(5px);
+		}
+		45% {
+			transform: translateX(-5px);
+		}
+		60% {
+			transform: translateX(0);
+		}
+		100% {
+			transform: translateX(0);
+		}
+	}
+
+	.status-icon {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 24px;
+		height: 24px;
+		flex-shrink: 0;
+	}
+
+	.status-icon.deleting .spinner {
+		animation: spin 1s linear infinite;
+	}
+
+	@keyframes spin {
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
+	}
+
+	.status-icon.success {
+		color: var(--success);
+		animation: popIn 0.3s ease;
+	}
+
+	.status-icon.failed {
+		color: var(--error);
+		animation: shake 0.4s ease;
+	}
+
+	@keyframes popIn {
+		0% { transform: scale(0); }
+		50% { transform: scale(1.2); }
+		100% { transform: scale(1); }
+	}
+
+	@keyframes shake {
+		0%, 100% { transform: translateX(0); }
+		25% { transform: translateX(-5px); }
+		75% { transform: translateX(5px); }
 	}
 
 	.item-content {

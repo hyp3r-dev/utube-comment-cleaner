@@ -6,16 +6,16 @@ import { oauthConfig, privacyLogger } from '$lib/server/config';
 
 // GET - Get current quota status
 export const GET: RequestHandler = async () => {
-	// Only return quota info if developer mode is enabled
+	// Only return quota info if Google Login mode is enabled
 	if (!oauthConfig.isConfigured) {
 		return json({ 
-			developerModeEnabled: false,
-			message: 'Developer mode not configured - quota tracking is client-side only'
+			googleLoginEnabled: false,
+			message: 'Google Login not configured - quota tracking is client-side only'
 		});
 	}
 	
 	return json({
-		developerModeEnabled: true,
+		googleLoginEnabled: true,
 		quota: getQuotaStatus()
 	});
 };
@@ -25,7 +25,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	if (!oauthConfig.isConfigured) {
 		return json({ 
 			success: false,
-			message: 'Developer mode not configured'
+			message: 'Google Login not configured'
 		}, { status: 400 });
 	}
 	
