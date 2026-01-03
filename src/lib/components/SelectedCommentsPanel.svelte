@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { selectedComments, selectedIds, deselectComment, deselectAll } from '$lib/stores/comments';
+	import { selectedComments, selectedIds, deselectComment, deselectAll, selectComment } from '$lib/stores/comments';
 	import { pendingQuota, calculateDeleteQuotaCost, QUOTA_COSTS } from '$lib/stores/quota';
 	import type { YouTubeComment } from '$lib/types/comment';
 	
@@ -15,6 +15,7 @@
 
 	function handleDragOver(e: DragEvent) {
 		e.preventDefault();
+		e.dataTransfer!.dropEffect = 'move';
 		isDragOver = true;
 	}
 
@@ -25,7 +26,12 @@
 	function handleDrop(e: DragEvent) {
 		e.preventDefault();
 		isDragOver = false;
-		// The selection is handled by the CommentCard itself
+		
+		// Get the comment ID from the drag data
+		const commentId = e.dataTransfer?.getData('text/plain');
+		if (commentId) {
+			selectComment(commentId);
+		}
 	}
 
 	function truncateText(text: string, maxLength: number): string {
@@ -88,8 +94,8 @@
 							<path d="M19 14l-7 7m0 0l-7-7m7 7V3" stroke-linecap="round" stroke-linejoin="round"/>
 						</svg>
 					</div>
-					<p>Drag comments here or click to select</p>
-					<span class="hint">Selected comments will appear here for batch deletion</span>
+					<p>Drag comments here to mark for deletion</p>
+					<span class="hint">Or click the circle button on each comment to add them</span>
 				</div>
 			{:else}
 				<div class="selected-list">
@@ -167,7 +173,7 @@
 		transition: all 0.3s ease;
 		display: flex;
 		flex-direction: column;
-		height: 100%;
+		max-height: calc(100vh - 200px);
 		min-height: 300px;
 	}
 
@@ -178,12 +184,14 @@
 
 	.selected-panel.drag-over {
 		border-color: var(--accent-tertiary);
-		background: rgba(99, 102, 241, 0.05);
-		box-shadow: 0 0 20px rgba(99, 102, 241, 0.2);
+		background: rgba(99, 102, 241, 0.1);
+		box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+		transform: scale(1.02);
 	}
 
 	.selected-panel.minimized {
 		min-height: auto;
+		max-height: none;
 	}
 
 	.panel-header {
@@ -193,6 +201,7 @@
 		padding: 1rem 1.25rem;
 		background: var(--bg-tertiary);
 		border-bottom: 1px solid var(--bg-hover);
+		flex-shrink: 0;
 	}
 
 	.header-content {
@@ -243,6 +252,7 @@
 		flex: 1;
 		overflow-y: auto;
 		padding: 1rem;
+		min-height: 0;
 	}
 
 	.drop-zone {
@@ -363,6 +373,7 @@
 		padding: 1rem 1.25rem;
 		background: var(--bg-tertiary);
 		border-top: 1px solid var(--bg-hover);
+		flex-shrink: 0;
 	}
 
 	.delete-btn {
@@ -423,10 +434,11 @@
 	@media (max-width: 1024px) {
 		.selected-panel {
 			min-height: auto;
+			max-height: 400px;
 		}
 
 		.panel-body {
-			max-height: 300px;
+			max-height: 250px;
 		}
 	}
 </style>

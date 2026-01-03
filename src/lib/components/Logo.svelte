@@ -1,10 +1,66 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	
 	let { size = 40 }: { size?: number } = $props();
+	
+	let shurikenElement: SVGGElement;
+	let currentSpeed = $state(8); // seconds per rotation (higher = slower)
+	let isHovering = $state(false);
+	let animationFrame: number;
+	let rotation = 0;
+	let lastTime = 0;
+	
+	const IDLE_SPEED = 8; // 8 seconds per rotation when idle
+	const MAX_SPEED = 0.4; // 0.4 seconds per rotation at max speed
+	const ACCELERATION = 0.92; // Speed multiplier per frame when accelerating (lower = faster acceleration)
+	const DECELERATION = 1.02; // Speed multiplier per frame when decelerating (higher = faster deceleration)
+	
+	function animate(currentTime: number) {
+		if (!lastTime) lastTime = currentTime;
+		const deltaTime = currentTime - lastTime;
+		lastTime = currentTime;
+		
+		// Smoothly interpolate speed
+		if (isHovering && currentSpeed > MAX_SPEED) {
+			currentSpeed = Math.max(currentSpeed * ACCELERATION, MAX_SPEED);
+		} else if (!isHovering && currentSpeed < IDLE_SPEED) {
+			currentSpeed = Math.min(currentSpeed * DECELERATION, IDLE_SPEED);
+		}
+		
+		// Calculate rotation based on current speed
+		const degreesPerMs = 360 / (currentSpeed * 1000);
+		rotation = (rotation + degreesPerMs * deltaTime) % 360;
+		
+		if (shurikenElement) {
+			shurikenElement.style.transform = `rotate(${rotation}deg)`;
+		}
+		
+		animationFrame = requestAnimationFrame(animate);
+	}
+	
+	function handleMouseEnter() {
+		isHovering = true;
+	}
+	
+	function handleMouseLeave() {
+		isHovering = false;
+	}
+	
+	onMount(() => {
+		animationFrame = requestAnimationFrame(animate);
+		return () => cancelAnimationFrame(animationFrame);
+	});
 </script>
 
-<div class="logo" style="--size: {size}px">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div 
+	class="logo" 
+	style="--size: {size}px"
+	onmouseenter={handleMouseEnter}
+	onmouseleave={handleMouseLeave}
+>
 	<div class="logo-icon-wrapper">
-		<svg viewBox="0 0 32 32" width={size} height={size} class="logo-icon">
+		<svg viewBox="0 0 32 32" width={size} height={size} class="logo-icon" class:hovering={isHovering}>
 			<defs>
 				<linearGradient id="logo-bg" x1="0%" y1="0%" x2="100%" y2="100%">
 					<stop offset="0%" style="stop-color:#6366f1"/>
@@ -22,7 +78,7 @@
 			</defs>
 			<rect width="32" height="32" rx="6" fill="url(#logo-bg)"/>
 			<!-- Ninja Star (Shuriken) -->
-			<g class="shuriken">
+			<g class="shuriken" bind:this={shurikenElement}>
 				<!-- Four-pointed ninja star -->
 				<path d="M16 4 L18 14 L16 16 L14 14 Z" fill="url(#star-gradient)"/>
 				<path d="M28 16 L18 18 L16 16 L18 14 Z" fill="url(#star-gradient)"/>
@@ -47,37 +103,29 @@
 		display: flex;
 		align-items: center;
 		gap: 0.75rem;
+		cursor: pointer;
 	}
 
 	.logo-icon-wrapper {
 		filter: drop-shadow(0 4px 8px rgba(99, 102, 241, 0.3));
+		transition: filter 0.3s ease;
+	}
+
+	.logo:hover .logo-icon-wrapper {
+		filter: drop-shadow(0 6px 12px rgba(99, 102, 241, 0.5));
 	}
 
 	.logo-icon {
-		transition: transform 0.3s ease;
+		transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+	}
+
+	.logo-icon.hovering {
+		transform: scale(1.1);
 	}
 
 	.shuriken {
 		transform-origin: 16px 16px;
-		animation: spin 8s linear infinite;
-	}
-
-	.logo:hover .shuriken {
-		animation: spinFast 0.5s linear infinite;
-	}
-
-	.logo:hover .logo-icon {
-		transform: scale(1.1);
-	}
-
-	@keyframes spin {
-		from { transform: rotate(0deg); }
-		to { transform: rotate(360deg); }
-	}
-
-	@keyframes spinFast {
-		from { transform: rotate(0deg); }
-		to { transform: rotate(360deg); }
+		will-change: transform;
 	}
 
 	.logo-text {
@@ -88,5 +136,11 @@
 		-webkit-text-fill-color: transparent;
 		background-clip: text;
 		letter-spacing: -0.02em;
+		transition: background-position 0.3s ease;
+		background-size: 200% 200%;
+	}
+
+	.logo:hover .logo-text {
+		background-position: 100% 100%;
 	}
 </style>

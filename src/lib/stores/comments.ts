@@ -151,6 +151,23 @@ export function removeComments(ids: string[]): void {
 	});
 }
 
+// Update a single comment in place (for real-time enrichment)
+export function updateComment(id: string, updates: Partial<YouTubeComment>): void {
+	comments.update(current => 
+		current.map(c => c.id === id ? { ...c, ...updates } : c)
+	);
+}
+
+// Update multiple comments in place (for batch enrichment)
+export function updateComments(updatedComments: Map<string, Partial<YouTubeComment>>): void {
+	comments.update(current => 
+		current.map(c => {
+			const updates = updatedComments.get(c.id);
+			return updates ? { ...c, ...updates } : c;
+		})
+	);
+}
+
 export function resetFilters(): void {
 	filters.set({
 		videoPrivacy: ['public', 'private', 'unlisted', 'unknown'],

@@ -4,11 +4,14 @@
 	import TakeoutGuide from '$lib/components/TakeoutGuide.svelte';
 	import FilterPanel from '$lib/components/FilterPanel.svelte';
 	import CommentCard from '$lib/components/CommentCard.svelte';
+	import VideoGroup from '$lib/components/VideoGroup.svelte';
 	import SelectedCommentsPanel from '$lib/components/SelectedCommentsPanel.svelte';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import DeleteConfirmModal from '$lib/components/DeleteConfirmModal.svelte';
 	import StatsBar from '$lib/components/StatsBar.svelte';
 	import QuotaProgressBar from '$lib/components/QuotaProgressBar.svelte';
+	import ToastContainer from '$lib/components/ToastContainer.svelte';
+	import { toasts } from '$lib/stores/toast';
 	import { 
 		YouTubeService, 
 		TokenExpiredError, 
@@ -31,8 +34,11 @@
 		removeComments,
 		selectAllFiltered,
 		deselectAll,
-		logout
+		logout,
+		updateComments
 	} from '$lib/stores/comments';
+	import type { YouTubeComment } from '$lib/types/comment';
+	import JSZip from 'jszip';
 
 	let inputApiKey = $state('');
 	let showDeleteModal = $state(false);
@@ -40,7 +46,50 @@
 	let deleteProgress = $state<{ deleted: number; total: number } | undefined>();
 	let youtubeService: YouTubeService | null = null;
 	let fileInput: HTMLInputElement;
+	let importJsonInput: HTMLInputElement;
 	let isDragging = $state(false);
+	let isEnriching = $state(false);
+	let enrichProgress = $state<{ enriched: number; total: number } | undefined>();
+	let groupByVideo = $state(true);
+	let hideSelectedFromList = $state(true);
+
+	// Group comments by video ID
+	const groupedComments = $derived(() => {
+		const groups = new Map<string, { videoId: string; videoTitle?: string; comments: YouTubeComment[] }>();
+		
+		for (const comment of $filteredComments) {
+			const existing = groups.get(comment.videoId);
+			if (existing) {
+				existing.comments.push(comment);
+				// Use the latest video title if available
+				if (comment.videoTitle && !existing.videoTitle) {
+					existing.videoTitle = comment.videoTitle;
+				}
+			} else {
+				groups.set(comment.videoId, {
+					videoId: comment.videoId,
+					videoTitle: comment.videoTitle,
+					comments: [comment]
+				});
+			}
+		}
+		
+		return Array.from(groups.values());
+	});
+
+	// Count enriched and unenriched comments (single pass for efficiency)
+	const enrichmentStats = $derived(() => {
+		let enriched = 0;
+		let unenriched = 0;
+		for (const c of $comments) {
+			if (c.isEnriched) enriched++;
+			else unenriched++;
+		}
+		return { enriched, unenriched };
+	});
+	
+	const unenrichedCount = $derived(enrichmentStats().unenriched);
+	const enrichedCount = $derived(enrichmentStats().enriched);
 
 	onMount(async () => {
 		// Try to load cached comments
@@ -90,7 +139,7 @@
 			});
 			
 			if (importedComments.length === 0) {
-				error.set('No comments found in the uploaded file(s). Make sure you uploaded the correct Google Takeout export. Supported formats: ZIP files from Google Takeout, individual CSV, HTML, or JSON comment files.');
+				error.set('No comments found in the uploaded file(s). Make sure you uploaded the correct Google Takeout export (ZIP file or CSV).');
 				isLoading.set(false);
 				return;
 			}
@@ -159,7 +208,7 @@
 			error.set(null);
 			
 			// Show success message
-			alert(`Connected to YouTube as "${validationResult.channelTitle}". You can now delete comments.`);
+			toasts.success(`Connected to YouTube as "${validationResult.channelTitle}". You can now enrich and delete comments.`);
 		} catch (e) {
 			error.set(getErrorMessage(e));
 		} finally {
@@ -201,6 +250,195 @@
 		await clearAllData();
 		inputApiKey = '';
 		youtubeService = null;
+	}
+
+	async function handleEnrichComments() {
+		if (!youtubeService || $comments.length === 0) return;
+		
+		// Only enrich comments that haven't been enriched yet
+		const unenrichedComments = $comments.filter(c => !c.isEnriched);
+		if (unenrichedComments.length === 0) return;
+		
+		isEnriching = true;
+		enrichProgress = { enriched: 0, total: unenrichedComments.length };
+		error.set(null);
+		
+		try {
+			const result = await youtubeService.enrichComments(
+				unenrichedComments, 
+				// Progress callback
+				(enriched, total) => {
+					enrichProgress = { enriched, total };
+				},
+				// Real-time batch update callback
+				(batchUpdates) => {
+					// Update comments in place for immediate UI feedback
+					updateComments(batchUpdates);
+				}
+			);
+			
+			// Final save to storage after all batches complete
+			await saveComments($comments);
+			
+			if (result.missing.length > 0) {
+				toasts.warning(`${result.missing.length} comment(s) could not be enriched (may be deleted or private).`);
+			} else {
+				toasts.success(`Successfully enriched ${result.enriched.filter(c => c.isEnriched).length} comments!`);
+			}
+		} catch (e) {
+			error.set(getErrorMessage(e));
+		} finally {
+			isEnriching = false;
+			enrichProgress = undefined;
+		}
+	}
+
+	async function handleExportComments(asZip: boolean = false) {
+		if ($comments.length === 0) return;
+		
+		const exportData = {
+			version: 1,
+			exportedAt: new Date().toISOString(),
+			comments: $comments
+		};
+		
+		const jsonString = JSON.stringify(exportData, null, 2);
+		
+		if (asZip) {
+			const zip = new JSZip();
+			zip.file('comments.json', jsonString);
+			const blob = await zip.generateAsync({ type: 'blob' });
+			downloadBlob(blob, 'commentslash-export.zip');
+		} else {
+			const blob = new Blob([jsonString], { type: 'application/json' });
+			downloadBlob(blob, 'commentslash-export.json');
+		}
+	}
+
+	function downloadBlob(blob: Blob, filename: string) {
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = filename;
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
+	}
+
+	async function handleImportJson(event: Event) {
+		const input = event.target as HTMLInputElement;
+		const files = input.files;
+		if (!files || files.length === 0) return;
+		
+		isLoading.set(true);
+		error.set(null);
+		
+		try {
+			const file = files[0];
+			let jsonString: string;
+			
+			if (file.name.endsWith('.zip')) {
+				const zip = await JSZip.loadAsync(file);
+				const jsonFile = zip.file('comments.json');
+				if (!jsonFile) {
+					throw new Error('No comments.json found in the zip file');
+				}
+				jsonString = await jsonFile.async('string');
+			} else {
+				jsonString = await readFileAsText(file);
+			}
+			
+			const importData = JSON.parse(jsonString);
+			
+			if (!importData.comments || !Array.isArray(importData.comments)) {
+				throw new Error('Invalid export file format');
+			}
+			
+			// Merge with existing comments
+			const existingIds = new Set($comments.map(c => c.id));
+			const newComments = importData.comments.filter((c: YouTubeComment) => !existingIds.has(c.id));
+			
+			if (newComments.length > 0) {
+				const merged = [...$comments, ...newComments];
+				comments.set(merged);
+				await saveComments(merged);
+			}
+			
+			const addedCount = newComments.length;
+			const skippedCount = importData.comments.length - addedCount;
+			
+			if (addedCount > 0) {
+				toasts.success(`Import complete: ${addedCount} new comment(s) added, ${skippedCount} duplicate(s) skipped.`);
+			} else {
+				toasts.info(`All ${skippedCount} comment(s) were already in your collection.`);
+			}
+			
+			isAuthenticated.set(true);
+		} catch (e) {
+			error.set(e instanceof Error ? e.message : 'Failed to import comments');
+		} finally {
+			isLoading.set(false);
+			input.value = '';
+		}
+	}
+
+	async function handleMergeTakeout(files: FileList | File[]) {
+		const fileArray = Array.from(files);
+		if (fileArray.length === 0) return;
+		
+		isLoading.set(true);
+		error.set(null);
+		loadingProgress.set({ loaded: 0, total: 1 });
+		
+		try {
+			const newComments = await parseMultipleFiles(fileArray, (progress) => {
+				loadingProgress.set(progress);
+			});
+			
+			if (newComments.length === 0) {
+				error.set('No comments found in the uploaded file(s).');
+				isLoading.set(false);
+				return;
+			}
+			
+			// Create sets for comparison
+			const newIds = new Set(newComments.map(c => c.id));
+			const existingIds = new Set($comments.map(c => c.id));
+			
+			// Find comments that exist in current data but not in new takeout (externally deleted)
+			const externallyDeleted = $comments.filter(c => !newIds.has(c.id) && !c.isExternallyDeleted);
+			
+			// Mark externally deleted comments
+			const updatedComments = $comments.map(c => {
+				if (!newIds.has(c.id) && !c.isExternallyDeleted) {
+					return { ...c, isExternallyDeleted: true };
+				}
+				return c;
+			});
+			
+			// Add new comments that don't exist
+			const addedComments = newComments.filter(c => !existingIds.has(c.id));
+			
+			const merged = [...updatedComments, ...addedComments];
+			comments.set(merged);
+			await saveComments(merged);
+			
+			if (addedComments.length > 0) {
+				toasts.success(`Merge complete: ${addedComments.length} new comment(s) added.`);
+			} else {
+				toasts.info('No new comments found in the takeout export.');
+			}
+			
+			if (externallyDeleted.length > 0) {
+				toasts.warning(`${externallyDeleted.length} comment(s) marked as externally deleted.`);
+			}
+			
+		} catch (e) {
+			error.set(e instanceof Error ? e.message : 'Failed to merge takeout data');
+		} finally {
+			isLoading.set(false);
+		}
 	}
 </script>
 
@@ -271,7 +509,7 @@
 						>
 							<input
 								type="file"
-								accept=".html,.htm,.json,.csv,.zip"
+								accept=".csv,.zip"
 								onchange={handleFileSelect}
 								bind:this={fileInput}
 								class="file-input"
@@ -282,7 +520,7 @@
 								<p class="drop-text">
 									Drag & drop your Google Takeout export here
 								</p>
-								<p class="drop-subtext">Supports <strong>ZIP files</strong>, CSV, HTML, or JSON • or click to browse</p>
+								<p class="drop-subtext">Supports <strong>ZIP files</strong> or CSV • or click to browse</p>
 								<button class="btn btn-primary" onclick={() => fileInput.click()}>
 									<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
 										<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd" />
@@ -323,8 +561,8 @@
 							<div class="banner-content">
 								<div class="banner-icon">🔑</div>
 								<div class="banner-text">
-									<strong>Connect your YouTube account to delete comments</strong>
-									<p>Enter your OAuth access token to enable comment deletion</p>
+									<strong>Connect your YouTube account to enrich & delete comments</strong>
+									<p>Enter your OAuth access token to fetch likes, reply counts, and enable deletion</p>
 								</div>
 							</div>
 							<div class="banner-form">
@@ -339,7 +577,71 @@
 								</button>
 							</div>
 						</div>
+					{:else if unenrichedCount > 0}
+						<div class="enrich-banner">
+							<div class="banner-content">
+								<div class="banner-icon">✨</div>
+								<div class="banner-text">
+									<strong>Enrich comments with YouTube data</strong>
+									<p>{unenrichedCount} comment(s) need enrichment to show likes and reply counts</p>
+								</div>
+							</div>
+							{#if isEnriching}
+								<div class="enrich-progress">
+									<LoadingSpinner size={24} message="" />
+									<span>{enrichProgress?.enriched || 0} / {enrichProgress?.total || 0}</span>
+								</div>
+							{:else}
+								<button class="btn btn-primary" onclick={handleEnrichComments}>
+									<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
+										<path d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1zM12 2a1 1 0 01.967.744L14.146 7.2 17.5 9.134a1 1 0 010 1.732l-3.354 1.935-1.18 4.455a1 1 0 01-1.933 0L9.854 12.8 6.5 10.866a1 1 0 010-1.732l3.354-1.935 1.18-4.455A1 1 0 0112 2z"/>
+									</svg>
+									Enrich Comments
+								</button>
+							{/if}
+						</div>
 					{/if}
+
+					<!-- Action bar with export/import -->
+					<div class="action-bar">
+						<div class="action-group">
+							<button class="btn btn-ghost btn-sm" onclick={() => handleExportComments(false)}>
+								<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+									<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
+								</svg>
+								Export JSON
+							</button>
+							<button class="btn btn-ghost btn-sm" onclick={() => handleExportComments(true)}>
+								<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+									<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
+								</svg>
+								Export ZIP
+							</button>
+							<input
+								type="file"
+								accept=".json,.zip"
+								onchange={handleImportJson}
+								bind:this={importJsonInput}
+								class="hidden-input"
+							/>
+							<button class="btn btn-ghost btn-sm" onclick={() => importJsonInput.click()}>
+								<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+									<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+								</svg>
+								Import
+							</button>
+						</div>
+						<div class="action-group">
+							<label class="toggle-label">
+								<input type="checkbox" bind:checked={groupByVideo} />
+								<span>Group by video</span>
+							</label>
+							<label class="toggle-label">
+								<input type="checkbox" bind:checked={hideSelectedFromList} />
+								<span>Hide selected</span>
+							</label>
+						</div>
+					</div>
 
 					<FilterPanel />
 
@@ -360,10 +662,21 @@
 									<h3>No comments found</h3>
 									<p>Try adjusting your filters or search query</p>
 								</div>
+							{:else if groupByVideo}
+								<div class="video-groups">
+									{#each groupedComments() as group (group.videoId)}
+										<VideoGroup 
+											videoId={group.videoId}
+											videoTitle={group.videoTitle}
+											comments={group.comments}
+											hideSelectedComments={hideSelectedFromList}
+										/>
+									{/each}
+								</div>
 							{:else}
 								<div class="comments-grid">
 									{#each $filteredComments as comment (comment.id)}
-										<CommentCard {comment} />
+										<CommentCard {comment} hideWhenSelected={hideSelectedFromList} />
 									{/each}
 								</div>
 							{/if}
@@ -394,6 +707,8 @@
 		onCancel={() => showDeleteModal = false}
 	/>
 {/if}
+
+<ToastContainer />
 
 <style>
 	.app {
@@ -737,6 +1052,103 @@
 
 		.banner-form input {
 			width: 100%;
+		}
+	}
+
+	/* Enrich banner */
+	.enrich-banner {
+		background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
+		border: 1px solid rgba(34, 197, 94, 0.2);
+		border-radius: var(--radius-lg);
+		padding: 1.25rem;
+		margin-bottom: 1.5rem;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 1rem;
+	}
+
+	.enrich-progress {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		color: var(--text-secondary);
+		font-size: 0.9rem;
+	}
+
+	/* Action bar */
+	.action-bar {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		flex-wrap: wrap;
+		gap: 1rem;
+		margin-bottom: 1rem;
+		padding: 0.75rem 1rem;
+		background: var(--bg-card);
+		border-radius: var(--radius-md);
+		border: 1px solid var(--bg-tertiary);
+	}
+
+	.action-group {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+
+	.btn-sm {
+		padding: 0.4rem 0.75rem;
+		font-size: 0.8rem;
+	}
+
+	.hidden-input {
+		display: none;
+	}
+
+	.toggle-label {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.8rem;
+		color: var(--text-secondary);
+		cursor: pointer;
+		padding: 0.35rem 0.75rem;
+		border-radius: var(--radius-sm);
+		transition: all 0.2s ease;
+	}
+
+	.toggle-label:hover {
+		background: var(--bg-tertiary);
+		color: var(--text-primary);
+	}
+
+	.toggle-label input[type="checkbox"] {
+		width: 16px;
+		height: 16px;
+		accent-color: var(--accent-primary);
+	}
+
+	/* Video groups */
+	.video-groups {
+		display: flex;
+		flex-direction: column;
+		gap: 0;
+	}
+
+	@media (max-width: 640px) {
+		.action-bar {
+			flex-direction: column;
+			align-items: stretch;
+		}
+
+		.action-group {
+			justify-content: center;
+		}
+
+		.enrich-banner {
+			flex-direction: column;
+			align-items: stretch;
 		}
 	}
 </style>

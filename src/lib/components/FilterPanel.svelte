@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { filters, sortField, sortOrder, searchQuery, resetFilters } from '$lib/stores/comments';
+	import SearchBar from './SearchBar.svelte';
 	import type { CommentFilters, SortField, SortOrder } from '$lib/types/comment';
 
 	let isExpanded = $state(false);
@@ -51,34 +52,34 @@
 			sortOrder.set('desc');
 		}
 	}
+	
+	// Check if any filters are active
+	const hasActiveFilters = $derived(
+		$filters.videoPrivacy.length !== 4 ||
+		$filters.moderationStatus.length !== 5 ||
+		$filters.minCharacters > 0 ||
+		$filters.maxCharacters < 10000 ||
+		$filters.minLikes > 0 ||
+		$filters.maxLikes < 1000000
+	);
 </script>
 
 <div class="filter-panel">
 	<div class="search-bar">
-		<div class="search-input-wrapper">
-			<svg class="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-				<path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
-			</svg>
-			<input
-				type="text"
-				placeholder="Search comments or videos..."
-				bind:value={$searchQuery}
-				class="search-input"
-			/>
-			{#if $searchQuery}
-				<button class="clear-btn" onclick={() => searchQuery.set('')} aria-label="Clear search">
-					<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-						<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-					</svg>
-				</button>
-			{/if}
-		</div>
+		<SearchBar />
 
-		<button class="filter-toggle btn btn-secondary" onclick={() => isExpanded = !isExpanded}>
+		<button 
+			class="filter-toggle btn btn-secondary" 
+			class:active={hasActiveFilters}
+			onclick={() => isExpanded = !isExpanded}
+		>
 			<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
 				<path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" />
 			</svg>
 			<span>Filters</span>
+			{#if hasActiveFilters}
+				<span class="filter-badge">!</span>
+			{/if}
 			<span class="filter-arrow" class:rotated={isExpanded}>
 				<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
 					<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
@@ -213,42 +214,36 @@
 		align-items: center;
 	}
 
-	.search-input-wrapper {
-		flex: 1;
+	.filter-toggle {
+		flex-shrink: 0;
 		position: relative;
-		display: flex;
-		align-items: center;
 	}
 
-	.search-icon {
+	.filter-toggle.active {
+		border-color: var(--accent-primary);
+		background: rgba(99, 102, 241, 0.1);
+	}
+
+	.filter-badge {
 		position: absolute;
-		left: 1rem;
-		color: var(--text-muted);
-		pointer-events: none;
-	}
-
-	.search-input {
-		padding-left: 2.75rem;
-		padding-right: 2.5rem;
-	}
-
-	.clear-btn {
-		position: absolute;
-		right: 0.75rem;
-		background: transparent;
-		color: var(--text-muted);
-		padding: 0.25rem;
+		top: -4px;
+		right: -4px;
+		width: 16px;
+		height: 16px;
+		background: var(--accent-primary);
+		color: white;
+		font-size: 0.65rem;
+		font-weight: 700;
+		border-radius: 50%;
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		animation: pulse 2s ease-in-out infinite;
 	}
 
-	.clear-btn:hover {
-		color: var(--text-primary);
-	}
-
-	.filter-toggle {
-		flex-shrink: 0;
+	@keyframes pulse {
+		0%, 100% { transform: scale(1); }
+		50% { transform: scale(1.1); }
 	}
 
 	.filter-arrow {
