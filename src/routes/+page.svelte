@@ -13,6 +13,7 @@
 	import QuotaProgressBar from '$lib/components/QuotaProgressBar.svelte';
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
 	import OAuthGuide from '$lib/components/OAuthGuide.svelte';
+	import GoogleSignInButton from '$lib/components/GoogleSignInButton.svelte';
 	import { toasts } from '$lib/stores/toast';
 	import { 
 		YouTubeService, 
@@ -38,7 +39,9 @@
 		selectAllFiltered,
 		deselectAll,
 		logout,
-		updateComments
+		updateComments,
+		setDeleteError,
+		moveToBottomOfQueueBatch
 	} from '$lib/stores/comments';
 	import type { YouTubeComment } from '$lib/types/comment';
 	import JSZip from 'jszip';
@@ -60,6 +63,16 @@
 	// Background deletion state
 	let isDeletingInBackground = $state(false);
 	let backgroundDeleteProgress = $state<{ deleted: number; total: number; failed: number } | undefined>();
+	
+	// Individual delete progress for animated queue feedback
+	type DeleteStatus = 'pending' | 'deleting' | 'success' | 'failed';
+	let deleteStatuses = $state<Map<string, { status: DeleteStatus; error?: string }>>(new Map());
+	let currentDeletingId = $state<string | undefined>();
+	
+	// Google Login mode state
+	let googleLoginEnabled = $state(false);
+	let isCheckingAuth = $state(true);
+	let oauthLoading = $state(false);
 
 	// Group comments by video ID
 	const groupedComments = $derived(() => {
@@ -120,6 +133,70 @@
 	});
 
 	onMount(async () => {
+		// Check if Google Login mode is enabled
+		try {
+			const configResponse = await fetch('/api/auth/config');
+			if (configResponse.ok) {
+				const config = await configResponse.json();
+				googleLoginEnabled = config.googleLoginEnabled;
+			}
+		} catch (e) {
+			console.debug('Google Login check failed (may not be configured):', e);
+		}
+		isCheckingAuth = false;
+		
+		// Check for OAuth callback success
+		const params = new URLSearchParams(window.location.search);
+		if (params.get('auth_success') === 'true') {
+			// Fetch the token securely from the server
+			try {
+				const tokenResponse = await fetch('/api/auth/token');
+				if (tokenResponse.ok) {
+					const tokenData = await tokenResponse.json();
+					if (tokenData.success && tokenData.access_token) {
+						inputApiKey = tokenData.access_token;
+						handleConnectToken();
+						toasts.success('Successfully signed in with Google!');
+					}
+				} else {
+					toasts.error('Failed to complete sign-in. Please try again.');
+				}
+			} catch (e) {
+				console.error('Failed to fetch OAuth token:', e);
+				toasts.error('Failed to complete sign-in. Please try again.');
+			}
+			
+			// Clean up the URL
+			window.history.replaceState({}, '', '/');
+		} else if (params.get('auth_error')) {
+			const authError = params.get('auth_error');
+			toasts.error(`Sign-in failed: ${authError}`);
+			window.history.replaceState({}, '', '/');
+		}
+		
+		// Check if we have an existing auth status cookie (Google Login mode)
+		if (googleLoginEnabled && !$apiKey) {
+			const authStatusCookie = document.cookie
+				.split('; ')
+				.find(row => row.startsWith('youtube_auth_status='));
+			
+			if (authStatusCookie) {
+				// Try to restore the connection from the secure token
+				try {
+					const tokenResponse = await fetch('/api/auth/token');
+					if (tokenResponse.ok) {
+						const tokenData = await tokenResponse.json();
+						if (tokenData.success && tokenData.access_token) {
+							inputApiKey = tokenData.access_token;
+							handleConnectToken();
+						}
+					}
+				} catch (e) {
+					console.debug('Failed to restore OAuth session:', e);
+				}
+			}
+		}
+		
 		// Try to load cached comments
 		try {
 			const cachedComments = await loadComments();
@@ -510,9 +587,11 @@
 			}
 			
 			// For failed deletions, they're already not on YouTube, so remove from local DB
-			if (result.failed.length > 0) {
-				removeComments(result.failed);
-				await deleteFromStorage(result.failed);
+			// Extract just the IDs from the failed results
+			const failedIds = result.failed.map(f => f.id);
+			if (failedIds.length > 0) {
+				removeComments(failedIds);
+				await deleteFromStorage(failedIds);
 			}
 			
 			await saveComments($comments);
@@ -538,45 +617,126 @@
 		toasts.success(`Removed ${ids.length} unenrichable comment(s) from your collection.`);
 	}
 
-	// Background delete for selected comments (non-blocking)
+	// Remove a single comment from local database (without deleting from YouTube)
+	async function handleRemoveFromDatabase(commentId: string) {
+		removeComments([commentId]);
+		await deleteFromStorage([commentId]);
+		await saveComments($comments);
+		toasts.info('Comment removed from your local database.');
+	}
+
+	// Animation timing constants for delete queue
+	const ANIMATION_DELAY_MS = 400;
+	const CLEANUP_DELAY_MS = 600;
+
+	// Background delete for selected comments with animated progress
 	async function handleBackgroundDelete() {
 		if (!youtubeService || $selectedComments.length === 0) return;
 		
 		showDeleteModal = false;
 		isDeletingInBackground = true;
-		backgroundDeleteProgress = { deleted: 0, total: $selectedComments.length, failed: 0 };
+		
+		// Get ordered list of comment IDs from the queue
+		const commentsToDelete = [...$selectedComments];
+		const totalCount = commentsToDelete.length;
+		
+		// Initialize all statuses as pending
+		deleteStatuses = new Map();
+		for (const comment of commentsToDelete) {
+			deleteStatuses.set(comment.id, { status: 'pending' });
+		}
+		
+		backgroundDeleteProgress = { deleted: 0, total: totalCount, failed: 0 };
+		
+		let successCount = 0;
+		let failedCount = 0;
+		const successIds: string[] = [];
+		const failedItems: { id: string; error: string }[] = [];
 		
 		try {
-			const commentIds = $selectedComments.map(c => c.id);
-			const result = await youtubeService.deleteComments(commentIds, (deleted, total) => {
+			// Process comments one by one in order (top to bottom in queue)
+			for (const comment of commentsToDelete) {
+				currentDeletingId = comment.id;
+				
+				// Update status to deleting
+				deleteStatuses = new Map(deleteStatuses);
+				deleteStatuses.set(comment.id, { status: 'deleting' });
+				
+				try {
+					// Delete single comment
+					const result = await youtubeService.deleteComments([comment.id]);
+					
+					if (result.success.includes(comment.id)) {
+						// Success - animate right
+						deleteStatuses = new Map(deleteStatuses);
+						deleteStatuses.set(comment.id, { status: 'success' });
+						successIds.push(comment.id);
+						successCount++;
+					} else if (result.failed.length > 0) {
+						// Failed - animate left, then move to bottom of queue
+						const failedInfo = result.failed.find(f => f.id === comment.id);
+						const errorMsg = failedInfo?.error || 'Delete failed';
+						deleteStatuses = new Map(deleteStatuses);
+						deleteStatuses.set(comment.id, { status: 'failed', error: errorMsg });
+						failedItems.push({ id: comment.id, error: errorMsg });
+						failedCount++;
+					}
+				} catch (e) {
+					// Error - animate left
+					const errorMsg = e instanceof Error ? e.message : 'Delete failed';
+					deleteStatuses = new Map(deleteStatuses);
+					deleteStatuses.set(comment.id, { status: 'failed', error: errorMsg });
+					failedItems.push({ id: comment.id, error: errorMsg });
+					failedCount++;
+				}
+				
+				// Update progress
 				backgroundDeleteProgress = { 
-					deleted, 
-					total, 
-					failed: backgroundDeleteProgress?.failed || 0 
+					deleted: successCount, 
+					total: totalCount, 
+					failed: failedCount 
 				};
-			});
+				
+				// Small delay to let animation play
+				await new Promise(resolve => setTimeout(resolve, ANIMATION_DELAY_MS));
+			}
+			
+			// After all deletions, clean up after a short delay
+			await new Promise(resolve => setTimeout(resolve, CLEANUP_DELAY_MS));
 			
 			// Remove successfully deleted comments from stores and storage
-			removeComments(result.success);
-			await deleteFromStorage(result.success);
+			if (successIds.length > 0) {
+				removeComments(successIds);
+				await deleteFromStorage(successIds);
+			}
 			
-			backgroundDeleteProgress = { 
-				deleted: result.success.length, 
-				total: commentIds.length, 
-				failed: result.failed.length 
-			};
+			// Mark failed comments with their error messages (keep them in the store)
+			// and move them to the bottom of the queue so users can review them
+			for (const failedItem of failedItems) {
+				setDeleteError(failedItem.id, failedItem.error);
+			}
 			
-			if (result.failed.length > 0) {
-				toasts.warning(`Deleted ${result.success.length} comment(s). ${result.failed.length} could not be deleted.`);
+			// Move all failed comments to the bottom of the queue
+			if (failedItems.length > 0) {
+				moveToBottomOfQueueBatch(failedItems.map(f => f.id));
+			}
+			
+			if (failedCount > 0) {
+				toasts.warning(`Deleted ${successCount} comment(s). ${failedCount} failed and remain in queue with error details. Click on them to see the error.`);
 			} else {
-				toasts.success(`Successfully deleted ${result.success.length} comment(s)!`);
+				toasts.success(`Successfully deleted ${successCount} comment(s)!`);
+				// Only deselect all if everything succeeded
+				deselectAll();
 			}
 		} catch (e) {
 			error.set(getErrorMessage(e));
 		} finally {
 			isDeletingInBackground = false;
 			backgroundDeleteProgress = undefined;
-			deselectAll();
+			deleteStatuses = new Map();
+			currentDeletingId = undefined;
+			// Note: We don't deselect all here anymore - failed comments stay selected
+			// so users can review them and decide what to do
 		}
 	}
 </script>
@@ -716,22 +876,34 @@
 								<div class="banner-icon">🔑</div>
 								<div class="banner-text">
 									<strong>Connect your YouTube account to enrich & delete comments</strong>
-									<p>Enter your OAuth access token to fetch likes, reply counts, and enable deletion</p>
+									{#if googleLoginEnabled}
+										<p>Sign in with your Google account to authorize access</p>
+									{:else}
+										<p>Enter your OAuth access token to fetch likes, reply counts, and enable deletion</p>
+									{/if}
 								</div>
 							</div>
-							<div class="banner-form">
-								<input
-									type="password"
-									placeholder="Paste your OAuth access token..."
-									bind:value={inputApiKey}
-									onkeydown={(e) => e.key === 'Enter' && handleConnectToken()}
-								/>
-								<button class="btn btn-primary" onclick={handleConnectToken}>
-									Connect
-								</button>
-							</div>
+							{#if googleLoginEnabled}
+								<div class="banner-form">
+									<GoogleSignInButton loading={oauthLoading} />
+								</div>
+							{:else}
+								<div class="banner-form">
+									<input
+										type="password"
+										placeholder="Paste your OAuth access token..."
+										bind:value={inputApiKey}
+										onkeydown={(e) => e.key === 'Enter' && handleConnectToken()}
+									/>
+									<button class="btn btn-primary" onclick={handleConnectToken}>
+										Connect
+									</button>
+								</div>
+							{/if}
 						</div>
-						<OAuthGuide />
+						{#if !googleLoginEnabled}
+							<OAuthGuide />
+						{/if}
 					{:else if unenrichedCount > 0}
 						<div class="enrich-banner">
 							<div class="banner-content">
@@ -830,11 +1002,16 @@
 													videoTitle={group.videoTitle}
 													comments={group.comments}
 													hideSelectedComments={hideSelectedFromList}
+													onRemoveFromDatabase={handleRemoveFromDatabase}
 												/>
 											{:else}
 												<!-- Show individual card for videos with single comment -->
 												{#each group.comments as comment (comment.id)}
-													<CommentCard {comment} hideWhenSelected={hideSelectedFromList} />
+													<CommentCard 
+														{comment} 
+														hideWhenSelected={hideSelectedFromList} 
+														onRemoveFromDatabase={handleRemoveFromDatabase}
+													/>
 												{/each}
 											{/if}
 										{/each}
@@ -842,7 +1019,11 @@
 								{:else}
 									<div class="comments-grid">
 										{#each $filteredComments as comment (comment.id)}
-											<CommentCard {comment} hideWhenSelected={hideSelectedFromList} />
+											<CommentCard 
+												{comment} 
+												hideWhenSelected={hideSelectedFromList} 
+												onRemoveFromDatabase={handleRemoveFromDatabase}
+											/>
 										{/each}
 									</div>
 								{/if}
@@ -862,7 +1043,14 @@
 								</svg>
 							</button>
 							<div class="sidebar-content">
-								<SelectedCommentsPanel onDeleteRequest={() => showDeleteModal = true} />
+								<SelectedCommentsPanel 
+									onDeleteRequest={() => showDeleteModal = true} 
+									isDeleting={isDeletingInBackground}
+									deleteProgress={{
+										currentId: currentDeletingId,
+										statuses: deleteStatuses
+									}}
+								/>
 							</div>
 						</aside>
 						

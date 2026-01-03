@@ -42,10 +42,22 @@
 		<!-- Working spinner with shurikens -->
 		{#if status === 'working'}
 			<div class="working-spinner"></div>
-			<!-- Flying shurikens around the icon (decorative, hidden from screen readers) -->
-			<div class="shuriken shuriken-1" aria-hidden="true">⚔️</div>
-			<div class="shuriken shuriken-2" aria-hidden="true">🗡️</div>
-			<div class="shuriken shuriken-3" aria-hidden="true">⚔️</div>
+			<!-- Spinning shurikens orbiting around the icon -->
+			<div class="shuriken shuriken-1" aria-hidden="true">
+				<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+					<path d="M12 2L14 10L22 12L14 14L12 22L10 14L2 12L10 10L12 2Z"/>
+				</svg>
+			</div>
+			<div class="shuriken shuriken-2" aria-hidden="true">
+				<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+					<path d="M12 2L14 10L22 12L14 14L12 22L10 14L2 12L10 10L12 2Z"/>
+				</svg>
+			</div>
+			<div class="shuriken shuriken-3" aria-hidden="true">
+				<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+					<path d="M12 2L14 10L22 12L14 14L12 22L10 14L2 12L10 10L12 2Z"/>
+				</svg>
+			</div>
 		{/if}
 	</div>
 	
@@ -176,37 +188,44 @@
 	/* Flying shurikens animation */
 	.shuriken {
 		position: absolute;
-		font-size: 10px;
-		animation: orbitShuriken 2s linear infinite;
+		width: 12px;
+		height: 12px;
 		pointer-events: none;
+		color: var(--accent-primary);
+	}
+
+	.shuriken svg {
+		animation: spinShuriken 0.6s linear infinite;
 	}
 
 	.shuriken-1 {
+		animation: orbitShuriken 2.4s linear infinite;
 		animation-delay: 0s;
 	}
 
 	.shuriken-2 {
-		animation-delay: 0.66s;
+		animation: orbitShuriken 2.4s linear infinite;
+		animation-delay: -0.8s;
 	}
 
 	.shuriken-3 {
-		animation-delay: 1.33s;
+		animation: orbitShuriken 2.4s linear infinite;
+		animation-delay: -1.6s;
+	}
+
+	@keyframes spinShuriken {
+		from { transform: rotate(0deg); }
+		to { transform: rotate(360deg); }
 	}
 
 	@keyframes orbitShuriken {
 		0% {
-			transform: rotate(0deg) translateX(24px) rotate(0deg);
-			opacity: 0;
-		}
-		10% {
-			opacity: 1;
-		}
-		90% {
+			transform: rotate(0deg) translateX(26px);
 			opacity: 1;
 		}
 		100% {
-			transform: rotate(360deg) translateX(24px) rotate(-360deg);
-			opacity: 0;
+			transform: rotate(360deg) translateX(26px);
+			opacity: 1;
 		}
 	}
 

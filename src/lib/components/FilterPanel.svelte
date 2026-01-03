@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { filters, sortField, sortOrder, resetFilters } from '$lib/stores/comments';
 	import SearchBar from './SearchBar.svelte';
-	import type { SortField } from '$lib/types/comment';
+	import type { SortField, CommentLabel } from '$lib/types/comment';
 
 	let {
 		groupByVideo = true,
@@ -31,6 +31,12 @@
 		{ value: 'textLength', label: 'Length' }
 	] as const;
 
+	const labelOptions: { value: CommentLabel; label: string; icon: string }[] = [
+		{ value: 'api_error', label: 'API Error', icon: '❌' },
+		{ value: 'unenrichable', label: 'Unenrichable', icon: '⚠️' },
+		{ value: 'externally_deleted', label: 'Externally Deleted', icon: '🗑️' }
+	];
+
 	function handleSortChange(field: SortField) {
 		if ($sortField === field) {
 			sortOrder.update(o => o === 'desc' ? 'asc' : 'desc');
@@ -39,13 +45,30 @@
 			sortOrder.set('desc');
 		}
 	}
+
+	function toggleLabel(label: CommentLabel) {
+		filters.update(f => {
+			const currentLabels = f.labels || [];
+			const hasLabel = currentLabels.includes(label);
+			const newLabels = hasLabel 
+				? currentLabels.filter(l => l !== label)
+				: [...currentLabels, label];
+			return { ...f, labels: newLabels.length > 0 ? newLabels : undefined };
+		});
+	}
+
+	function toggleShowErrors() {
+		filters.update(f => ({ ...f, showOnlyWithErrors: !f.showOnlyWithErrors }));
+	}
 	
 	// Check if any filters are active
 	const hasActiveFilters = $derived(
 		$filters.minCharacters > 0 ||
 		$filters.maxCharacters < 10000 ||
 		$filters.minLikes > 0 ||
-		$filters.maxLikes < 1000000
+		$filters.maxLikes < 1000000 ||
+		($filters.labels && $filters.labels.length > 0) ||
+		$filters.showOnlyWithErrors
 	);
 </script>
 
@@ -178,6 +201,31 @@
 						/>
 					</div>
 				</div>
+			</div>
+
+			<div class="filter-section">
+				<h4>Labels</h4>
+				<div class="label-filters">
+					{#each labelOptions as option}
+						<button 
+							class="label-btn" 
+							class:active={$filters.labels?.includes(option.value)}
+							onclick={() => toggleLabel(option.value)}
+							title={`Filter by ${option.label}`}
+						>
+							<span class="label-icon">{option.icon}</span>
+							<span class="label-text">{option.label}</span>
+						</button>
+					{/each}
+				</div>
+				<label class="error-toggle">
+					<input 
+						type="checkbox" 
+						checked={$filters.showOnlyWithErrors} 
+						onchange={toggleShowErrors}
+					/>
+					<span>Show only comments with delete errors</span>
+				</label>
 			</div>
 
 			<div class="filter-actions">
@@ -381,6 +429,62 @@
 		color: var(--text-muted);
 		font-size: 0.875rem;
 		padding-top: 1rem;
+	}
+
+	.label-filters {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem;
+		margin-bottom: 0.75rem;
+	}
+
+	.label-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		padding: 0.4rem 0.75rem;
+		border-radius: var(--radius-md);
+		background: var(--bg-tertiary);
+		color: var(--text-secondary);
+		font-size: 0.8rem;
+		font-weight: 500;
+		transition: all 0.2s ease;
+		border: 1px solid transparent;
+	}
+
+	.label-btn:hover {
+		background: var(--bg-hover);
+		color: var(--text-primary);
+	}
+
+	.label-btn.active {
+		background: rgba(99, 102, 241, 0.15);
+		border-color: var(--accent-primary);
+		color: var(--accent-tertiary);
+	}
+
+	.label-icon {
+		font-size: 0.9rem;
+	}
+
+	.error-toggle {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		font-size: 0.8rem;
+		color: var(--text-secondary);
+		cursor: pointer;
+		padding: 0.25rem 0;
+	}
+
+	.error-toggle input {
+		width: 14px;
+		height: 14px;
+		accent-color: var(--accent-primary);
+	}
+
+	.error-toggle:hover {
+		color: var(--text-primary);
 	}
 
 	.filter-actions {

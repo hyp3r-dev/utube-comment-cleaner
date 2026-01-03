@@ -554,9 +554,19 @@ export class YouTubeService {
 		};
 	}
 
-	async deleteComments(commentIds: string[], onProgress?: (deleted: number, total: number) => void): Promise<{ success: string[]; failed: string[] }> {
+	/**
+	 * Delete comments from YouTube
+	 * Returns detailed results with success, failed IDs and error messages
+	 */
+	async deleteComments(
+		commentIds: string[], 
+		onProgress?: (deleted: number, total: number) => void
+	): Promise<{ 
+		success: string[]; 
+		failed: Array<{ id: string; error: string }>;
+	}> {
 		const success: string[] = [];
-		const failed: string[] = [];
+		const failed: Array<{ id: string; error: string }> = [];
 
 		for (let i = 0; i < commentIds.length; i++) {
 			const commentId = commentIds[i];
@@ -577,10 +587,30 @@ export class YouTubeService {
 				if (response.ok || response.status === 204) {
 					success.push(commentId);
 				} else {
-					failed.push(commentId);
+					// Parse error response
+					let errorMessage = `HTTP ${response.status}`;
+					try {
+						const errorData = await response.json() as YouTubeErrorResponse;
+						const reason = errorData.error?.errors?.[0]?.reason;
+						if (reason === 'quotaExceeded' || reason === 'dailyLimitExceeded') {
+							errorMessage = 'Quota exceeded - try again tomorrow';
+						} else if (reason === 'commentNotFound' || response.status === 404) {
+							errorMessage = 'Comment not found (may already be deleted)';
+						} else if (reason === 'forbidden' || response.status === 403) {
+							errorMessage = 'Permission denied - cannot delete this comment';
+						} else if (response.status === 401) {
+							errorMessage = 'Token expired - please reconnect';
+						} else {
+							errorMessage = errorData.error?.message || errorMessage;
+						}
+					} catch {
+						// Ignore JSON parse errors
+					}
+					failed.push({ id: commentId, error: errorMessage });
 				}
-			} catch {
-				failed.push(commentId);
+			} catch (e) {
+				const errorMessage = e instanceof Error ? e.message : 'Network error';
+				failed.push({ id: commentId, error: errorMessage });
 			}
 
 			onProgress?.(i + 1, commentIds.length);

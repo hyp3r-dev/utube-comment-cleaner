@@ -90,7 +90,18 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
+    volumes:
+      - commentslash_data:/app/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  commentslash_data:
 ```
 
 Then run:
@@ -101,11 +112,60 @@ docker-compose up -d
 
 Access the app at [http://localhost:3000](http://localhost:3000)
 
+### Google Login Mode
+
+For multi-user deployments, you can configure Google Login mode which enables Google Sign-In instead of requiring users to manually enter OAuth tokens:
+
+```yaml
+version: '3.8'
+services:
+  commentslash:
+    image: hyp3rsonix/commentslash:latest
+    container_name: commentslash
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      # Google Login (enables Google Sign-In button)
+      - GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+      - GOOGLE_CLIENT_SECRET=your-client-secret
+      - GOOGLE_REDIRECT_URI=https://your-domain.com/api/auth/callback
+      # Privacy settings (optional)
+      - DETAILED_LOGGING=false  # Set to 'true' for verbose logs
+    volumes:
+      - commentslash_data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  commentslash_data:
+```
+
+**Environment Variables:**
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `GOOGLE_CLIENT_ID` | OAuth 2.0 Client ID from Google Cloud Console | For Google Login |
+| `GOOGLE_CLIENT_SECRET` | OAuth 2.0 Client Secret | For Google Login |
+| `GOOGLE_REDIRECT_URI` | Full URL to your callback endpoint (e.g., `https://example.com/api/auth/callback`) | For Google Login |
+| `DETAILED_LOGGING` | Enable detailed server logs (default: `false`) | No |
+| `DATA_DIR` | Directory for persistent data (default: `/app/data`) | No |
+
+**Note:** When Google Login is enabled:
+- Users see a "Sign in with Google" button instead of manual token entry
+- Server-side quota tracking is enabled across all users and persists across restarts
+- All logs are privacy-focused with automatic PII redaction
+
 ### Pull from Docker Hub
 
 ```bash
 docker pull hyp3rsonix/commentslash:latest
-docker run -p 3000:3000 hyp3rsonix/commentslash:latest
+docker run -p 3000:3000 -v commentslash_data:/app/data hyp3rsonix/commentslash:latest
 ```
 
 ### Pull from GitHub Container Registry
@@ -155,12 +215,16 @@ To enable the GitHub Actions workflow to publish images to Docker Hub:
 
 The workflow will build and push the image to Docker Hub at `hyp3rsonix/commentslash:latest`
 
-## �� Security & Privacy
+## 🔐 Security & Privacy
 
 - **No Server Storage** - Your OAuth token is never stored on any server
 - **Browser-Only Storage** - All comment data is stored in your browser's IndexedDB
 - **Auto-Expiration** - Cached data automatically expires after 24 hours
 - **Rate Limiting Aware** - Implements delays and batch operations to respect YouTube API limits
+- **Privacy-Focused Logging** - All server logs automatically redact emails, tokens, and user identifiers
+- **Minimal Data Collection** - The server only processes authentication requests; comment data stays in your browser
+- **PII Redaction** - Email addresses, access tokens, and channel IDs are automatically redacted from logs
+- **No Analytics** - No tracking, no analytics, no third-party scripts
 
 ## 🛠️ Tech Stack
 

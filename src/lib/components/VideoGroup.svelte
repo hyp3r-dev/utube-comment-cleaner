@@ -7,12 +7,14 @@
 		videoId,
 		videoTitle,
 		comments,
-		hideSelectedComments = false
+		hideSelectedComments = false,
+		onRemoveFromDatabase
 	}: { 
 		videoId: string;
 		videoTitle?: string;
 		comments: YouTubeComment[];
 		hideSelectedComments?: boolean;
+		onRemoveFromDatabase?: (commentId: string) => void;
 	} = $props();
 
 	let isExpanded = $state(true);
@@ -73,7 +75,7 @@
 	{#if isExpanded}
 		<div class="group-content">
 			{#each comments as comment (comment.id)}
-				<CommentCard {comment} hideWhenSelected={hideSelectedComments} />
+				<CommentCard {comment} hideWhenSelected={hideSelectedComments} {onRemoveFromDatabase} />
 			{/each}
 		</div>
 	{/if}

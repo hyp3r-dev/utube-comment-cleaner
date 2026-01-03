@@ -11,6 +11,8 @@
 	let isExpanded = $state(false);
 	let timeDisplay = $state({ hours: 0, minutes: 0, seconds: 0, formatted: 'Loading...' });
 	let timerInterval: ReturnType<typeof setInterval> | null = null;
+	let isBoltAnimating = $state(false);
+	let lastUsedValue = $state(0);
 
 	// Update time every second
 	onMount(() => {
@@ -20,6 +22,7 @@
 		
 		updateTime();
 		timerInterval = setInterval(updateTime, 1000);
+		lastUsedValue = $quotaStore.used;
 	});
 	
 	onDestroy(() => {
@@ -39,6 +42,17 @@
 	const dailyLimit = $derived($quotaStore.dailyLimit);
 	const usedPercent = $derived($quotaPercentage.used);
 	const pendingPercent = $derived($quotaPercentage.pending);
+	
+	// Trigger bolt animation when quota changes
+	$effect(() => {
+		if (usedUnits !== lastUsedValue && lastUsedValue > 0) {
+			isBoltAnimating = true;
+			setTimeout(() => {
+				isBoltAnimating = false;
+			}, 600);
+		}
+		lastUsedValue = usedUnits;
+	});
 </script>
 
 <div class="quota-bar" class:expanded={isExpanded}>
@@ -49,7 +63,7 @@
 		onmouseleave={() => isExpanded = false}
 		title="API Quota Usage"
 	>
-		<div class="quota-icon">
+		<div class="quota-icon" class:animating={isBoltAnimating}>
 			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 				<path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke-linecap="round" stroke-linejoin="round"/>
 			</svg>
@@ -158,6 +172,34 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
+		transition: all 0.2s ease;
+	}
+
+	.quota-icon.animating {
+		animation: boltFlash 0.6s ease-out;
+	}
+
+	@keyframes boltFlash {
+		0% {
+			transform: scale(1);
+			filter: brightness(1);
+		}
+		20% {
+			transform: scale(1.4);
+			filter: brightness(2) drop-shadow(0 0 8px var(--warning));
+		}
+		40% {
+			transform: scale(1.2);
+			filter: brightness(1.5) drop-shadow(0 0 4px var(--warning));
+		}
+		60% {
+			transform: scale(1.3);
+			filter: brightness(1.8) drop-shadow(0 0 6px var(--warning));
+		}
+		100% {
+			transform: scale(1);
+			filter: brightness(1);
+		}
 	}
 
 	.quota-mini-progress {
