@@ -202,9 +202,7 @@
 		gap: 2px;
 		font-size: 0.8rem;
 		font-weight: 500;
-		padding: 4px 8px;
-		background: var(--bg-tertiary);
-		border-radius: 6px;
+		padding: 4px 0;
 	}
 
 	.result-count .count {

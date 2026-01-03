@@ -173,7 +173,7 @@
 		transition: all 0.3s ease;
 		display: flex;
 		flex-direction: column;
-		max-height: calc(100vh - 200px);
+		height: 100%;
 		min-height: 300px;
 	}
 
@@ -433,12 +433,20 @@
 
 	@media (max-width: 1024px) {
 		.selected-panel {
-			min-height: auto;
-			max-height: 400px;
+			min-height: 100%;
+			max-height: none;
+			border-radius: 0;
+			border: none;
+			border-left: 2px dashed var(--bg-tertiary);
+		}
+
+		.selected-panel.has-items {
+			border-left-style: solid;
+			border-left-color: var(--accent-primary);
 		}
 
 		.panel-body {
-			max-height: 250px;
+			max-height: none;
 		}
 	}
 </style>
