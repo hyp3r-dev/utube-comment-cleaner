@@ -1,5 +1,5 @@
 <script lang="ts">
-	type ConnectionStatus = 'disconnected' | 'connected' | 'working' | 'error';
+	type ConnectionStatus = 'disconnected' | 'connected' | 'working' | 'error' | 'deleting';
 	
 	let { 
 		status = 'disconnected',
@@ -39,9 +39,13 @@
 		<!-- Status ring/animation -->
 		<div class="status-ring"></div>
 		
-		<!-- Working spinner -->
+		<!-- Working spinner with shurikens -->
 		{#if status === 'working'}
 			<div class="working-spinner"></div>
+			<!-- Flying shurikens around the icon -->
+			<div class="shuriken shuriken-1">⚔️</div>
+			<div class="shuriken shuriken-2">🗡️</div>
+			<div class="shuriken shuriken-3">⚔️</div>
 		{/if}
 	</div>
 	
@@ -167,6 +171,43 @@
 	@keyframes spin {
 		from { transform: rotate(0deg); }
 		to { transform: rotate(360deg); }
+	}
+
+	/* Flying shurikens animation */
+	.shuriken {
+		position: absolute;
+		font-size: 10px;
+		animation: orbitShuriken 2s linear infinite;
+		pointer-events: none;
+	}
+
+	.shuriken-1 {
+		animation-delay: 0s;
+	}
+
+	.shuriken-2 {
+		animation-delay: 0.66s;
+	}
+
+	.shuriken-3 {
+		animation-delay: 1.33s;
+	}
+
+	@keyframes orbitShuriken {
+		0% {
+			transform: rotate(0deg) translateX(24px) rotate(0deg);
+			opacity: 0;
+		}
+		10% {
+			opacity: 1;
+		}
+		90% {
+			opacity: 1;
+		}
+		100% {
+			transform: rotate(360deg) translateX(24px) rotate(-360deg);
+			opacity: 0;
+		}
 	}
 
 	/* Status dot indicator */

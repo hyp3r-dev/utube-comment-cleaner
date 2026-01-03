@@ -12,6 +12,7 @@
 	import YouTubeStatusIcon from '$lib/components/YouTubeStatusIcon.svelte';
 	import QuotaProgressBar from '$lib/components/QuotaProgressBar.svelte';
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
+	import OAuthGuide from '$lib/components/OAuthGuide.svelte';
 	import { toasts } from '$lib/stores/toast';
 	import { 
 		YouTubeService, 
@@ -56,6 +57,9 @@
 	let hideSelectedFromList = $state(true);
 	let showWipeConfirm = $state(false);
 	let showMobileSidebar = $state(false);
+	// Background deletion state
+	let isDeletingInBackground = $state(false);
+	let backgroundDeleteProgress = $state<{ deleted: number; total: number; failed: number } | undefined>();
 
 	// Group comments by video ID
 	const groupedComments = $derived(() => {
@@ -81,19 +85,22 @@
 		return Array.from(groups.values());
 	});
 
-	// Count enriched and unenriched comments (single pass for efficiency)
+	// Count enriched, unenriched and unenrichable comments (single pass for efficiency)
 	const enrichmentStats = $derived(() => {
 		let enriched = 0;
 		let unenriched = 0;
+		let unenrichable = 0;
 		for (const c of $comments) {
 			if (c.isEnriched) enriched++;
+			else if (c.isUnenrichable) unenrichable++;
 			else unenriched++;
 		}
-		return { enriched, unenriched };
+		return { enriched, unenriched, unenrichable };
 	});
 	
 	const unenrichedCount = $derived(enrichmentStats().unenriched);
 	const enrichedCount = $derived(enrichmentStats().enriched);
+	const unenrichableCount = $derived(enrichmentStats().unenrichable);
 
 	// Count visible comments (excluding those in slash queue when hideSelectedFromList is enabled)
 	const visibleCommentsCount = $derived(() => {
@@ -104,10 +111,10 @@
 	});
 
 	// YouTube connection status for the navbar icon
-	type ConnectionStatus = 'disconnected' | 'connected' | 'working' | 'error';
+	type ConnectionStatus = 'disconnected' | 'connected' | 'working' | 'error' | 'deleting';
 	const youtubeConnectionStatus: ConnectionStatus = $derived.by(() => {
 		if (!$apiKey) return 'disconnected';
-		if (isEnriching) return 'working';
+		if (isEnriching || isDeletingInBackground) return 'working';
 		if ($error && $error.includes('token')) return 'error';
 		return 'connected';
 	});
@@ -239,31 +246,10 @@
 
 	async function handleDeleteConfirm() {
 		if (!youtubeService || $selectedComments.length === 0) return;
-
-		isDeleting = true;
-		deleteProgress = { deleted: 0, total: $selectedComments.length };
-
-		try {
-			const commentIds = $selectedComments.map(c => c.id);
-			const result = await youtubeService.deleteComments(commentIds, (deleted, total) => {
-				deleteProgress = { deleted, total };
-			});
-
-			// Remove successfully deleted comments from stores and storage
-			removeComments(result.success);
-			await deleteFromStorage(result.success);
-
-			if (result.failed.length > 0) {
-				error.set(`Failed to delete ${result.failed.length} comment(s). They may have already been deleted.`);
-			}
-		} catch (e) {
-			error.set(e instanceof Error ? e.message : 'Failed to delete comments');
-		} finally {
-			isDeleting = false;
-			deleteProgress = undefined;
-			showDeleteModal = false;
-			deselectAll();
-		}
+		
+		// Close modal immediately and start background deletion
+		showDeleteModal = false;
+		handleBackgroundDelete();
 	}
 
 	async function handleLogout() {
@@ -276,8 +262,8 @@
 	async function handleEnrichComments() {
 		if (!youtubeService || $comments.length === 0) return;
 		
-		// Only enrich comments that haven't been enriched yet
-		const unenrichedComments = $comments.filter(c => !c.isEnriched);
+		// Only enrich comments that haven't been enriched yet and aren't already marked as unenrichable
+		const unenrichedComments = $comments.filter(c => !c.isEnriched && !c.isUnenrichable);
 		if (unenrichedComments.length === 0) return;
 		
 		isEnriching = true;
@@ -297,6 +283,15 @@
 					updateComments(batchUpdates);
 				}
 			);
+			
+			// Mark missing comments as unenrichable
+			if (result.missing.length > 0) {
+				const missingUpdates = new Map<string, Partial<YouTubeComment>>();
+				result.missing.forEach(id => {
+					missingUpdates.set(id, { isUnenrichable: true });
+				});
+				updateComments(missingUpdates);
+			}
 			
 			// Final save to storage after all batches complete
 			await saveComments($comments);
@@ -483,6 +478,107 @@
 			isLoading.set(false);
 		}
 	}
+
+	// Handle unenrichable comments - try to delete via API, then remove from database
+	async function handleDeleteUnenrichableComments() {
+		const unenrichableComments = $comments.filter(c => c.isUnenrichable);
+		if (unenrichableComments.length === 0) return;
+		
+		if (!youtubeService) {
+			// No API connection, just remove from local database
+			handleRemoveUnenrichableFromDatabase();
+			return;
+		}
+		
+		isDeletingInBackground = true;
+		backgroundDeleteProgress = { deleted: 0, total: unenrichableComments.length, failed: 0 };
+		
+		try {
+			const commentIds = unenrichableComments.map(c => c.id);
+			const result = await youtubeService.deleteComments(commentIds, (deleted, total) => {
+				backgroundDeleteProgress = { 
+					deleted, 
+					total, 
+					failed: backgroundDeleteProgress?.failed || 0 
+				};
+			});
+			
+			// Remove successfully deleted comments
+			if (result.success.length > 0) {
+				removeComments(result.success);
+				await deleteFromStorage(result.success);
+			}
+			
+			// For failed deletions, they're already not on YouTube, so remove from local DB
+			if (result.failed.length > 0) {
+				removeComments(result.failed);
+				await deleteFromStorage(result.failed);
+			}
+			
+			await saveComments($comments);
+			toasts.success(`Removed ${unenrichableComments.length} unenrichable comment(s) from your collection.`);
+		} catch (e) {
+			error.set(getErrorMessage(e));
+		} finally {
+			isDeletingInBackground = false;
+			backgroundDeleteProgress = undefined;
+		}
+	}
+
+	// Simply remove unenrichable comments from the local database
+	async function handleRemoveUnenrichableFromDatabase() {
+		const unenrichableComments = $comments.filter(c => c.isUnenrichable);
+		if (unenrichableComments.length === 0) return;
+		
+		const ids = unenrichableComments.map(c => c.id);
+		removeComments(ids);
+		await deleteFromStorage(ids);
+		await saveComments($comments);
+		
+		toasts.success(`Removed ${ids.length} unenrichable comment(s) from your collection.`);
+	}
+
+	// Background delete for selected comments (non-blocking)
+	async function handleBackgroundDelete() {
+		if (!youtubeService || $selectedComments.length === 0) return;
+		
+		showDeleteModal = false;
+		isDeletingInBackground = true;
+		backgroundDeleteProgress = { deleted: 0, total: $selectedComments.length, failed: 0 };
+		
+		try {
+			const commentIds = $selectedComments.map(c => c.id);
+			const result = await youtubeService.deleteComments(commentIds, (deleted, total) => {
+				backgroundDeleteProgress = { 
+					deleted, 
+					total, 
+					failed: backgroundDeleteProgress?.failed || 0 
+				};
+			});
+			
+			// Remove successfully deleted comments from stores and storage
+			removeComments(result.success);
+			await deleteFromStorage(result.success);
+			
+			backgroundDeleteProgress = { 
+				deleted: result.success.length, 
+				total: commentIds.length, 
+				failed: result.failed.length 
+			};
+			
+			if (result.failed.length > 0) {
+				toasts.warning(`Deleted ${result.success.length} comment(s). ${result.failed.length} could not be deleted.`);
+			} else {
+				toasts.success(`Successfully deleted ${result.success.length} comment(s)!`);
+			}
+		} catch (e) {
+			error.set(getErrorMessage(e));
+		} finally {
+			isDeletingInBackground = false;
+			backgroundDeleteProgress = undefined;
+			deselectAll();
+		}
+	}
 </script>
 
 <div class="app">
@@ -635,6 +731,7 @@
 								</button>
 							</div>
 						</div>
+						<OAuthGuide />
 					{:else if unenrichedCount > 0}
 						<div class="enrich-banner">
 							<div class="banner-content">
@@ -656,6 +753,31 @@
 									</svg>
 									Enrich Comments
 								</button>
+							{/if}
+						</div>
+					{:else if unenrichableCount > 0}
+						<div class="unenrichable-banner">
+							<div class="banner-content">
+								<div class="banner-icon">⚠️</div>
+								<div class="banner-text">
+									<strong>{unenrichableCount} comment(s) couldn't be found via YouTube API</strong>
+									<p>These comments may have been deleted externally or are no longer accessible</p>
+								</div>
+							</div>
+							{#if isDeletingInBackground}
+								<div class="enrich-progress">
+									<LoadingSpinner size={24} message="" />
+									<span>{backgroundDeleteProgress?.deleted || 0} / {backgroundDeleteProgress?.total || 0}</span>
+								</div>
+							{:else}
+								<div class="banner-actions">
+									<button class="btn btn-secondary btn-sm" onclick={handleDeleteUnenrichableComments} title="Try to delete via YouTube API, then remove from local database">
+										Try Delete via API
+									</button>
+									<button class="btn btn-ghost btn-sm" onclick={handleRemoveUnenrichableFromDatabase} title="Remove from local database without trying API">
+										Remove from Database
+									</button>
+								</div>
 							{/if}
 						</div>
 					{/if}
@@ -1355,6 +1477,30 @@
 		flex-wrap: wrap;
 		align-items: center;
 		gap: 1rem;
+	}
+
+	/* Unenrichable banner */
+	.unenrichable-banner {
+		background: linear-gradient(135deg, rgba(251, 191, 36, 0.1) 0%, rgba(239, 68, 68, 0.1) 100%);
+		border: 1px solid rgba(251, 191, 36, 0.2);
+		border-radius: var(--radius-lg);
+		padding: 1.25rem;
+		margin-bottom: 1.5rem;
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 1rem;
+	}
+
+	.banner-actions {
+		display: flex;
+		gap: 0.5rem;
+		flex-wrap: wrap;
+	}
+
+	.btn-sm {
+		padding: 0.4rem 0.75rem;
+		font-size: 0.8rem;
 	}
 
 	.enrich-progress {

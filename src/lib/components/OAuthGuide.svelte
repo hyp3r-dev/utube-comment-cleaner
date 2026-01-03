@@ -5,31 +5,43 @@
 	const steps = [
 		{
 			title: "Go to Google Cloud Console",
-			description: "Open the Google Cloud Console and create a new project or select an existing one.",
+			description: "Open the Google Cloud Console and create a new project or select an existing one. If you don't have a project yet, click 'New Project' and give it any name.",
 			link: "https://console.cloud.google.com/",
 			icon: "🌐"
 		},
 		{
 			title: "Enable YouTube Data API v3",
-			description: "Navigate to 'APIs & Services' → 'Library' and search for 'YouTube Data API v3'. Click on it and enable the API.",
+			description: "Navigate to 'APIs & Services' → 'Library' and search for 'YouTube Data API v3'. Click on it and press the 'Enable' button.",
 			link: "https://console.cloud.google.com/apis/library/youtube.googleapis.com",
 			icon: "📺"
 		},
 		{
-			title: "Create OAuth Credentials",
-			description: "Go to 'APIs & Services' → 'Credentials' → 'Create Credentials' → 'OAuth client ID'. Select 'Web application' as the application type.",
-			link: "https://console.cloud.google.com/apis/credentials",
-			icon: "🔑"
-		},
-		{
 			title: "Configure OAuth Consent Screen",
-			description: "Set up the OAuth consent screen with your app name. Add the required scopes: 'youtube.force-ssl' for read/write access to comments.",
+			description: "Go to 'APIs & Services' → 'OAuth consent screen'. Select 'External' user type (unless you have Google Workspace). Fill in the app name (anything you want), your email, and developer email. Click 'Save and Continue' through the steps. You don't need to add any scopes here.",
 			link: "https://console.cloud.google.com/apis/credentials/consent",
 			icon: "⚙️"
 		},
 		{
-			title: "Get Your Access Token",
-			description: "Use the OAuth 2.0 Playground to generate an access token. Authorize with the YouTube Data API v3 scope and exchange for tokens.",
+			title: "Create OAuth Credentials",
+			description: "Go to 'APIs & Services' → 'Credentials' → 'Create Credentials' → 'OAuth client ID'. Select 'Web application' as the application type. Add 'https://developers.google.com/oauthplayground' as an Authorized redirect URI. Click 'Create' and SAVE the Client ID that appears.",
+			link: "https://console.cloud.google.com/apis/credentials",
+			icon: "🔑"
+		},
+		{
+			title: "Open OAuth Playground Settings",
+			description: "Open the OAuth 2.0 Playground. Click the ⚙️ (gear icon) in the top-right corner. Check 'Use your own OAuth credentials'. Paste your Client ID from Step 4 into the 'OAuth Client ID' field. Leave Client Secret blank for client-side flow.",
+			link: "https://developers.google.com/oauthplayground/",
+			icon: "🎛️"
+		},
+		{
+			title: "Authorize YouTube API",
+			description: "In the left panel of OAuth Playground, scroll down to 'YouTube Data API v3' and expand it. Select 'https://www.googleapis.com/auth/youtube.force-ssl'. Click 'Authorize APIs' and sign in with the Google account whose YouTube comments you want to manage.",
+			link: "https://developers.google.com/oauthplayground/",
+			icon: "✅"
+		},
+		{
+			title: "Get Access Token",
+			description: "After authorization, you'll be redirected back. Click 'Exchange authorization code for tokens'. Copy the 'Access token' that appears and paste it in the input field above. Note: Tokens expire after 1 hour - you can always generate a new one by repeating steps 6-7.",
 			link: "https://developers.google.com/oauthplayground/",
 			icon: "🎫"
 		}

@@ -8,6 +8,8 @@ export const isAuthenticated = writable<boolean>(false);
 // Comments data store
 export const comments = writable<YouTubeComment[]>([]);
 export const selectedIds = writable<Set<string>>(new Set());
+// Track selection order (most recently added first)
+export const selectionOrder = writable<string[]>([]);
 
 // Loading state
 export const isLoading = writable<boolean>(false);
@@ -85,11 +87,18 @@ export const filteredComments = derived(
 	}
 );
 
-// Selected comments
+// Selected comments - ordered by selection time (most recent first)
 export const selectedComments = derived(
-	[comments, selectedIds],
-	([$comments, $selectedIds]) => {
-		return $comments.filter(c => $selectedIds.has(c.id));
+	[comments, selectedIds, selectionOrder],
+	([$comments, $selectedIds, $selectionOrder]) => {
+		// Create a map for quick comment lookup
+		const commentMap = new Map($comments.map(c => [c.id, c]));
+		
+		// Return comments in selection order (most recent first)
+		return $selectionOrder
+			.filter(id => $selectedIds.has(id))
+			.map(id => commentMap.get(id))
+			.filter((c): c is YouTubeComment => c !== undefined);
 	}
 );
 
@@ -106,6 +115,12 @@ export const stats = derived(comments, ($comments) => ({
 
 // Actions
 export function selectComment(id: string): void {
+	// Add to selection order first (most recent at the beginning)
+	selectionOrder.update(order => {
+		// Remove if already exists (will re-add at beginning)
+		const filtered = order.filter(i => i !== id);
+		return [id, ...filtered];
+	});
 	selectedIds.update(ids => {
 		const newIds = new Set(ids);
 		newIds.add(id);
@@ -114,6 +129,7 @@ export function selectComment(id: string): void {
 }
 
 export function deselectComment(id: string): void {
+	selectionOrder.update(order => order.filter(i => i !== id));
 	selectedIds.update(ids => {
 		const newIds = new Set(ids);
 		newIds.delete(id);
@@ -126,8 +142,11 @@ export function toggleComment(id: string): void {
 		const newIds = new Set(ids);
 		if (newIds.has(id)) {
 			newIds.delete(id);
+			selectionOrder.update(order => order.filter(i => i !== id));
 		} else {
 			newIds.add(id);
+			// Add to beginning of selection order
+			selectionOrder.update(order => [id, ...order.filter(i => i !== id)]);
 		}
 		return newIds;
 	});
@@ -135,15 +154,31 @@ export function toggleComment(id: string): void {
 
 export function selectAllFiltered(): void {
 	const filtered = get(filteredComments);
-	selectedIds.update(() => new Set(filtered.map(c => c.id)));
+	const currentIds = get(selectedIds);
+	const currentOrder = get(selectionOrder);
+	
+	// Add only new IDs to the selection (ADD to queue, don't replace)
+	const newIds = filtered.filter(c => !currentIds.has(c.id)).map(c => c.id);
+	
+	// Update selection order: new IDs at the beginning, existing order preserved
+	selectionOrder.set([...newIds, ...currentOrder]);
+	
+	// Update selectedIds by adding new IDs
+	selectedIds.update(ids => {
+		const updated = new Set(ids);
+		filtered.forEach(c => updated.add(c.id));
+		return updated;
+	});
 }
 
 export function deselectAll(): void {
 	selectedIds.set(new Set());
+	selectionOrder.set([]);
 }
 
 export function removeComments(ids: string[]): void {
 	comments.update(current => current.filter(c => !ids.includes(c.id)));
+	selectionOrder.update(order => order.filter(id => !ids.includes(id)));
 	selectedIds.update(current => {
 		const newIds = new Set(current);
 		ids.forEach(id => newIds.delete(id));
@@ -185,6 +220,7 @@ export function logout(): void {
 	isAuthenticated.set(false);
 	comments.set([]);
 	selectedIds.set(new Set());
+	selectionOrder.set([]);
 	error.set(null);
 	resetFilters();
 }
