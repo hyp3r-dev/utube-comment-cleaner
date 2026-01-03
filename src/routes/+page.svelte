@@ -21,12 +21,13 @@
 		YouTubeAPIError 
 	} from '$lib/services/youtube';
 	import { parseTakeoutFile, readFileAsText, parseZipFile, parseMultipleFiles } from '$lib/services/takeout';
-	import { saveComments, loadComments, deleteComments as deleteFromStorage, clearAllData } from '$lib/services/storage';
+	import { saveComments, loadComments, deleteComments as deleteFromStorage, clearAllData, clearCommentsOnly } from '$lib/services/storage';
 	import {
 		apiKey,
 		isAuthenticated,
 		comments,
 		selectedComments,
+		selectedIds,
 		filteredComments,
 		isLoading,
 		loadingProgress,
@@ -52,6 +53,7 @@
 	let enrichProgress = $state<{ enriched: number; total: number } | undefined>();
 	let groupByVideo = $state(true);
 	let hideSelectedFromList = $state(true);
+	let showWipeConfirm = $state(false);
 
 	// Group comments by video ID
 	const groupedComments = $derived(() => {
@@ -440,6 +442,28 @@
 			isLoading.set(false);
 		}
 	}
+
+	async function handleWipeData() {
+		showWipeConfirm = false;
+		isLoading.set(true);
+		error.set(null);
+		
+		try {
+			// Clear comments from storage but preserve quota
+			await clearCommentsOnly();
+			
+			// Reset the stores
+			comments.set([]);
+			selectedIds.set(new Set());
+			isAuthenticated.set(false);
+			
+			toasts.success('All comment data has been wiped. You can now re-import your files.');
+		} catch (e) {
+			error.set(e instanceof Error ? e.message : 'Failed to wipe data');
+		} finally {
+			isLoading.set(false);
+		}
+	}
 </script>
 
 <div class="app">
@@ -630,6 +654,12 @@
 								</svg>
 								Import
 							</button>
+							<button class="btn btn-ghost btn-sm btn-danger-text" onclick={() => showWipeConfirm = true}>
+								<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+									<path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+								</svg>
+								Wipe Data
+							</button>
 						</div>
 						<div class="action-group">
 							<label class="toggle-label">
@@ -665,12 +695,20 @@
 							{:else if groupByVideo}
 								<div class="video-groups">
 									{#each groupedComments() as group (group.videoId)}
-										<VideoGroup 
-											videoId={group.videoId}
-											videoTitle={group.videoTitle}
-											comments={group.comments}
-											hideSelectedComments={hideSelectedFromList}
-										/>
+										{#if group.comments.length >= 2}
+											<!-- Show grouped container for videos with 2+ comments -->
+											<VideoGroup 
+												videoId={group.videoId}
+												videoTitle={group.videoTitle}
+												comments={group.comments}
+												hideSelectedComments={hideSelectedFromList}
+											/>
+										{:else}
+											<!-- Show individual card for videos with single comment -->
+											{#each group.comments as comment (comment.id)}
+												<CommentCard {comment} hideWhenSelected={hideSelectedFromList} />
+											{/each}
+										{/if}
 									{/each}
 								</div>
 							{:else}
@@ -706,6 +744,28 @@
 		onConfirm={handleDeleteConfirm}
 		onCancel={() => showDeleteModal = false}
 	/>
+{/if}
+
+{#if showWipeConfirm}
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<!-- svelte-ignore a11y_interactive_supports_focus -->
+	<div class="modal-overlay" onclick={() => showWipeConfirm = false} onkeydown={(e) => e.key === 'Escape' && (showWipeConfirm = false)} role="dialog" aria-modal="true">
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="modal-content wipe-modal" onclick={(e) => e.stopPropagation()}>
+			<div class="modal-header">
+				<h3>⚠️ Wipe All Data?</h3>
+			</div>
+			<div class="modal-body">
+				<p>This will permanently delete all cached comment data from your browser.</p>
+				<p class="modal-note">Your quota usage will be preserved. You can re-import your Google Takeout files after wiping.</p>
+			</div>
+			<div class="modal-actions">
+				<button class="btn btn-ghost" onclick={() => showWipeConfirm = false}>Cancel</button>
+				<button class="btn btn-danger" onclick={handleWipeData}>Wipe All Data</button>
+			</div>
+		</div>
+	</div>
 {/if}
 
 <ToastContainer />
@@ -1150,5 +1210,64 @@
 			flex-direction: column;
 			align-items: stretch;
 		}
+	}
+
+	/* Wipe button danger text */
+	.btn-danger-text {
+		color: var(--error);
+	}
+
+	.btn-danger-text:hover {
+		background: rgba(239, 68, 68, 0.1);
+		color: var(--error);
+	}
+
+	/* Wipe confirmation modal */
+	.modal-overlay {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.7);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 1000;
+		backdrop-filter: blur(4px);
+	}
+
+	.modal-content {
+		background: var(--bg-card);
+		border-radius: var(--radius-xl);
+		border: 1px solid var(--bg-tertiary);
+		max-width: 400px;
+		width: 90%;
+		padding: 1.5rem;
+		box-shadow: var(--shadow-lg);
+	}
+
+	.modal-header h3 {
+		font-size: 1.25rem;
+		font-weight: 700;
+		color: var(--text-primary);
+		margin-bottom: 1rem;
+	}
+
+	.modal-body {
+		margin-bottom: 1.5rem;
+	}
+
+	.modal-body p {
+		color: var(--text-secondary);
+		margin-bottom: 0.5rem;
+	}
+
+	.modal-note {
+		font-size: 0.85rem;
+		color: var(--text-muted);
+	}
+
+	.modal-actions {
+		display: flex;
+		gap: 0.75rem;
+		justify-content: flex-end;
 	}
 </style>
