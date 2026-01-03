@@ -1,4 +1,5 @@
 import type { YouTubeComment } from '$lib/types/comment';
+import { quotaStore, QUOTA_COSTS } from '$lib/stores/quota';
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
 
@@ -107,6 +108,9 @@ export class YouTubeService {
 				}
 			});
 
+			// Track quota usage for commentThreads list
+			quotaStore.addUsage(QUOTA_COSTS.commentThreadsList);
+
 			if (!response.ok) {
 				const error = await response.json();
 				
@@ -158,6 +162,9 @@ export class YouTubeService {
 			}
 		});
 
+		// Track quota usage for channels list
+		quotaStore.addUsage(QUOTA_COSTS.channelsList);
+
 		if (!channelResponse.ok) {
 			const error = await channelResponse.json();
 			throw new Error(error.error?.message || 'Failed to fetch channel info');
@@ -189,6 +196,9 @@ export class YouTubeService {
 					'Authorization': `Bearer ${this.apiKey}`
 				}
 			});
+
+			// Track quota usage for activities list
+			quotaStore.addUsage(QUOTA_COSTS.activitiesList);
 
 			if (!response.ok) {
 				// If activities doesn't work, just return what we have
@@ -247,6 +257,9 @@ export class YouTubeService {
 				}
 			});
 
+			// Track quota usage for commentThreads list
+			quotaStore.addUsage(QUOTA_COSTS.commentThreadsList);
+
 			if (!response.ok) break;
 
 			const data: YouTubeCommentListResponse = await response.json();
@@ -285,6 +298,9 @@ export class YouTubeService {
 					'Authorization': `Bearer ${this.apiKey}`
 				}
 			});
+
+			// Track quota usage for videos list
+			quotaStore.addUsage(QUOTA_COSTS.videosList);
 
 			if (response.ok) {
 				const data: YouTubeVideoResponse = await response.json();
@@ -357,6 +373,9 @@ export class YouTubeService {
 						'Authorization': `Bearer ${this.apiKey}`
 					}
 				});
+
+				// Track quota usage for delete operation
+				quotaStore.addUsage(QUOTA_COSTS.commentsDelete);
 
 				if (response.ok || response.status === 204) {
 					success.push(commentId);

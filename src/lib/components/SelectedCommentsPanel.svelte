@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { selectedComments, selectedIds, deselectComment, deselectAll } from '$lib/stores/comments';
+	import { pendingQuota, calculateDeleteQuotaCost, QUOTA_COSTS } from '$lib/stores/quota';
 	import type { YouTubeComment } from '$lib/types/comment';
 	
 	let {
@@ -10,6 +11,7 @@
 
 	let isDragOver = $state(false);
 	let isMinimized = $state(false);
+	let isHoveringDelete = $state(false);
 
 	function handleDragOver(e: DragEvent) {
 		e.preventDefault();
@@ -30,8 +32,20 @@
 		if (text.length <= maxLength) return text;
 		return text.slice(0, maxLength) + '...';
 	}
+	
+	function handleDeleteHoverStart() {
+		isHoveringDelete = true;
+		const cost = calculateDeleteQuotaCost($selectedComments.length);
+		pendingQuota.set(cost);
+	}
+	
+	function handleDeleteHoverEnd() {
+		isHoveringDelete = false;
+		pendingQuota.set(0);
+	}
 
 	const totalLikes = $derived($selectedComments.reduce((sum, c) => sum + c.likeCount, 0));
+	const deleteCost = $derived(calculateDeleteQuotaCost($selectedComments.length));
 </script>
 
 <div 
@@ -121,13 +135,23 @@
 				<button class="btn btn-ghost" onclick={deselectAll}>
 					Clear All
 				</button>
-				<button class="btn btn-danger" onclick={onDeleteRequest}>
+				<button 
+					class="btn btn-danger delete-btn" 
+					onclick={onDeleteRequest}
+					onmouseenter={handleDeleteHoverStart}
+					onmouseleave={handleDeleteHoverEnd}
+					onfocus={handleDeleteHoverStart}
+					onblur={handleDeleteHoverEnd}
+				>
 					<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
 						<path d="M3 17 L15 3 L17 5 L5 19 Z" />
 						<path d="M13 5 L17 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
 						<path d="M15 7 L19 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
 					</svg>
-					Slash Selected
+					<span class="btn-text">
+						Slash Selected
+						<span class="quota-cost">({deleteCost} quota)</span>
+					</span>
 				</button>
 			</div>
 		{/if}
@@ -339,6 +363,25 @@
 		padding: 1rem 1.25rem;
 		background: var(--bg-tertiary);
 		border-top: 1px solid var(--bg-hover);
+	}
+
+	.delete-btn {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.btn-text {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-start;
+		line-height: 1.2;
+	}
+
+	.quota-cost {
+		font-size: 0.65rem;
+		opacity: 0.8;
+		font-weight: 500;
 	}
 
 	@media (max-width: 1024px) {
