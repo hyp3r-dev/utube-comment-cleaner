@@ -1,3 +1,4 @@
+import JSZip from 'jszip';
 import type { YouTubeComment } from '$lib/types/comment';
 
 /**
@@ -16,6 +17,103 @@ interface TakeoutComment {
 	publishedAt?: string;
 	likeCount?: number;
 }
+
+/**
+ * CSV header mappings for different languages
+ * Google Takeout exports headers in the user's browser language
+ */
+const CSV_HEADER_MAPPINGS: Record<string, string> = {
+	// English
+	'comment id': 'commentId',
+	'comment-id': 'commentId',
+	'channel id': 'channelId',
+	'channel-id': 'channelId',
+	'comment creation timestamp': 'timestamp',
+	'price': 'price',
+	'parent comment id': 'parentCommentId',
+	'parent comment-id': 'parentCommentId',
+	'post id': 'postId',
+	'post-id': 'postId',
+	'video id': 'videoId',
+	'video-id': 'videoId',
+	'comment text': 'commentText',
+	'top-level comment id': 'topLevelCommentId',
+	
+	// German (Deutsch)
+	'kommentar-id': 'commentId',
+	'kanal-id': 'channelId',
+	'zeitstempel der erstellung des kommentars': 'timestamp',
+	'preis': 'price',
+	'übergeordnete kommentar-id': 'parentCommentId',
+	'beitrags-id': 'postId',
+	// 'video-id' is same as English, already mapped above
+	'kommentartext': 'commentText',
+	'kommentar-id der obersten ebene': 'topLevelCommentId',
+	
+	// French (Français)
+	'id du commentaire': 'commentId',
+	'id de la chaîne': 'channelId',
+	'horodatage de création du commentaire': 'timestamp',
+	'prix': 'price',
+	'id du commentaire parent': 'parentCommentId',
+	'id de la publication': 'postId',
+	'id de la vidéo': 'videoId',
+	'texte du commentaire': 'commentText',
+	'id du commentaire de premier niveau': 'topLevelCommentId',
+	
+	// Spanish (Español)
+	'id del comentario': 'commentId',
+	'id del canal': 'channelId',
+	'marca de tiempo de creación del comentario': 'timestamp',
+	'precio': 'price',
+	'id del comentario principal': 'parentCommentId',
+	'id de la publicación': 'postId',
+	'id del vídeo': 'videoId',
+	'texto del comentario': 'commentText',
+	'id del comentario de nivel superior': 'topLevelCommentId',
+	
+	// Italian (Italiano)
+	'id commento': 'commentId',
+	'id canale': 'channelId',
+	'timestamp creazione commento': 'timestamp',
+	'prezzo': 'price',
+	'id commento principale': 'parentCommentId',
+	'id post': 'postId',
+	'id video': 'videoId',
+	'testo commento': 'commentText',
+	'id commento di primo livello': 'topLevelCommentId',
+	
+	// Portuguese (Português)
+	'id do comentário': 'commentId',
+	'id do canal': 'channelId',
+	'carimbo de data/hora de criação do comentário': 'timestamp',
+	'preço': 'price',
+	'id do comentário principal': 'parentCommentId',
+	'id da postagem': 'postId',
+	'id do vídeo': 'videoId',
+	'texto do comentário': 'commentText',
+	'id do comentário de nível superior': 'topLevelCommentId',
+	
+	// Dutch (Nederlands)
+	'reactie-id': 'commentId',
+	'kanaal-id': 'channelId',
+	'tijdstempel van het aanmaken van de reactie': 'timestamp',
+	'id van bovenliggende reactie': 'parentCommentId',
+	'bericht-id': 'postId',
+	'reactietekst': 'commentText',
+	'id van reactie op het hoogste niveau': 'topLevelCommentId',
+	
+	// Japanese (日本語)
+	'コメント id': 'commentId',
+	'チャンネル id': 'channelId',
+	'コメントの作成日時': 'timestamp',
+	'価格': 'price',
+	'親コメント id': 'parentCommentId',
+	'投稿 id': 'postId',
+	'動画 id': 'videoId',
+	'コメントのテキスト': 'commentText',
+	'トップレベル コメント id': 'topLevelCommentId',
+};
 
 /**
  * Extract video ID from YouTube URL
@@ -220,6 +318,140 @@ export function parseTakeoutJSON(jsonContent: string): YouTubeComment[] {
 }
 
 /**
+ * Parse a CSV row, handling quoted fields and embedded commas
+ */
+function parseCSVRow(row: string): string[] {
+	const result: string[] = [];
+	let current = '';
+	let inQuotes = false;
+	let i = 0;
+	
+	while (i < row.length) {
+		const char = row[i];
+		
+		if (char === '"') {
+			if (inQuotes && row[i + 1] === '"') {
+				// Escaped quote inside quoted field
+				current += '"';
+				i += 2;
+				continue;
+			}
+			inQuotes = !inQuotes;
+		} else if (char === ',' && !inQuotes) {
+			result.push(current);
+			current = '';
+		} else {
+			current += char;
+		}
+		i++;
+	}
+	
+	// Add the last field
+	result.push(current);
+	
+	return result;
+}
+
+/**
+ * Normalize header name to standard field name using mappings
+ */
+function normalizeHeader(header: string): string {
+	const normalized = header.toLowerCase().trim();
+	return CSV_HEADER_MAPPINGS[normalized] || normalized;
+}
+
+/**
+ * Parse the comment text field which may contain JSON-like structure
+ * Example: {"text":"Actual comment content"}
+ */
+function parseCommentTextField(value: string): string {
+	if (!value) return '';
+	
+	// Try to parse as JSON object
+	const trimmed = value.trim();
+	if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+		try {
+			const parsed = JSON.parse(trimmed);
+			if (parsed.text) {
+				return parsed.text;
+			}
+		} catch {
+			// Not valid JSON, use as-is
+		}
+	}
+	
+	return value;
+}
+
+/**
+ * Parse Google Takeout CSV export
+ * Supports multiple languages through header mapping
+ */
+export function parseTakeoutCSV(csvContent: string): YouTubeComment[] {
+	const comments: YouTubeComment[] = [];
+	const lines = csvContent.split(/\r?\n/).filter(line => line.trim());
+	
+	if (lines.length < 2) {
+		return comments; // No data rows
+	}
+	
+	// Parse header row
+	const headerRow = parseCSVRow(lines[0]);
+	const headers = headerRow.map(normalizeHeader);
+	
+	// Find column indices (normalizeHeader returns camelCase values like 'commentId')
+	const commentIdIdx = headers.indexOf('commentId');
+	const channelIdIdx = headers.indexOf('channelId');
+	const timestampIdx = headers.indexOf('timestamp');
+	const videoIdIdx = headers.indexOf('videoId');
+	const commentTextIdx = headers.indexOf('commentText');
+	const parentCommentIdIdx = headers.indexOf('parentCommentId');
+	
+	// Parse data rows
+	for (let i = 1; i < lines.length; i++) {
+		const row = parseCSVRow(lines[i]);
+		
+		if (row.length < headers.length) continue;
+		
+		const commentId = commentIdIdx >= 0 ? row[commentIdIdx]?.trim() : '';
+		const videoId = videoIdIdx >= 0 ? row[videoIdIdx]?.trim() : '';
+		const rawCommentText = commentTextIdx >= 0 ? row[commentTextIdx] : '';
+		const commentText = parseCommentTextField(rawCommentText);
+		const rawTimestamp = timestampIdx >= 0 ? row[timestampIdx]?.trim() : '';
+		// Use the raw timestamp if available, otherwise use empty string (unknown date)
+		const timestamp = rawTimestamp || '';
+		const parentId = parentCommentIdIdx >= 0 ? row[parentCommentIdIdx]?.trim() : '';
+		
+		// Skip rows without essential data
+		if (!videoId || !commentText) continue;
+		
+		// Use the actual YouTube comment ID if available, otherwise generate one
+		const id = commentId || generateCommentId(commentText, videoId, timestamp);
+		
+		comments.push({
+			id,
+			textDisplay: commentText,
+			textOriginal: commentText,
+			authorDisplayName: 'You',
+			authorProfileImageUrl: '',
+			authorChannelUrl: '',
+			likeCount: 0,
+			publishedAt: timestamp,
+			updatedAt: timestamp,
+			videoId,
+			videoTitle: undefined,
+			videoPrivacyStatus: 'unknown',
+			moderationStatus: 'published',
+			canRate: false,
+			viewerRating: 'none',
+			parentId: parentId || undefined
+		});
+	}
+	
+	return comments;
+}
+
+/**
  * Parse Google Takeout file (auto-detect format)
  */
 export function parseTakeoutFile(content: string, filename: string): YouTubeComment[] {
@@ -229,6 +461,8 @@ export function parseTakeoutFile(content: string, filename: string): YouTubeComm
 		return parseTakeoutJSON(content);
 	} else if (lowerFilename.endsWith('.html') || lowerFilename.endsWith('.htm')) {
 		return parseTakeoutHTML(content);
+	} else if (lowerFilename.endsWith('.csv')) {
+		return parseTakeoutCSV(content);
 	}
 	
 	// Try to auto-detect format
@@ -239,7 +473,15 @@ export function parseTakeoutFile(content: string, filename: string): YouTubeComm
 		return parseTakeoutHTML(content);
 	}
 	
-	throw new Error('Unable to determine file format. Please use a .json or .html file from Google Takeout.');
+	// Try CSV as last resort (if it looks like CSV with commas and multiple lines)
+	if (trimmed.includes(',') && trimmed.includes('\n')) {
+		const csvResult = parseTakeoutCSV(content);
+		if (csvResult.length > 0) {
+			return csvResult;
+		}
+	}
+	
+	throw new Error('Unable to determine file format. Please use a .json, .html, or .csv file from Google Takeout.');
 }
 
 /**
@@ -252,4 +494,154 @@ export function readFileAsText(file: File): Promise<string> {
 		reader.onerror = () => reject(new Error('Failed to read file'));
 		reader.readAsText(file);
 	});
+}
+
+/**
+ * Read file content as ArrayBuffer (for ZIP files)
+ */
+export function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => resolve(reader.result as ArrayBuffer);
+		reader.onerror = () => reject(new Error('Failed to read file'));
+		reader.readAsArrayBuffer(file);
+	});
+}
+
+/**
+ * Check if a file path is likely a comments file
+ * Handles localized folder names across multiple languages
+ */
+function isCommentsFile(filepath: string): boolean {
+	const lower = filepath.toLowerCase();
+	const filename = lower.split('/').pop() || '';
+	
+	// Check for supported file extensions
+	const supportedExtensions = ['.csv', '.json', '.html', '.htm'];
+	if (!supportedExtensions.some(ext => filename.endsWith(ext))) {
+		return false;
+	}
+	
+	// Common comment-related folder/file name patterns across languages
+	const commentPatterns = [
+		'comment', 'kommentar', 'comentario', 'commento', 'comentário',
+		'reactie', 'コメント', '评论', 'commentaire'
+	];
+	
+	// Check if the path contains any comment-related term
+	return commentPatterns.some(pattern => lower.includes(pattern));
+}
+
+/**
+ * Extract and parse comments from a ZIP file
+ * Handles Google Takeout ZIP exports with localized folder names
+ */
+export async function parseZipFile(
+	file: File, 
+	onProgress?: (progress: { loaded: number; total: number }) => void
+): Promise<YouTubeComment[]> {
+	const allComments: YouTubeComment[] = [];
+	const seenIds = new Set<string>();
+	
+	const arrayBuffer = await readFileAsArrayBuffer(file);
+	const zip = await JSZip.loadAsync(arrayBuffer);
+	
+	// Find all comment-related files in the ZIP
+	const commentFiles: string[] = [];
+	zip.forEach((relativePath, _zipEntry) => {
+		if (isCommentsFile(relativePath)) {
+			commentFiles.push(relativePath);
+		}
+	});
+	
+	if (commentFiles.length === 0) {
+		throw new Error('No comment files found in the ZIP archive. Make sure you are uploading a Google Takeout export that includes YouTube comments.');
+	}
+	
+	const total = commentFiles.length;
+	let loaded = 0;
+	
+	// Process each comment file
+	for (const filepath of commentFiles) {
+		const zipEntry = zip.file(filepath);
+		if (!zipEntry) continue;
+		
+		try {
+			const content = await zipEntry.async('string');
+			const filename = filepath.split('/').pop() || filepath;
+			const comments = parseTakeoutFile(content, filename);
+			
+			// Add unique comments (deduplicate by ID)
+			for (const comment of comments) {
+				if (!seenIds.has(comment.id)) {
+					seenIds.add(comment.id);
+					allComments.push(comment);
+				}
+			}
+		} catch (e) {
+			console.warn(`Failed to parse ${filepath}:`, e);
+			// Continue with other files
+		}
+		
+		loaded++;
+		if (onProgress) {
+			onProgress({ loaded, total });
+		}
+	}
+	
+	return allComments;
+}
+
+/**
+ * Parse multiple files and combine the results
+ * Deduplicates comments by ID
+ */
+export async function parseMultipleFiles(
+	files: FileList | File[],
+	onProgress?: (progress: { loaded: number; total: number }) => void
+): Promise<YouTubeComment[]> {
+	const allComments: YouTubeComment[] = [];
+	const seenIds = new Set<string>();
+	const fileArray = Array.from(files);
+	
+	const total = fileArray.length;
+	let loaded = 0;
+	
+	for (const file of fileArray) {
+		let comments: YouTubeComment[] = [];
+		
+		if (file.name.toLowerCase().endsWith('.zip')) {
+			// Handle ZIP files
+			comments = await parseZipFile(file, (zipProgress) => {
+				// Report sub-progress for ZIP files
+				if (onProgress) {
+					const fileProgress = loaded / total;
+					const zipContribution = (1 / total) * (zipProgress.loaded / zipProgress.total);
+					onProgress({ 
+						loaded: fileProgress + zipContribution, 
+						total: 1 
+					});
+				}
+			});
+		} else {
+			// Handle individual files
+			const content = await readFileAsText(file);
+			comments = parseTakeoutFile(content, file.name);
+		}
+		
+		// Add unique comments
+		for (const comment of comments) {
+			if (!seenIds.has(comment.id)) {
+				seenIds.add(comment.id);
+				allComments.push(comment);
+			}
+		}
+		
+		loaded++;
+		if (onProgress) {
+			onProgress({ loaded, total });
+		}
+	}
+	
+	return allComments;
 }

@@ -28,8 +28,8 @@
 			icon: "📦"
 		},
 		{
-			title: "Extract & Upload",
-			description: "Once downloaded, extract the ZIP file. Navigate to 'Takeout/YouTube and YouTube Music/my-comments/' and upload the 'my-comments.html' file here.",
+			title: "Upload the ZIP File",
+			description: "Simply upload the downloaded ZIP file directly — no need to extract it! We'll automatically find and process all your comment files, regardless of their language or format.",
 			link: "",
 			icon: "📁"
 		}
@@ -121,7 +121,7 @@
 				<div class="tip-icon">💡</div>
 				<div class="tip-content">
 					<strong>Pro Tip:</strong> Google Takeout exports can take a few minutes to hours depending on your data size. 
-					You'll receive an email when your export is ready to download.
+					You'll receive an email when your export is ready to download. We support ZIP files, CSV, HTML, and JSON formats — even with localized folder names!
 				</div>
 			</div>
 
