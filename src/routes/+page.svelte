@@ -802,10 +802,15 @@
 <ToastContainer />
 
 <style>
-	/* Use CSS custom properties for Safari-compatible viewport heights */
+	/* 
+	 * Safari-compatible viewport heights using progressive enhancement.
+	 * Older browsers use 100vh, modern browsers override with 100dvh.
+	 * This pattern works because browsers ignore properties they don't understand,
+	 * and later declarations override earlier ones.
+	 */
 	:global(:root) {
-		--app-height: 100vh;
-		--app-height: 100dvh; /* Dynamic viewport height - modern browsers */
+		--app-height: 100vh; /* Fallback for older browsers */
+		--app-height: 100dvh; /* Dynamic viewport height for modern browsers (Safari, mobile) */
 	}
 
 	.app {
@@ -814,7 +819,6 @@
 		max-height: var(--app-height);
 		display: flex;
 		flex-direction: column;
-		/* Don't force overflow hidden - let elements size correctly */
 	}
 
 	.header {
@@ -980,11 +984,6 @@
 		font-size: 1.25rem;
 		font-weight: 700;
 		color: var(--text-primary);
-	}
-
-	.comments-grid {
-		display: grid;
-		gap: 1rem;
 	}
 
 	.sidebar {
@@ -1423,14 +1422,20 @@
 		accent-color: var(--accent-primary);
 	}
 
-	/* Video groups - add proper spacing */
+	/* 
+	 * Video groups spacing - 1rem gap creates visual separation between 
+	 * grouped video containers and standalone comment cards.
+	 */
 	.video-groups {
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
 	}
 	
-	/* Comments grid - ensure proper spacing */
+	/* 
+	 * Comments grid (used when "Group by video" is disabled) - consistent 
+	 * 1rem gap between individual comment cards.
+	 */
 	.comments-grid {
 		display: flex;
 		flex-direction: column;
