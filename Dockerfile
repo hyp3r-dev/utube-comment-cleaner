@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20-alpine AS builder
+FROM woahbase/alpine-nodejs:24.11.1 AS builder
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ COPY . .
 RUN yarn build
 
 # Production stage
-FROM node:20-alpine AS production
+FROM woahbase/alpine-nodejs:24.11.1 AS production
 
 WORKDIR /app
 
