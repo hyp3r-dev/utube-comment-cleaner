@@ -25,16 +25,21 @@
 		}, 800);
 	});
 
-	// Generate random spark positions
-	const sparks = Array.from({ length: 8 }, (_, i) => ({
-		id: i,
-		x: 40 + Math.random() * 20,
-		y: 40 + Math.random() * 20,
-		size: 2 + Math.random() * 4,
-		delay: Math.random() * 100,
-		angle: Math.random() * 360,
-		distance: 20 + Math.random() * 40
-	}));
+	// Generate random spark positions with pre-calculated offsets
+	const sparks = Array.from({ length: 8 }, (_, i) => {
+		const angle = Math.random() * 2 * Math.PI;
+		const distance = 20 + Math.random() * 40;
+		return {
+			id: i,
+			x: 40 + Math.random() * 20,
+			y: 40 + Math.random() * 20,
+			size: 2 + Math.random() * 4,
+			delay: Math.random() * 100,
+			// Pre-calculate offset using JavaScript
+			offsetX: Math.cos(angle) * distance,
+			offsetY: Math.sin(angle) * distance
+		};
+	});
 </script>
 
 {#if isAnimating}
@@ -89,8 +94,8 @@
 							--y: {spark.y}%;
 							--size: {spark.size}px;
 							--delay: {spark.delay}ms;
-							--angle: {spark.angle}deg;
-							--distance: {spark.distance}px;
+							--offset-x: {spark.offsetX}px;
+							--offset-y: {spark.offsetY}px;
 						"
 					></div>
 				{/each}
@@ -198,12 +203,7 @@
 		}
 		100% {
 			opacity: 0;
-			transform: 
-				translate(
-					calc(cos(var(--angle)) * var(--distance)),
-					calc(sin(var(--angle)) * var(--distance))
-				) 
-				scale(0);
+			transform: translate(var(--offset-x), var(--offset-y)) scale(0);
 		}
 	}
 

@@ -1,5 +1,11 @@
 import { writable, derived, get } from 'svelte/store';
 import { saveMetadata, loadMetadata } from '$lib/services/storage';
+import { 
+	getPacificDateKey, 
+	getTimeUntilPacificMidnight,
+	VIDEOS_PER_PAGE,
+	VIDEOS_PER_BATCH_REQUEST
+} from '$lib/utils/timezone';
 
 // YouTube API Quota costs (approximate)
 export const QUOTA_COSTS = {
@@ -15,36 +21,6 @@ export const QUOTA_COSTS = {
 
 // Default daily quota limit for YouTube Data API
 export const DEFAULT_DAILY_QUOTA = 10000;
-
-// Pacific Time zone offset (UTC-8 or UTC-7 for DST)
-function getPacificMidnight(): Date {
-	const now = new Date();
-	
-	// Create a date in Pacific Time
-	const pacificTimeStr = now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' });
-	const pacificDate = new Date(pacificTimeStr);
-	
-	// Get tomorrow's midnight in Pacific Time
-	const tomorrow = new Date(pacificDate);
-	tomorrow.setDate(tomorrow.getDate() + 1);
-	tomorrow.setHours(0, 0, 0, 0);
-	
-	// Convert back to local time
-	const tomorrowPacificStr = tomorrow.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' });
-	const tomorrowPacific = new Date(tomorrowPacificStr);
-	
-	// Calculate the difference
-	const pacificMidnight = new Date(now.getTime() + (tomorrowPacific.getTime() - pacificDate.getTime()));
-	
-	return pacificMidnight;
-}
-
-// Get the current date in Pacific Time as YYYY-MM-DD
-function getPacificDateKey(): string {
-	const now = new Date();
-	const pacificTimeStr = now.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' });
-	return pacificTimeStr;
-}
 
 export interface QuotaState {
 	used: number;
@@ -165,28 +141,13 @@ export const quotaPercentage = derived(
 export const timeUntilReset = derived(
 	quotaStore,
 	() => {
-		const now = new Date();
-		const resetTime = getPacificMidnight();
-		const diffMs = resetTime.getTime() - now.getTime();
-		
-		if (diffMs <= 0) {
-			return { hours: 0, minutes: 0, seconds: 0, formatted: 'Resetting...' };
-		}
-		
-		const hours = Math.floor(diffMs / (1000 * 60 * 60));
-		const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-		const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
-		
-		let formatted = '';
-		if (hours > 0) {
-			formatted = `${hours}h ${minutes}m`;
-		} else if (minutes > 0) {
-			formatted = `${minutes}m ${seconds}s`;
-		} else {
-			formatted = `${seconds}s`;
-		}
-		
-		return { hours, minutes, seconds, formatted };
+		const timeInfo = getTimeUntilPacificMidnight();
+		return {
+			hours: timeInfo.hours,
+			minutes: timeInfo.minutes,
+			seconds: timeInfo.seconds,
+			formatted: timeInfo.formatted
+		};
 	}
 );
 
@@ -194,8 +155,8 @@ export const timeUntilReset = derived(
 export function calculateFetchQuotaCost(estimatedPages: number = 1): number {
 	// Each page of comments costs 1 unit
 	// Plus 1 unit for channel info
-	// Plus video details (batched, ~1 unit per 50 videos)
-	return 1 + estimatedPages + Math.ceil(estimatedPages * 10 / 50);
+	// Plus video details (batched, ~1 unit per VIDEOS_PER_BATCH_REQUEST videos)
+	return 1 + estimatedPages + Math.ceil(estimatedPages * VIDEOS_PER_PAGE / VIDEOS_PER_BATCH_REQUEST);
 }
 
 // Helper to calculate quota cost for deleting comments

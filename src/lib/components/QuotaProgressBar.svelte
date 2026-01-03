@@ -3,10 +3,10 @@
 	import { 
 		quotaStore, 
 		quotaPercentage, 
-		timeUntilReset, 
 		pendingQuota,
 		DEFAULT_DAILY_QUOTA 
 	} from '$lib/stores/quota';
+	import { getTimeUntilPacificMidnight } from '$lib/utils/timezone';
 
 	let isExpanded = $state(false);
 	let timeDisplay = $state({ hours: 0, minutes: 0, seconds: 0, formatted: 'Loading...' });
@@ -15,36 +15,7 @@
 	// Update time every second
 	onMount(() => {
 		const updateTime = () => {
-			const now = new Date();
-			const pacificTimeStr = now.toLocaleString('en-US', { timeZone: 'America/Los_Angeles' });
-			const pacificDate = new Date(pacificTimeStr);
-			
-			// Get tomorrow's midnight in Pacific Time
-			const tomorrow = new Date(pacificDate);
-			tomorrow.setDate(tomorrow.getDate() + 1);
-			tomorrow.setHours(0, 0, 0, 0);
-			
-			const diffMs = tomorrow.getTime() - pacificDate.getTime();
-			
-			if (diffMs <= 0) {
-				timeDisplay = { hours: 0, minutes: 0, seconds: 0, formatted: 'Resetting...' };
-				return;
-			}
-			
-			const hours = Math.floor(diffMs / (1000 * 60 * 60));
-			const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-			const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
-			
-			let formatted = '';
-			if (hours > 0) {
-				formatted = `${hours}h ${minutes}m`;
-			} else if (minutes > 0) {
-				formatted = `${minutes}m ${seconds}s`;
-			} else {
-				formatted = `${seconds}s`;
-			}
-			
-			timeDisplay = { hours, minutes, seconds, formatted };
+			timeDisplay = getTimeUntilPacificMidnight();
 		};
 		
 		updateTime();
