@@ -261,7 +261,8 @@ export class YouTubeService {
 	}
 
 	/**
-	 * @deprecated Use validateToken() instead for better error information
+	 * @deprecated Since v0.1.0 - Use validateToken() instead for better error information.
+	 * This method will be removed in a future version.
 	 */
 	async validateApiKey(): Promise<boolean> {
 		const result = await this.validateToken();

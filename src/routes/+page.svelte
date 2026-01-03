@@ -110,7 +110,7 @@
 			});
 
 			if (fetchedComments.length === 0) {
-				error.set('No comments found on your channel\'s videos. This tool shows comments made ON your videos, not comments you\'ve made on other channels\' videos.');
+				error.set("No comments found on your channel's videos. This tool shows comments made ON your videos, not comments you've made on other channels' videos.");
 				isLoading.set(false);
 				return;
 			}
