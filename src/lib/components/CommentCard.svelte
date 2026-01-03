@@ -7,13 +7,15 @@
 		isDragging = false,
 		onDragStart,
 		onDragEnd,
-		hideWhenSelected = false
+		hideWhenSelected = false,
+		onRemoveFromDatabase
 	}: { 
 		comment: YouTubeComment;
 		isDragging?: boolean;
 		onDragStart?: () => void;
 		onDragEnd?: () => void;
 		hideWhenSelected?: boolean;
+		onRemoveFromDatabase?: (commentId: string) => void;
 	} = $props();
 
 	let isExpanded = $state(false);
@@ -21,6 +23,12 @@
 	
 	// Hide selected comments when hideWhenSelected is true
 	let shouldHide = $derived(hideWhenSelected && isSelected);
+
+	function handleRemoveFromDatabase() {
+		if (onRemoveFromDatabase) {
+			onRemoveFromDatabase(comment.id);
+		}
+	}
 
 	function formatDate(dateString: string): string {
 		if (!dateString) return 'Unknown date';
@@ -155,10 +163,24 @@
 
 		{#if isExpanded && comment.lastDeleteError}
 			<div class="error-details">
-				<span class="error-label">❌ Last delete error:</span>
-				<span class="error-message">{comment.lastDeleteError}</span>
-				{#if comment.lastDeleteAttempt}
-					<span class="error-time">(at {formatDate(comment.lastDeleteAttempt)})</span>
+				<div class="error-info">
+					<span class="error-label">❌ Last delete error:</span>
+					<span class="error-message">{comment.lastDeleteError}</span>
+					{#if comment.lastDeleteAttempt}
+						<span class="error-time">(at {formatDate(comment.lastDeleteAttempt)})</span>
+					{/if}
+				</div>
+				{#if onRemoveFromDatabase}
+					<button 
+						class="remove-from-db-btn" 
+						onclick={handleRemoveFromDatabase}
+						title="Remove this comment from your local database only (does not delete from YouTube)"
+					>
+						<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+							<path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+						</svg>
+						Remove from database
+					</button>
 				{/if}
 			</div>
 		{/if}
@@ -399,6 +421,16 @@
 		border: 1px solid rgba(239, 68, 68, 0.2);
 		border-radius: var(--radius-sm);
 		font-size: 0.8rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+	}
+
+	.error-info {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 0.25rem;
 	}
 
 	.error-label {
@@ -408,13 +440,32 @@
 
 	.error-message {
 		color: var(--text-secondary);
-		margin-left: 0.25rem;
 	}
 
 	.error-time {
 		color: var(--text-muted);
 		font-size: 0.7rem;
-		margin-left: 0.5rem;
+	}
+
+	.remove-from-db-btn {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		padding: 0.4rem 0.75rem;
+		background: rgba(239, 68, 68, 0.2);
+		border: 1px solid rgba(239, 68, 68, 0.3);
+		border-radius: var(--radius-sm);
+		color: var(--error);
+		font-size: 0.75rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.2s ease;
+		align-self: flex-start;
+	}
+
+	.remove-from-db-btn:hover {
+		background: rgba(239, 68, 68, 0.3);
+		border-color: rgba(239, 68, 68, 0.5);
 	}
 
 	.card-footer {

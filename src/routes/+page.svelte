@@ -541,6 +541,14 @@
 		toasts.success(`Removed ${ids.length} unenrichable comment(s) from your collection.`);
 	}
 
+	// Remove a single comment from local database (without deleting from YouTube)
+	async function handleRemoveFromDatabase(commentId: string) {
+		removeComments([commentId]);
+		await deleteFromStorage([commentId]);
+		await saveComments($comments);
+		toasts.info('Comment removed from your local database.');
+	}
+
 	// Background delete for selected comments (non-blocking)
 	async function handleBackgroundDelete() {
 		if (!youtubeService || $selectedComments.length === 0) return;
@@ -838,11 +846,16 @@
 													videoTitle={group.videoTitle}
 													comments={group.comments}
 													hideSelectedComments={hideSelectedFromList}
+													onRemoveFromDatabase={handleRemoveFromDatabase}
 												/>
 											{:else}
 												<!-- Show individual card for videos with single comment -->
 												{#each group.comments as comment (comment.id)}
-													<CommentCard {comment} hideWhenSelected={hideSelectedFromList} />
+													<CommentCard 
+														{comment} 
+														hideWhenSelected={hideSelectedFromList} 
+														onRemoveFromDatabase={handleRemoveFromDatabase}
+													/>
 												{/each}
 											{/if}
 										{/each}
@@ -850,7 +863,11 @@
 								{:else}
 									<div class="comments-grid">
 										{#each $filteredComments as comment (comment.id)}
-											<CommentCard {comment} hideWhenSelected={hideSelectedFromList} />
+											<CommentCard 
+												{comment} 
+												hideWhenSelected={hideSelectedFromList} 
+												onRemoveFromDatabase={handleRemoveFromDatabase}
+											/>
 										{/each}
 									</div>
 								{/if}
