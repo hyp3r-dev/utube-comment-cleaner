@@ -3,6 +3,43 @@ import { quotaStore, QUOTA_COSTS } from '$lib/stores/quota';
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
 
+// Custom error types for better error handling
+export class YouTubeAPIError extends Error {
+	code: number;
+	reason?: string;
+	
+	constructor(message: string, code: number, reason?: string) {
+		super(message);
+		this.name = 'YouTubeAPIError';
+		this.code = code;
+		this.reason = reason;
+	}
+}
+
+export class TokenExpiredError extends YouTubeAPIError {
+	constructor(message = 'Your access token has expired. Please generate a new one from the OAuth Playground.') {
+		super(message, 401, 'tokenExpired');
+	}
+}
+
+export class InsufficientScopesError extends YouTubeAPIError {
+	constructor(message = 'Your access token does not have the required permissions. Please ensure you authorized with the "youtube.force-ssl" scope.') {
+		super(message, 403, 'insufficientScopes');
+	}
+}
+
+export class NoChannelError extends YouTubeAPIError {
+	constructor(message = 'No YouTube channel is associated with this Google account. Please create a YouTube channel first.') {
+		super(message, 403, 'youtubeSignupRequired');
+	}
+}
+
+export class QuotaExceededError extends YouTubeAPIError {
+	constructor(message = 'YouTube API quota has been exceeded. Please try again tomorrow when the quota resets.') {
+		super(message, 403, 'quotaExceeded');
+	}
+}
+
 interface YouTubeCommentThread {
 	id: string;
 	snippet: {
@@ -47,16 +84,80 @@ interface YouTubeVideoResponse {
 	}[];
 }
 
-export class YouTubeService {
-	private apiKey: string;
-	private rateLimitDelay = 100; // ms between requests
+interface YouTubeErrorResponse {
+	error: {
+		code: number;
+		message: string;
+		errors?: {
+			message: string;
+			domain: string;
+			reason: string;
+		}[];
+	};
+}
 
-	constructor(apiKey: string) {
-		this.apiKey = apiKey;
+export interface TokenValidationResult {
+	valid: boolean;
+	channelId?: string;
+	channelTitle?: string;
+	error?: string;
+	errorType?: 'expired' | 'insufficientScopes' | 'noChannel' | 'quotaExceeded' | 'unknown';
+}
+
+export class YouTubeService {
+	private accessToken: string;
+	private rateLimitDelay = 100; // ms between requests
+	private channelId: string | null = null;
+
+	constructor(accessToken: string) {
+		this.accessToken = accessToken;
 	}
 
 	private async delay(ms: number): Promise<void> {
 		return new Promise(resolve => setTimeout(resolve, ms));
+	}
+
+	/**
+	 * Parse YouTube API error response and throw appropriate error
+	 */
+	private parseAndThrowError(errorData: YouTubeErrorResponse): never {
+		const code = errorData.error.code;
+		const reason = errorData.error.errors?.[0]?.reason;
+		const message = errorData.error.message;
+		
+		// Check for specific error reasons first (most specific matches)
+		if (reason === 'youtubeSignupRequired') {
+			throw new NoChannelError();
+		}
+		
+		if (reason === 'quotaExceeded' || reason === 'dailyLimitExceeded') {
+			throw new QuotaExceededError();
+		}
+		
+		if (reason === 'insufficientPermissions' || reason === 'forbidden') {
+			throw new InsufficientScopesError();
+		}
+		
+		// Check by HTTP status code (less specific)
+		if (code === 401) {
+			// Check if it's related to channel issues
+			if (message.toLowerCase().includes('signup') || message.toLowerCase().includes('channel')) {
+				throw new NoChannelError();
+			}
+			throw new TokenExpiredError();
+		}
+		
+		// Check message for common patterns
+		if (message.toLowerCase().includes('quota')) {
+			throw new QuotaExceededError();
+		}
+		
+		if (message.toLowerCase().includes('unauthorized') || message.toLowerCase().includes('invalid credentials')) {
+			throw new TokenExpiredError();
+		}
+		
+		// Generic error
+		throw new YouTubeAPIError(message || 'YouTube API request failed', code, reason);
 	}
 
 	private async fetchWithRateLimit<T>(url: string): Promise<T> {
@@ -64,35 +165,122 @@ export class YouTubeService {
 		const response = await fetch(url);
 		
 		if (!response.ok) {
-			const error = await response.json();
-			throw new Error(error.error?.message || 'YouTube API request failed');
+			const error = await response.json() as YouTubeErrorResponse;
+			this.parseAndThrowError(error);
 		}
 		
 		return response.json();
 	}
 
-	async validateApiKey(): Promise<boolean> {
+	/**
+	 * Validate the access token and return detailed information
+	 */
+	async validateToken(): Promise<TokenValidationResult> {
 		try {
-			const url = `${YOUTUBE_API_BASE}/channels?part=id&mine=true`;
-			const response = await fetch(url, {
+			const url = new URL(`${YOUTUBE_API_BASE}/channels`);
+			url.searchParams.set('part', 'snippet');
+			url.searchParams.set('mine', 'true');
+
+			const response = await fetch(url.toString(), {
 				headers: {
-					'Authorization': `Bearer ${this.apiKey}`
+					'Authorization': `Bearer ${this.accessToken}`
 				}
 			});
-			return response.ok;
-		} catch {
-			return false;
+
+			if (!response.ok) {
+				const errorData = await response.json() as YouTubeErrorResponse;
+				const code = errorData.error.code;
+				const reason = errorData.error.errors?.[0]?.reason;
+				
+				// Check specific reasons first (most important)
+				if (reason === 'youtubeSignupRequired') {
+					return {
+						valid: false,
+						error: 'No YouTube channel is associated with this Google account. Please visit YouTube.com and create a channel first, then try again.',
+						errorType: 'noChannel'
+					};
+				}
+				
+				if (reason === 'quotaExceeded' || reason === 'dailyLimitExceeded') {
+					return {
+						valid: false,
+						error: 'YouTube API quota exceeded. Please try again tomorrow.',
+						errorType: 'quotaExceeded'
+					};
+				}
+				
+				if (reason === 'insufficientPermissions' || reason === 'forbidden') {
+					return {
+						valid: false,
+						error: 'Your access token does not have the required permissions. Make sure to authorize with the "youtube.force-ssl" scope.',
+						errorType: 'insufficientScopes'
+					};
+				}
+				
+				// Check by HTTP status code (less specific)
+				if (code === 401) {
+					return {
+						valid: false,
+						error: 'Your access token has expired or is invalid. Please generate a new token from the OAuth Playground.',
+						errorType: 'expired'
+					};
+				}
+				
+				return {
+					valid: false,
+					error: errorData.error.message || 'Failed to validate access token',
+					errorType: 'unknown'
+				};
+			}
+
+			const data = await response.json();
+			
+			if (!data.items || data.items.length === 0) {
+				return {
+					valid: false,
+					error: 'No YouTube channel found for this account. Please create a YouTube channel first.',
+					errorType: 'noChannel'
+				};
+			}
+
+			const channel = data.items[0];
+			this.channelId = channel.id;
+			
+			return {
+				valid: true,
+				channelId: channel.id,
+				channelTitle: channel.snippet?.title
+			};
+		} catch (e) {
+			return {
+				valid: false,
+				error: e instanceof Error ? e.message : 'Failed to validate access token. Please check your internet connection.',
+				errorType: 'unknown'
+			};
 		}
 	}
 
+	/**
+	 * @deprecated Use validateToken() instead for better error information
+	 */
+	async validateApiKey(): Promise<boolean> {
+		const result = await this.validateToken();
+		return result.valid;
+	}
+
 	private async fetchMyChannelId(): Promise<string> {
+		// Use cached channel ID if available
+		if (this.channelId) {
+			return this.channelId;
+		}
+
 		const channelUrl = new URL(`${YOUTUBE_API_BASE}/channels`);
 		channelUrl.searchParams.set('part', 'id');
 		channelUrl.searchParams.set('mine', 'true');
 
 		const channelResponse = await fetch(channelUrl.toString(), {
 			headers: {
-				'Authorization': `Bearer ${this.apiKey}`
+				'Authorization': `Bearer ${this.accessToken}`
 			}
 		});
 
@@ -100,16 +288,17 @@ export class YouTubeService {
 		quotaStore.addUsage(QUOTA_COSTS.channelsList);
 
 		if (!channelResponse.ok) {
-			const error = await channelResponse.json();
-			throw new Error(error.error?.message || 'Failed to fetch channel info');
+			const error = await channelResponse.json() as YouTubeErrorResponse;
+			this.parseAndThrowError(error);
 		}
 
 		const channelData = await channelResponse.json();
 		if (!channelData.items || channelData.items.length === 0) {
-			throw new Error('No channel found for this account');
+			throw new NoChannelError();
 		}
 
-		return channelData.items[0].id;
+		this.channelId = channelData.items[0].id;
+		return this.channelId as string;
 	}
 
 	async fetchAllComments(
@@ -134,7 +323,7 @@ export class YouTubeService {
 
 			const response = await fetch(url.toString(), {
 				headers: {
-					'Authorization': `Bearer ${this.apiKey}`
+					'Authorization': `Bearer ${this.accessToken}`
 				}
 			});
 
@@ -142,14 +331,14 @@ export class YouTubeService {
 			quotaStore.addUsage(QUOTA_COSTS.commentThreadsList);
 
 			if (!response.ok) {
-				const error = await response.json();
+				const errorData = await response.json() as YouTubeErrorResponse;
 				
-				// Try alternative endpoint for user's own comments
-				if (error.error?.code === 403 || error.error?.code === 400) {
+				// Try alternative endpoint for user's own comments on 403/400
+				if (errorData.error?.code === 403 || errorData.error?.code === 400) {
 					return this.fetchMyComments(onProgress);
 				}
 				
-				throw new Error(error.error?.message || 'Failed to fetch comments');
+				this.parseAndThrowError(errorData);
 			}
 
 			const data: YouTubeCommentListResponse = await response.json();
@@ -200,7 +389,7 @@ export class YouTubeService {
 
 			const response = await fetch(activitiesUrl.toString(), {
 				headers: {
-					'Authorization': `Bearer ${this.apiKey}`
+					'Authorization': `Bearer ${this.accessToken}`
 				}
 			});
 
@@ -260,7 +449,7 @@ export class YouTubeService {
 
 			const response = await fetch(url.toString(), {
 				headers: {
-					'Authorization': `Bearer ${this.apiKey}`
+					'Authorization': `Bearer ${this.accessToken}`
 				}
 			});
 
@@ -302,7 +491,7 @@ export class YouTubeService {
 
 			const response = await fetch(url.toString(), {
 				headers: {
-					'Authorization': `Bearer ${this.apiKey}`
+					'Authorization': `Bearer ${this.accessToken}`
 				}
 			});
 
@@ -377,7 +566,7 @@ export class YouTubeService {
 				const response = await fetch(url.toString(), {
 					method: 'DELETE',
 					headers: {
-						'Authorization': `Bearer ${this.apiKey}`
+						'Authorization': `Bearer ${this.accessToken}`
 					}
 				});
 

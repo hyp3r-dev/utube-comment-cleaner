@@ -9,7 +9,14 @@
 	import DeleteConfirmModal from '$lib/components/DeleteConfirmModal.svelte';
 	import StatsBar from '$lib/components/StatsBar.svelte';
 	import QuotaProgressBar from '$lib/components/QuotaProgressBar.svelte';
-	import { YouTubeService } from '$lib/services/youtube';
+	import { 
+		YouTubeService, 
+		TokenExpiredError, 
+		InsufficientScopesError, 
+		NoChannelError, 
+		QuotaExceededError,
+		YouTubeAPIError 
+	} from '$lib/services/youtube';
 	import { saveComments, loadComments, deleteComments as deleteFromStorage, clearAllData } from '$lib/services/storage';
 	import {
 		apiKey,
@@ -31,6 +38,8 @@
 	let isDeleting = $state(false);
 	let deleteProgress = $state<{ deleted: number; total: number } | undefined>();
 	let youtubeService: YouTubeService | null = null;
+	let validationStatus = $state<'idle' | 'validating' | 'valid' | 'invalid'>('idle');
+	let channelName = $state<string | undefined>();
 
 	onMount(async () => {
 		// Try to load cached comments
@@ -46,6 +55,28 @@
 		}
 	});
 
+	function getErrorMessage(e: unknown): string {
+		if (e instanceof TokenExpiredError) {
+			return 'Your access token has expired. Please generate a new one from the OAuth Playground.';
+		}
+		if (e instanceof InsufficientScopesError) {
+			return 'Your access token does not have the required permissions. Please authorize with the "youtube.force-ssl" scope in the OAuth Playground.';
+		}
+		if (e instanceof NoChannelError) {
+			return 'No YouTube channel found for this Google account. Please visit YouTube.com and create a channel first.';
+		}
+		if (e instanceof QuotaExceededError) {
+			return 'YouTube API quota exceeded. The quota resets daily at midnight Pacific Time.';
+		}
+		if (e instanceof YouTubeAPIError) {
+			return e.message;
+		}
+		if (e instanceof Error) {
+			return e.message;
+		}
+		return 'An unexpected error occurred. Please try again.';
+	}
+
 	async function handleLogin() {
 		if (!inputApiKey.trim()) {
 			error.set('Please enter your OAuth access token');
@@ -55,16 +86,31 @@
 		isLoading.set(true);
 		error.set(null);
 		loadingProgress.set({ loaded: 0 });
+		validationStatus = 'validating';
 
 		try {
 			youtubeService = new YouTubeService(inputApiKey.trim());
 			
+			// First validate the token
+			const validationResult = await youtubeService.validateToken();
+			
+			if (!validationResult.valid) {
+				validationStatus = 'invalid';
+				error.set(validationResult.error || 'Invalid access token');
+				isLoading.set(false);
+				return;
+			}
+			
+			validationStatus = 'valid';
+			channelName = validationResult.channelTitle;
+			
+			// Now fetch comments
 			const fetchedComments = await youtubeService.fetchAllComments((loaded, total) => {
 				loadingProgress.set({ loaded, total });
 			});
 
 			if (fetchedComments.length === 0) {
-				error.set('No comments found. Make sure you have commented on YouTube videos.');
+				error.set('No comments found on your channel\'s videos. This tool shows comments made ON your videos, not comments you\'ve made on other channels\' videos.');
 				isLoading.set(false);
 				return;
 			}
@@ -75,7 +121,8 @@
 			apiKey.set(inputApiKey.trim());
 			isAuthenticated.set(true);
 		} catch (e) {
-			error.set(e instanceof Error ? e.message : 'Failed to fetch comments. Please check your access token.');
+			validationStatus = 'invalid';
+			error.set(getErrorMessage(e));
 		} finally {
 			isLoading.set(false);
 		}
