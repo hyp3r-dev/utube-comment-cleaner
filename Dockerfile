@@ -26,7 +26,7 @@ RUN addgroup -g 1001 -S nodejs && \
 
 # Copy built application from builder stage
 COPY --from=builder --chown=sveltekit:nodejs /app/build ./build
-COPY --from=builder --chown=sveltekit:nodejs /app/package.json ./
+COPY --from=builder --chown=sveltekit:nodejs /app/package.json /app/yarn.lock ./
 
 # Install only production dependencies
 RUN yarn install --production --frozen-lockfile && \
