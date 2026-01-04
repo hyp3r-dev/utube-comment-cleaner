@@ -8,6 +8,10 @@
 	let isPinned = $state(false); // When true, only closes on outside click
 	let isRefreshing = $state(false);
 	let containerRef: HTMLDivElement | undefined = $state();
+	let closeTimeout: ReturnType<typeof setTimeout> | null = null;
+
+	// Delay before closing the tooltip (allows moving cursor through gap)
+	const CLOSE_DELAY_MS = 150;
 
 	// Only show when there are comments
 	const shouldShow = $derived($comments.length > 0 && lifetimeInfo?.createdAt !== null);
@@ -18,6 +22,9 @@
 	});
 
 	onDestroy(() => {
+		if (closeTimeout) {
+			clearTimeout(closeTimeout);
+		}
 		document.removeEventListener('click', handleOutsideClick);
 	});
 
@@ -57,6 +64,11 @@
 	}
 
 	function handleMouseEnter() {
+		// Cancel any pending close timeout
+		if (closeTimeout) {
+			clearTimeout(closeTimeout);
+			closeTimeout = null;
+		}
 		if (!isPinned) {
 			showTooltip = true;
 		}
@@ -64,7 +76,11 @@
 
 	function handleMouseLeave() {
 		if (!isPinned) {
-			showTooltip = false;
+			// Add a small delay before closing to allow cursor to move through gap
+			closeTimeout = setTimeout(() => {
+				showTooltip = false;
+				closeTimeout = null;
+			}, CLOSE_DELAY_MS);
 		}
 	}
 

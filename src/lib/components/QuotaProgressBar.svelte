@@ -15,6 +15,10 @@
 	let isBoltAnimating = $state(false);
 	let lastUsedValue = $state(0);
 	let containerRef: HTMLDivElement | undefined = $state();
+	let closeTimeout: ReturnType<typeof setTimeout> | null = null;
+
+	// Delay before closing the dropdown (allows moving cursor through gap)
+	const CLOSE_DELAY_MS = 150;
 
 	// Update time every second
 	onMount(() => {
@@ -33,6 +37,9 @@
 	onDestroy(() => {
 		if (timerInterval) {
 			clearInterval(timerInterval);
+		}
+		if (closeTimeout) {
+			clearTimeout(closeTimeout);
 		}
 		document.removeEventListener('click', handleOutsideClick);
 	});
@@ -58,6 +65,11 @@
 	}
 
 	function handleMouseEnter() {
+		// Cancel any pending close timeout
+		if (closeTimeout) {
+			clearTimeout(closeTimeout);
+			closeTimeout = null;
+		}
 		if (!isPinned) {
 			isExpanded = true;
 		}
@@ -65,7 +77,11 @@
 
 	function handleMouseLeave() {
 		if (!isPinned) {
-			isExpanded = false;
+			// Add a small delay before closing to allow cursor to move through gap
+			closeTimeout = setTimeout(() => {
+				isExpanded = false;
+				closeTimeout = null;
+			}, CLOSE_DELAY_MS);
 		}
 	}
 

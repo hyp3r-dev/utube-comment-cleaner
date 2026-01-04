@@ -5,6 +5,7 @@
 	import FilterPanel from '$lib/components/FilterPanel.svelte';
 	import CommentCard from '$lib/components/CommentCard.svelte';
 	import VideoGroup from '$lib/components/VideoGroup.svelte';
+	import VirtualizedCommentList from '$lib/components/VirtualizedCommentList.svelte';
 	import SelectedCommentsPanel from '$lib/components/SelectedCommentsPanel.svelte';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import DeleteConfirmModal from '$lib/components/DeleteConfirmModal.svelte';
@@ -1049,51 +1050,50 @@
 							</div>
 
 							<div class="comments-scroll-wrapper">
-								<div class="comments-scroll-container">
 								{#if $filteredComments.length === 0}
-									<div class="empty-state">
-										<div class="empty-icon">🔍</div>
-										<h3>No comments found</h3>
-										<p>Try adjusting your filters or search query</p>
+									<div class="comments-scroll-container">
+										<div class="empty-state">
+											<div class="empty-icon">🔍</div>
+											<h3>No comments found</h3>
+											<p>Try adjusting your filters or search query</p>
+										</div>
 									</div>
 								{:else if groupByVideo}
-									<div class="video-groups">
-										{#each groupedComments() as group (group.videoId)}
-											{#if group.comments.length >= 2}
-												<!-- Show grouped container for videos with 2+ comments -->
-												<VideoGroup 
-													videoId={group.videoId}
-													videoTitle={group.videoTitle}
-													comments={group.comments}
-													hideSelectedComments={hideSelectedFromList}
-													onRemoveFromDatabase={handleRemoveFromDatabase}
-												/>
-											{:else}
-												<!-- Show individual card for videos with single comment -->
-												{#each group.comments as comment (comment.id)}
-													<CommentCard 
-														{comment} 
-														hideWhenSelected={hideSelectedFromList} 
+									<div class="comments-scroll-container">
+										<div class="video-groups">
+											{#each groupedComments() as group (group.videoId)}
+												{#if group.comments.length >= 2}
+													<!-- Show grouped container for videos with 2+ comments -->
+													<VideoGroup 
+														videoId={group.videoId}
+														videoTitle={group.videoTitle}
+														comments={group.comments}
+														hideSelectedComments={hideSelectedFromList}
 														onRemoveFromDatabase={handleRemoveFromDatabase}
 													/>
-												{/each}
-											{/if}
-										{/each}
+												{:else}
+													<!-- Show individual card for videos with single comment -->
+													{#each group.comments as comment (comment.id)}
+														<CommentCard 
+															{comment} 
+															hideWhenSelected={hideSelectedFromList} 
+															onRemoveFromDatabase={handleRemoveFromDatabase}
+														/>
+													{/each}
+												{/if}
+											{/each}
+										</div>
 									</div>
 								{:else}
-									<div class="comments-grid">
-										{#each $filteredComments as comment (comment.id)}
-											<CommentCard 
-												{comment} 
-												hideWhenSelected={hideSelectedFromList} 
-												onRemoveFromDatabase={handleRemoveFromDatabase}
-											/>
-										{/each}
-									</div>
+									<!-- Use virtualized list for non-grouped view (better performance) -->
+									<VirtualizedCommentList 
+										comments={$filteredComments}
+										hideWhenSelected={hideSelectedFromList}
+										onRemoveFromDatabase={handleRemoveFromDatabase}
+									/>
 								{/if}
 							</div>
 						</div>
-					</div>
 
 						<aside class="sidebar" class:sidebar-expanded={showMobileSidebar} class:has-items={$selectedComments.length > 0}>
 							<button 
@@ -1851,16 +1851,6 @@
 		gap: 1rem;
 	}
 	
-	/* 
-	 * Comments grid (used when "Group by video" is disabled) - consistent 
-	 * 1rem gap between individual comment cards.
-	 */
-	.comments-grid {
-		display: flex;
-		flex-direction: column;
-		gap: 1rem;
-	}
-
 	@media (max-width: 640px) {
 
 		.enrich-banner {

@@ -289,7 +289,7 @@
 		cursor: pointer;
 		transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
 		position: relative;
-		overflow: hidden;
+		/* Note: overflow must NOT be hidden here to allow the ::before rotating border animation to be visible */
 	}
 
 	/* Animated encirculating border effect on hover */
