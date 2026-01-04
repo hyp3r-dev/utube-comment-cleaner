@@ -287,112 +287,156 @@
 		border-radius: var(--radius-lg);
 		padding: 1rem;
 		cursor: pointer;
+		transition: all 0.25s ease;
 		position: relative;
-		/* GPU-accelerated transitions only */
-		transition: transform 0.25s ease, box-shadow 0.25s ease;
-		/* Prevent any layout shift during animations */
-		contain: layout style;
-		/* Enable hardware acceleration */
-		transform: translateZ(0);
-		backface-visibility: hidden;
+		overflow: hidden;
 	}
 
-	/* 
-	 * Performant hover glow effect using box-shadow only
-	 * No pseudo-elements or continuous animations = zero performance impact
-	 * Removed translateY to prevent upward movement - only glow effect
-	 */
-	.comment-card:hover {
-		transform: translateZ(0);
-		box-shadow: 
-			0 0 25px rgba(99, 102, 241, 0.2),
-			0 0 0 1px rgba(99, 102, 241, 0.5),
-			0 0 40px rgba(167, 139, 250, 0.1),
-			inset 0 1px 0 rgba(255, 255, 255, 0.08);
-		border-color: rgba(99, 102, 241, 0.4);
+	/* Top gradient bar that slides in on hover - original cool effect */
+	.comment-card::before {
+		content: '';
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: 3px;
+		background: var(--gradient-primary);
+		transform: scaleX(0);
+		transform-origin: left;
+		transition: transform 0.3s ease;
 	}
-	
+
+	/* Original hover effect - border highlight + shadow + gradient bar */
+	.comment-card:hover {
+		border-color: var(--accent-primary);
+		box-shadow: var(--shadow-md);
+	}
+
+	.comment-card:hover::before {
+		transform: scaleX(1);
+	}
+
 	/* Subtle lift on focus for accessibility */
 	.comment-card:focus-visible {
 		outline: 2px solid var(--accent-primary);
 		outline-offset: 2px;
 	}
 
-	/* Selected state - elegant accent border with soft glow */
+	/* Selected state - accent border with glow */
 	.comment-card.selected {
-		background: rgba(99, 102, 241, 0.08);
-		box-shadow: 
-			0 0 0 2px rgba(99, 102, 241, 0.5),
-			0 0 20px rgba(99, 102, 241, 0.15),
-			inset 0 1px 0 rgba(99, 102, 241, 0.1);
-	}
-	
-	.comment-card.selected:hover {
-		transform: translateZ(0);
-		box-shadow: 
-			0 0 0 2px var(--accent-primary),
-			0 0 30px rgba(99, 102, 241, 0.3),
-			0 0 50px rgba(167, 139, 250, 0.15),
-			inset 0 1px 0 rgba(99, 102, 241, 0.15);
+		border-color: var(--accent-primary);
+		background: rgba(99, 102, 241, 0.1);
+		box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
 	}
 
-	/* Slide animation when comment is added to queue */
+	/* Selected state shows rainbow gradient bar */
+	.comment-card.selected::before {
+		transform: scaleX(1);
+		background: linear-gradient(90deg, #6366f1, #ef4444, #8b5cf6);
+	}
+
+	/* Slide animation when comment is added to queue - smooth swipe right */
 	.comment-card.animating-to-queue {
 		animation: slideToQueue 0.4s ease-out forwards;
+		/* Disable transitions during animation to prevent conflicts */
+		transition: none !important;
 	}
 
 	@keyframes slideToQueue {
 		0% {
-			transform: translateX(0) translateZ(0);
+			transform: translateX(0);
 			opacity: 1;
 		}
 		100% {
-			transform: translateX(100%) translateZ(0);
+			transform: translateX(100%);
 			opacity: 0;
 		}
 	}
 
-	/* Slash effect overlay when selected */
+	/* Slash effect overlay - cool diagonal slash animation */
 	.slash-overlay {
 		position: absolute;
 		inset: 0;
 		pointer-events: none;
 		overflow: hidden;
 		border-radius: var(--radius-lg);
+		z-index: 10;
 	}
 
 	.slash-line {
 		position: absolute;
-		top: -50%;
-		left: -10%;
-		width: 120%;
-		height: 2px;
-		background: linear-gradient(90deg, transparent, var(--error), var(--error), transparent);
-		transform: rotate(-15deg);
-		animation: slashAcross 0.4s ease-out forwards;
-		box-shadow: 0 0 10px var(--error), 0 0 20px var(--error);
+		width: 200%;
+		height: 4px;
+		left: -50%;
+		background: linear-gradient(
+			90deg,
+			transparent 0%,
+			rgba(239, 68, 68, 0.3) 20%,
+			#ef4444 45%,
+			#fff 50%,
+			#ef4444 55%,
+			rgba(239, 68, 68, 0.3) 80%,
+			transparent 100%
+		);
+		transform: rotate(-20deg);
+		animation: slashDiagonal 0.4s ease-out forwards;
+		box-shadow: 
+			0 0 15px rgba(239, 68, 68, 0.8),
+			0 0 30px rgba(239, 68, 68, 0.5),
+			0 0 45px rgba(239, 68, 68, 0.3);
+		filter: blur(0.5px);
 	}
 
-	@keyframes slashAcross {
+	@keyframes slashDiagonal {
 		0% {
-			top: -50%;
+			top: -30%;
+			opacity: 0;
+		}
+		10% {
+			opacity: 1;
+		}
+		90% {
 			opacity: 1;
 		}
 		100% {
-			top: 150%;
+			top: 130%;
 			opacity: 0;
 		}
 	}
 
-	/* Dragging state - ghosty visual feedback to show this is being moved */
+	/* Dragging state - clear ghostly effect showing "this card is being moved" */
 	.comment-card.dragging {
-		opacity: 0.4;
-		transform: scale(0.98) translateZ(0);
-		box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+		opacity: 0.35;
+		transform: scale(0.97);
+		box-shadow: 
+			0 0 30px rgba(99, 102, 241, 0.4),
+			inset 0 0 0 2px rgba(99, 102, 241, 0.3);
 		cursor: grabbing;
-		filter: grayscale(30%);
-		border-color: rgba(99, 102, 241, 0.5);
+		filter: grayscale(40%) brightness(0.9);
+		border-color: var(--accent-primary);
 		border-style: dashed;
+		border-width: 2px;
+		background: rgba(99, 102, 241, 0.05);
+	}
+
+	/* Pulsing effect on dragging state to make it even more obvious */
+	.comment-card.dragging::after {
+		content: '';
+		position: absolute;
+		inset: -2px;
+		border-radius: var(--radius-lg);
+		border: 2px dashed var(--accent-primary);
+		animation: dragPulse 1s ease-in-out infinite;
+		pointer-events: none;
+	}
+
+	@keyframes dragPulse {
+		0%, 100% {
+			opacity: 0.3;
+		}
+		50% {
+			opacity: 0.7;
+		}
 	}
 
 	.card-header {
