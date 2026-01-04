@@ -287,7 +287,8 @@
 		border-radius: var(--radius-lg);
 		padding: 1rem;
 		cursor: pointer;
-		transition: all 0.25s ease;
+		/* Only transition properties that actually change for better performance */
+		transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
 		position: relative;
 		overflow: hidden;
 	}
@@ -338,8 +339,13 @@
 	/* Slide animation when comment is added to queue - smooth swipe right */
 	.comment-card.animating-to-queue {
 		animation: slideToQueue 0.4s ease-out forwards;
-		/* Disable transitions during animation to prevent conflicts */
-		transition: none !important;
+		/* Disable transitions during animation to prevent conflicts with base transitions */
+		transition: none;
+	}
+
+	/* Ensure animation takes priority by being more specific */
+	.comment-card.comment-card.animating-to-queue {
+		transition: none;
 	}
 
 	@keyframes slideToQueue {
@@ -368,13 +374,15 @@
 		width: 200%;
 		height: 4px;
 		left: -50%;
+		/* Using rgba values for the gradient since we need varying opacity levels */
+		/* The base error color is var(--error): #ef4444 / rgb(239, 68, 68) */
 		background: linear-gradient(
 			90deg,
 			transparent 0%,
 			rgba(239, 68, 68, 0.3) 20%,
-			#ef4444 45%,
+			var(--error) 45%,
 			#fff 50%,
-			#ef4444 55%,
+			var(--error) 55%,
 			rgba(239, 68, 68, 0.3) 80%,
 			transparent 100%
 		);
