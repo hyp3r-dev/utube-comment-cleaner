@@ -287,8 +287,9 @@
 	}
 
 	.reset-btn svg {
-		/* Ensure rotation is centered and smooth */
+		/* Ensure rotation is centered */
 		transform-origin: center;
+		/* Disable transitions to prevent ghosting when animation starts/stops */
 		transition: none;
 	}
 	
