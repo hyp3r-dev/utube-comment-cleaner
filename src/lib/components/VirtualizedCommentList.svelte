@@ -127,6 +127,7 @@
 			<!-- Rendered items -->
 			<div class="items-container">
 				{#each visibleItems as comment (comment.id)}
+					<!-- hideWhenSelected is false here because filtering is done at the list level for virtualization -->
 					<CommentCard 
 						{comment} 
 						hideWhenSelected={false}
@@ -149,6 +150,7 @@
 		<!-- Standard rendering for small lists -->
 		<div class="items-container">
 			{#each displayComments as comment (comment.id)}
+				<!-- hideWhenSelected is false here because filtering is done at the list level -->
 				<CommentCard 
 					{comment} 
 					hideWhenSelected={false}
