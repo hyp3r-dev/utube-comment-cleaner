@@ -454,10 +454,16 @@
 	}
 
 	.label-filters {
-		display: flex;
-		flex-wrap: wrap;
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
 		gap: 0.5rem;
 		margin-bottom: 0.75rem;
+	}
+
+	@media (max-width: 480px) {
+		.label-filters {
+			grid-template-columns: 1fr;
+		}
 	}
 
 	.label-btn {
@@ -472,6 +478,7 @@
 		font-weight: 500;
 		transition: all 0.2s ease;
 		border: 1px solid transparent;
+		white-space: nowrap;
 	}
 
 	.label-btn:hover {

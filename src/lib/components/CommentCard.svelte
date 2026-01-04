@@ -289,85 +289,83 @@
 		cursor: pointer;
 		transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
 		position: relative;
-		/* Note: overflow must NOT be hidden here to allow the ::before rotating border animation to be visible */
+		overflow: hidden;
 	}
 
-	/* Animated encirculating border effect on hover */
+	/* Animated glow effect on hover - travels around the border */
 	.comment-card::before {
 		content: '';
 		position: absolute;
-		top: -2px;
-		left: -2px;
-		right: -2px;
-		bottom: -2px;
-		background: conic-gradient(
-			from 0deg,
-			transparent 0deg,
-			var(--accent-primary) 60deg,
-			var(--accent-secondary) 120deg,
-			var(--accent-tertiary) 180deg,
-			transparent 240deg,
-			transparent 360deg
-		);
-		border-radius: calc(var(--radius-lg) + 2px);
+		top: 0;
+		left: -100%;
+		width: 50%;
+		height: 2px;
+		background: linear-gradient(90deg, transparent, var(--accent-primary), var(--accent-secondary), var(--accent-tertiary), transparent);
 		opacity: 0;
-		z-index: -1;
 		transition: opacity 0.3s ease;
 	}
 
-	/* Background overlay to create the border effect */
 	.comment-card::after {
 		content: '';
 		position: absolute;
-		top: 1px;
-		left: 1px;
-		right: 1px;
-		bottom: 1px;
-		background: var(--bg-card);
-		border-radius: calc(var(--radius-lg) - 1px);
-		z-index: -1;
+		bottom: 0;
+		right: -100%;
+		width: 50%;
+		height: 2px;
+		background: linear-gradient(90deg, transparent, var(--accent-tertiary), var(--accent-secondary), var(--accent-primary), transparent);
+		opacity: 0;
+		transition: opacity 0.3s ease;
 	}
 
 	.comment-card:hover {
-		border-color: transparent;
+		border-color: var(--accent-primary);
 		box-shadow: var(--shadow-md), 0 0 20px rgba(99, 102, 241, 0.2);
 	}
 
 	.comment-card:hover::before {
 		opacity: 1;
-		animation: rotateBorder 3s linear infinite;
+		animation: glowTop 2s linear infinite;
 	}
 
-	@keyframes rotateBorder {
-		from {
-			transform: rotate(0deg);
+	.comment-card:hover::after {
+		opacity: 1;
+		animation: glowBottom 2s linear infinite;
+	}
+
+	@keyframes glowTop {
+		0% {
+			left: -50%;
 		}
-		to {
-			transform: rotate(360deg);
+		100% {
+			left: 100%;
+		}
+	}
+
+	@keyframes glowBottom {
+		0% {
+			right: -50%;
+		}
+		100% {
+			right: 100%;
 		}
 	}
 
 	.comment-card.selected {
-		border-color: transparent;
+		border-color: var(--accent-primary);
 		background: rgba(99, 102, 241, 0.1);
 		box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3), 0 0 20px rgba(99, 102, 241, 0.15);
 	}
 
 	.comment-card.selected::before {
 		opacity: 1;
-		background: conic-gradient(
-			from 0deg,
-			#6366f1 0deg,
-			#ef4444 90deg,
-			#8b5cf6 180deg,
-			#6366f1 270deg,
-			#6366f1 360deg
-		);
-		animation: rotateBorder 2s linear infinite;
+		background: linear-gradient(90deg, transparent, var(--accent-primary), var(--error), var(--accent-secondary), transparent);
+		animation: glowTop 1.5s linear infinite;
 	}
 
 	.comment-card.selected::after {
-		background: rgba(99, 102, 241, 0.05);
+		background: linear-gradient(90deg, transparent, var(--accent-secondary), var(--error), var(--accent-primary), transparent);
+		opacity: 1;
+		animation: glowBottom 1.5s linear infinite;
 	}
 
 	/* Slide animation when comment is added to queue */
