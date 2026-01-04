@@ -15,33 +15,35 @@
 			<a href="/" class="logo-link">
 				<Logo size={36} />
 			</a>
-			<a href="/" class="close-btn" aria-label="Close and return to app">
-				<svg width="24" height="24" viewBox="0 0 20 20" fill="currentColor">
-					<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-				</svg>
-			</a>
 		</div>
 	</header>
 
 	<main class="main">
 		<div class="container">
 			<article class="legal-content">
-				<!-- Language Selector -->
-				<div class="language-selector">
-					<button 
-						class="lang-btn" 
-						class:active={currentLang === 'en'}
-						onclick={() => currentLang = 'en'}
-					>
-						🇬🇧 English
-					</button>
-					<button 
-						class="lang-btn" 
-						class:active={currentLang === 'de'}
-						onclick={() => currentLang = 'de'}
-					>
-						🇩🇪 Deutsch
-					</button>
+				<!-- Language Selector and Close Button Row -->
+				<div class="content-header">
+					<div class="language-selector">
+						<button 
+							class="lang-btn" 
+							class:active={currentLang === 'en'}
+							onclick={() => currentLang = 'en'}
+						>
+							🇬🇧 English
+						</button>
+						<button 
+							class="lang-btn" 
+							class:active={currentLang === 'de'}
+							onclick={() => currentLang = 'de'}
+						>
+							🇩🇪 Deutsch
+						</button>
+					</div>
+					<a href="/" class="close-btn" aria-label="Close and return to app">
+						<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+							<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+						</svg>
+					</a>
 				</div>
 
 				{#if currentLang === 'en'}
@@ -416,23 +418,6 @@
 		text-decoration: none;
 	}
 
-	.close-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		width: 40px;
-		height: 40px;
-		border-radius: 50%;
-		background: var(--bg-tertiary);
-		color: var(--text-secondary);
-		transition: all 0.2s ease;
-	}
-
-	.close-btn:hover {
-		background: var(--error);
-		color: white;
-	}
-
 	.main {
 		flex: 1;
 		padding: 2rem 0;
@@ -445,14 +430,40 @@
 		border-radius: var(--radius-xl);
 		border: 1px solid var(--bg-tertiary);
 		padding: 2.5rem;
+		position: relative;
+	}
+
+	.content-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		margin-bottom: 1.5rem;
+		padding-bottom: 1rem;
+		border-bottom: 1px solid var(--bg-tertiary);
 	}
 
 	.language-selector {
 		display: flex;
 		gap: 0.5rem;
-		margin-bottom: 1.5rem;
-		padding-bottom: 1rem;
-		border-bottom: 1px solid var(--bg-tertiary);
+	}
+
+	.close-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 32px;
+		height: 32px;
+		border-radius: 50%;
+		background: var(--bg-tertiary);
+		color: var(--text-secondary);
+		transition: all 0.2s ease;
+		flex-shrink: 0;
+		margin-top: -0.25rem;
+	}
+
+	.close-btn:hover {
+		background: var(--error);
+		color: white;
 	}
 
 	.lang-btn {
