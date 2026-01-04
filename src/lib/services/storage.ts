@@ -305,6 +305,48 @@ export async function refreshDataLifetime(): Promise<void> {
 	await saveLastTakeoutImport();
 }
 
+/**
+ * Search comments in IndexedDB by text query
+ * Returns matching comment IDs for efficient filtering
+ */
+export async function searchCommentsInDB(query: string): Promise<Set<string>> {
+	const database = await getDB();
+	const now = Date.now();
+	const cutoff = now - getTTL_MS();
+	const lowerQuery = query.toLowerCase();
+	const matchingIds = new Set<string>();
+
+	const all = await database.getAll('comments');
+	
+	for (const item of all) {
+		// Skip expired items
+		if (item.timestamp < cutoff) continue;
+		
+		const comment = item.data;
+		// Search in comment text and video title
+		const matchesText = comment.textOriginal.toLowerCase().includes(lowerQuery);
+		const matchesVideo = comment.videoTitle?.toLowerCase().includes(lowerQuery);
+		
+		if (matchesText || matchesVideo) {
+			matchingIds.add(comment.id);
+		}
+	}
+	
+	return matchingIds;
+}
+
+/**
+ * Get total count of non-expired comments in IndexedDB
+ */
+export async function getCommentCount(): Promise<number> {
+	const database = await getDB();
+	const now = Date.now();
+	const cutoff = now - getTTL_MS();
+
+	const all = await database.getAll('comments');
+	return all.filter(item => item.timestamp >= cutoff).length;
+}
+
 // Run cleanup on import
 if (typeof window !== 'undefined') {
 	cleanExpiredData().catch(console.error);
