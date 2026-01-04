@@ -27,6 +27,10 @@
 	let isHoveringDelete = $state(false);
 	let expandedErrorId = $state<string | null>(null);
 	
+	// Animation duration constants (must match CSS animations)
+	const SLIDE_IN_DURATION_MS = 400;  // matches slideInFromLeft animation (0.35s + easing buffer)
+	const SLIDE_OUT_DURATION_MS = 350; // matches slideOutToLeft animation (0.35s)
+	
 	// Track new items for slide-in animation
 	let newItemIds = $state<Set<string>>(new Set());
 	let removingIds = $state<Set<string>>(new Set());
@@ -44,7 +48,7 @@
 			// Clear animation flag after animation completes
 			setTimeout(() => {
 				newItemIds = new Set([...newItemIds].filter(id => !added.includes(id)));
-			}, 400);
+			}, SLIDE_IN_DURATION_MS);
 		}
 		
 		prevIds = currentIds;
@@ -71,7 +75,7 @@
 		setTimeout(() => {
 			deselectComment(commentId);
 			removingIds = new Set([...removingIds].filter(id => id !== commentId));
-		}, 350);
+		}, SLIDE_OUT_DURATION_MS);
 	}
 	
 	// Handle clearing all with animation
@@ -81,7 +85,7 @@
 		setTimeout(() => {
 			deselectAll();
 			removingIds = new Set();
-		}, 350);
+		}, SLIDE_OUT_DURATION_MS);
 	}
 
 	function handleDragOver(e: DragEvent) {

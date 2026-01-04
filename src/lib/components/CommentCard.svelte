@@ -20,6 +20,9 @@
 		hideVideoInfo?: boolean;
 	} = $props();
 
+	// Animation duration constant (must match CSS slideToQueue animation)
+	const SLIDE_TO_QUEUE_DURATION_MS = 400;
+	
 	let isExpanded = $state(false);
 	let isAnimatingOut = $state(false);
 	let isSelected = $derived($selectedIds.has(comment.id));
@@ -35,7 +38,7 @@
 			isAnimatingOut = true;
 			setTimeout(() => {
 				isAnimatingOut = false;
-			}, 400);
+			}, SLIDE_TO_QUEUE_DURATION_MS);
 		}
 		prevSelected = currentSelected;
 	});
