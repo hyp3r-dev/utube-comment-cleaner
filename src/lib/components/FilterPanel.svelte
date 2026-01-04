@@ -460,6 +460,12 @@
 		margin-bottom: 0.75rem;
 	}
 
+	@media (max-width: 480px) {
+		.label-filters {
+			grid-template-columns: 1fr;
+		}
+	}
+
 	.label-btn {
 		display: inline-flex;
 		align-items: center;

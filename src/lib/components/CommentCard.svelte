@@ -358,12 +358,12 @@
 
 	.comment-card.selected::before {
 		opacity: 1;
-		background: linear-gradient(90deg, transparent, #6366f1, #ef4444, #8b5cf6, transparent);
+		background: linear-gradient(90deg, transparent, var(--accent-primary), var(--error), var(--accent-secondary), transparent);
 		animation: glowTop 1.5s linear infinite;
 	}
 
 	.comment-card.selected::after {
-		background: linear-gradient(90deg, transparent, #8b5cf6, #ef4444, #6366f1, transparent);
+		background: linear-gradient(90deg, transparent, var(--accent-secondary), var(--error), var(--accent-primary), transparent);
 		opacity: 1;
 		animation: glowBottom 1.5s linear infinite;
 	}
