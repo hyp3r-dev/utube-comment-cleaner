@@ -16,6 +16,7 @@
 	import GoogleSignInButton from '$lib/components/GoogleSignInButton.svelte';
 	import CookieConsent from '$lib/components/CookieConsent.svelte';
 	import StaleDataReminder from '$lib/components/StaleDataReminder.svelte';
+	import DataLifetimeIndicator from '$lib/components/DataLifetimeIndicator.svelte';
 	import { toasts } from '$lib/stores/toast';
 	import { 
 		YouTubeService, 
@@ -148,6 +149,14 @@
 				googleLoginEnabled = config.googleLoginEnabled;
 				enableLegal = config.enableLegal;
 				enableCookieConsent = config.enableCookieConsent;
+				
+				// Store data retention config in localStorage for storage service
+				if (config.localDataRetentionDays) {
+					localStorage.setItem('commentslash_retention_days', String(config.localDataRetentionDays));
+				}
+				if (config.staleDataWarningDays) {
+					localStorage.setItem('commentslash_stale_warning_days', String(config.staleDataWarningDays));
+				}
 			}
 		} catch (e) {
 			console.debug('Config check failed (may not be configured):', e);
@@ -348,6 +357,27 @@
 		inputApiKey = '';
 		youtubeService = null;
 		toasts.success('All data cleared. Thanks for using CommentSlash!');
+	}
+
+	async function handleLogout() {
+		// Clear only the OAuth token, keep the comments data
+		apiKey.set('');
+		inputApiKey = '';
+		youtubeService = null;
+		
+		// Clear the OAuth cookie if using Google Login mode
+		if (googleLoginEnabled) {
+			try {
+				// Call the server to clear the auth cookie
+				await fetch('/api/auth/logout', { method: 'POST' });
+			} catch (e) {
+				console.debug('Logout API call failed:', e);
+			}
+			// Also clear the local auth status cookie
+			document.cookie = 'youtube_auth_status=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+		}
+		
+		toasts.success('Logged out of YouTube. Your comment data is still saved.');
 	}
 
 	async function handleEnrichComments() {
@@ -771,6 +801,11 @@
 					<QuotaProgressBar />
 				{/if}
 				
+				<!-- Data lifetime indicator - show when we have comments -->
+				{#if $comments.length > 0}
+					<DataLifetimeIndicator />
+				{/if}
+				
 				<!-- YouTube connection status icon - only show when we have comments -->
 				{#if $comments.length > 0}
 					<YouTubeStatusIcon 
@@ -784,11 +819,11 @@
 					/>
 				{/if}
 				
-				<!-- Clean & Leave button - only show when authenticated or has data -->
-				{#if $isAuthenticated || $comments.length > 0}
-					<button class="btn btn-ghost btn-icon-only btn-danger-text" onclick={() => showCleanLeaveConfirm = true} title="Clean & Leave - Clear all data and logout">
+				<!-- Logout button - only show when connected to YouTube API -->
+				{#if $apiKey}
+					<button class="btn btn-ghost btn-icon-only" onclick={handleLogout} title="Logout from YouTube">
 						<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
-							<path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
+							<path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clip-rule="evenodd"/>
 						</svg>
 					</button>
 				{/if}
@@ -1004,7 +1039,9 @@
 								</div>
 							</div>
 
-							<div class="comments-scroll-container">
+							<div class="comments-scroll-wrapper">
+								<div class="fade-overlay fade-top"></div>
+								<div class="comments-scroll-container">
 								{#if $filteredComments.length === 0}
 									<div class="empty-state">
 										<div class="empty-icon">🔍</div>
@@ -1047,7 +1084,9 @@
 									</div>
 								{/if}
 							</div>
+							<div class="fade-overlay fade-bottom"></div>
 						</div>
+					</div>
 
 						<aside class="sidebar" class:sidebar-expanded={showMobileSidebar} class:has-items={$selectedComments.length > 0}>
 							<button 
@@ -1318,15 +1357,62 @@
 		flex-direction: column;
 	}
 
+	.comments-scroll-wrapper {
+		position: relative;
+		flex: 1 1 0;
+		min-height: 0;
+		display: flex;
+		flex-direction: column;
+	}
+
 	.comments-scroll-container {
 		flex: 1 1 0;
 		overflow-y: auto;
 		overflow-x: hidden;
 		padding-right: 0.5rem;
 		padding-bottom: 1rem;
+		padding-top: 0.5rem;
 		/* Smooth scrolling for better UX */
 		scroll-behavior: smooth;
 		-webkit-overflow-scrolling: touch;
+	}
+
+	/* Frosted glass fade overlays */
+	.fade-overlay {
+		position: absolute;
+		left: 0;
+		right: 0.5rem;
+		height: 60px;
+		pointer-events: none;
+		z-index: 10;
+	}
+
+	.fade-top {
+		top: 0;
+		background: linear-gradient(
+			to bottom,
+			rgba(15, 15, 26, 0.95) 0%,
+			rgba(15, 15, 26, 0.8) 30%,
+			rgba(15, 15, 26, 0) 100%
+		);
+		backdrop-filter: blur(4px);
+		-webkit-backdrop-filter: blur(4px);
+		mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+		-webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 100%);
+	}
+
+	.fade-bottom {
+		bottom: 0;
+		background: linear-gradient(
+			to top,
+			rgba(15, 15, 26, 0.95) 0%,
+			rgba(15, 15, 26, 0.8) 30%,
+			rgba(15, 15, 26, 0) 100%
+		);
+		backdrop-filter: blur(4px);
+		-webkit-backdrop-filter: blur(4px);
+		mask-image: linear-gradient(to top, black 0%, transparent 100%);
+		-webkit-mask-image: linear-gradient(to top, black 0%, transparent 100%);
 	}
 
 	.section-header {

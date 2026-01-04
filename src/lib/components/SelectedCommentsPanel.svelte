@@ -2,6 +2,7 @@
 	import { selectedComments, selectedIds, deselectComment, deselectAll, selectComment } from '$lib/stores/comments';
 	import { pendingQuota, calculateDeleteQuotaCost, QUOTA_COSTS } from '$lib/stores/quota';
 	import type { YouTubeComment } from '$lib/types/comment';
+	import ShurikenIcon from './ShurikenIcon.svelte';
 	
 	// Delete result for each comment
 	type DeleteStatus = 'pending' | 'deleting' | 'success' | 'failed';
@@ -23,6 +24,21 @@
 	let isMinimized = $state(false);
 	let isHoveringDelete = $state(false);
 	let expandedErrorId = $state<string | null>(null);
+	
+	// Queue search state
+	let showQueueSearch = $state(false);
+	let queueSearchQuery = $state('');
+	let queueSearchInput: HTMLInputElement;
+	
+	// Filter selected comments by search query
+	const filteredSelectedComments = $derived(() => {
+		if (!queueSearchQuery.trim()) return $selectedComments;
+		const query = queueSearchQuery.toLowerCase().trim();
+		return $selectedComments.filter(c => 
+			c.textOriginal.toLowerCase().includes(query) ||
+			c.videoTitle?.toLowerCase().includes(query)
+		);
+	});
 
 	function handleDragOver(e: DragEvent) {
 		e.preventDefault();
@@ -100,23 +116,59 @@
 >
 	<div class="panel-header">
 		<div class="header-content">
-			<div class="header-icon">⚔️</div>
+			<div class="header-icon">
+				<ShurikenIcon size={24} animate={true} />
+			</div>
 			<div class="header-text">
 				<h3>Slash Queue</h3>
 				<p>{$selectedComments.length} comment{$selectedComments.length !== 1 ? 's' : ''} selected</p>
 			</div>
 		</div>
 		
-		<button 
-			class="minimize-btn" 
-			onclick={() => isMinimized = !isMinimized}
-			title={isMinimized ? 'Expand' : 'Minimize'}
-		>
-			<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor" class:rotated={isMinimized}>
-				<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-			</svg>
-		</button>
+		<!-- Search button - only show when there are comments -->
+		{#if $selectedComments.length > 0}
+			<button 
+				class="search-queue-btn" 
+				class:active={showQueueSearch}
+				onclick={() => {
+					showQueueSearch = !showQueueSearch;
+					if (showQueueSearch) {
+						setTimeout(() => queueSearchInput?.focus(), 100);
+					} else {
+						queueSearchQuery = '';
+					}
+				}}
+				title="Search in queue"
+			>
+				<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
+					<path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+				</svg>
+			</button>
+		{/if}
 	</div>
+	
+	<!-- Queue search input -->
+	{#if showQueueSearch && $selectedComments.length > 0}
+		<div class="queue-search-bar">
+			<input
+				type="text"
+				placeholder="Search queue..."
+				bind:value={queueSearchQuery}
+				bind:this={queueSearchInput}
+				class="queue-search-input"
+			/>
+			{#if queueSearchQuery}
+				<button class="queue-search-clear" onclick={() => queueSearchQuery = ''} aria-label="Clear search">
+					<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+						<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+					</svg>
+				</button>
+			{/if}
+			{#if queueSearchQuery}
+				<span class="queue-search-count">{filteredSelectedComments().length} found</span>
+			{/if}
+		</div>
+	{/if}
 
 	{#if !isMinimized}
 		<div class="panel-body">
@@ -132,7 +184,7 @@
 				</div>
 			{:else}
 				<div class="selected-list">
-					{#each $selectedComments as comment (comment.id)}
+					{#each filteredSelectedComments() as comment (comment.id)}
 						{@const status = getCommentStatus(comment.id)}
 						{@const hasError = hasDeleteError(comment)}
 						{@const isExpanded = expandedErrorId === comment.id}
@@ -254,11 +306,7 @@
 					onblur={handleDeleteHoverEnd}
 					disabled={isDeleting}
 				>
-					<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
-						<path d="M3 17 L15 3 L17 5 L5 19 Z" />
-						<path d="M13 5 L17 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-						<path d="M15 7 L19 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-					</svg>
+					<ShurikenIcon size={18} className="delete-shuriken" />
 					<span class="btn-text">
 						Slash Selected
 						<span class="quota-cost">({deleteCost} quota)</span>
@@ -315,7 +363,10 @@
 	}
 
 	.header-icon {
-		font-size: 1.5rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: var(--accent-tertiary);
 	}
 
 	.header-text h3 {
@@ -331,7 +382,8 @@
 		margin: 0;
 	}
 
-	.minimize-btn {
+	/* Queue search button */
+	.search-queue-btn {
 		background: transparent;
 		color: var(--text-muted);
 		padding: 0.5rem;
@@ -339,17 +391,73 @@
 		transition: all 0.2s ease;
 	}
 
-	.minimize-btn:hover {
+	.search-queue-btn:hover {
 		background: var(--bg-hover);
+		color: var(--accent-primary);
+	}
+
+	.search-queue-btn.active {
+		background: rgba(99, 102, 241, 0.2);
+		color: var(--accent-primary);
+	}
+
+	/* Queue search bar */
+	.queue-search-bar {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.5rem 1rem;
+		background: var(--bg-secondary);
+		border-bottom: 1px solid var(--bg-hover);
+		animation: slideDown 0.2s ease;
+	}
+
+	@keyframes slideDown {
+		from {
+			opacity: 0;
+			transform: translateY(-10px);
+		}
+		to {
+			opacity: 1;
+			transform: translateY(0);
+		}
+	}
+
+	.queue-search-input {
+		flex: 1;
+		padding: 0.4rem 0.75rem;
+		font-size: 0.85rem;
+		background: var(--bg-tertiary);
+		border: 1px solid var(--bg-hover);
+		border-radius: var(--radius-sm);
 		color: var(--text-primary);
 	}
 
-	.minimize-btn svg {
-		transition: transform 0.3s ease;
+	.queue-search-input:focus {
+		border-color: var(--accent-primary);
+		outline: none;
+		box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
 	}
 
-	.minimize-btn svg.rotated {
-		transform: rotate(180deg);
+	.queue-search-clear {
+		background: transparent;
+		color: var(--text-muted);
+		padding: 0.25rem;
+		border-radius: 50%;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.queue-search-clear:hover {
+		background: var(--bg-hover);
+		color: var(--error);
+	}
+
+	.queue-search-count {
+		font-size: 0.75rem;
+		color: var(--text-muted);
+		white-space: nowrap;
 	}
 
 	.panel-body {
@@ -675,6 +783,8 @@
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
+		position: relative;
+		overflow: hidden;
 	}
 
 	.btn-text {
@@ -690,24 +800,20 @@
 		font-weight: 500;
 	}
 
-	.delete-btn {
-		position: relative;
-		overflow: hidden;
+	/* Shuriken animation on button hover */
+	.delete-btn:hover :global(.delete-shuriken) {
+		animation: shurikenSpin 0.5s ease-in-out;
 	}
 
-	.delete-btn:hover svg {
-		animation: slashWiggle 0.3s ease-in-out;
-	}
-
-	@keyframes slashWiggle {
-		0%, 100% {
-			transform: rotate(0deg);
+	@keyframes shurikenSpin {
+		0% {
+			transform: rotate(0deg) scale(1);
 		}
-		25% {
-			transform: rotate(-15deg);
+		50% {
+			transform: rotate(180deg) scale(1.1);
 		}
-		75% {
-			transform: rotate(15deg);
+		100% {
+			transform: rotate(360deg) scale(1);
 		}
 	}
 

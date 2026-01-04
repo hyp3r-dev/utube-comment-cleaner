@@ -4,7 +4,40 @@ import type { YouTubeComment } from '$lib/types/comment';
 const DB_NAME = 'commentslash-db';
 const DB_VERSION = 1;
 const STORE_NAME = 'comments';
-const TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+// Configuration loaded from localStorage (set by server config)
+// Default to 30 days retention and 14 days stale warning
+const getRetentionDays = (): number => {
+	if (typeof window !== 'undefined') {
+		const stored = localStorage.getItem('commentslash_retention_days');
+		if (stored) return parseInt(stored, 10);
+	}
+	return 30; // Default: 30 days
+};
+
+const getStaleWarningDays = (): number => {
+	if (typeof window !== 'undefined') {
+		const stored = localStorage.getItem('commentslash_stale_warning_days');
+		if (stored) return parseInt(stored, 10);
+	}
+	return 14; // Default: 14 days
+};
+
+// Get TTL in milliseconds
+const getTTL_MS = (): number => getRetentionDays() * 24 * 60 * 60 * 1000;
+
+// Export config getters for UI access
+export const storageConfig = {
+	get retentionDays(): number {
+		return getRetentionDays();
+	},
+	get staleWarningDays(): number {
+		return getStaleWarningDays();
+	},
+	get ttlMs(): number {
+		return getTTL_MS();
+	}
+};
 
 interface CommentSlashDB extends DBSchema {
 	comments: {
@@ -53,7 +86,7 @@ async function getDB(): Promise<IDBPDatabase<CommentSlashDB>> {
 export async function cleanExpiredData(): Promise<void> {
 	const database = await getDB();
 	const now = Date.now();
-	const cutoff = now - TTL_MS;
+	const cutoff = now - getTTL_MS();
 
 	// Clean expired comments
 	const tx = database.transaction('comments', 'readwrite');
@@ -69,13 +102,14 @@ export async function cleanExpiredData(): Promise<void> {
 
 	await tx.done;
 
-	// Clean expired metadata
+	// Clean expired metadata (except quota which should be preserved)
 	const metaTx = database.transaction('metadata', 'readwrite');
 	const metaCursor = await metaTx.store.openCursor();
 
 	let metaCur = metaCursor;
 	while (metaCur) {
-		if (metaCur.value.timestamp < cutoff) {
+		// Don't delete quota metadata
+		if (metaCur.value.key !== 'quota' && metaCur.value.timestamp < cutoff) {
 			await metaCur.delete();
 		}
 		metaCur = await metaCur.continue();
@@ -99,7 +133,7 @@ export async function saveComments(comments: YouTubeComment[]): Promise<void> {
 export async function loadComments(): Promise<YouTubeComment[]> {
 	const database = await getDB();
 	const now = Date.now();
-	const cutoff = now - TTL_MS;
+	const cutoff = now - getTTL_MS();
 
 	const all = await database.getAll('comments');
 	
@@ -141,8 +175,13 @@ export async function loadMetadata<T>(key: string): Promise<T | null> {
 	
 	if (!result) return null;
 	
+	// Quota should never expire
+	if (key === 'quota') {
+		return result.value as T;
+	}
+	
 	const now = Date.now();
-	if (result.timestamp < now - TTL_MS) {
+	if (result.timestamp < now - getTTL_MS()) {
 		await database.delete('metadata', key);
 		return null;
 	}
@@ -191,15 +230,79 @@ export async function loadLastTakeoutImport(): Promise<number | null> {
 }
 
 /**
- * Check if takeout data is stale (older than specified days)
+ * Check if takeout data is stale (older than configured stale warning days)
  */
-export async function isTakeoutStale(daysThreshold: number = 7): Promise<boolean> {
+export async function isTakeoutStale(daysThreshold?: number): Promise<boolean> {
+	const threshold = daysThreshold ?? getStaleWarningDays();
 	const lastImport = await loadLastTakeoutImport();
 	if (!lastImport) return false;
 	
 	const now = Date.now();
-	const thresholdMs = daysThreshold * 24 * 60 * 60 * 1000;
+	const thresholdMs = threshold * 24 * 60 * 60 * 1000;
 	return (now - lastImport) > thresholdMs;
+}
+
+/**
+ * Get data lifetime info (for UI display)
+ */
+export interface DataLifetimeInfo {
+	createdAt: number | null;
+	expiresAt: number | null;
+	daysUntilExpiry: number;
+	daysRemaining: number;
+	isExpiringSoon: boolean;
+}
+
+export async function getDataLifetimeInfo(): Promise<DataLifetimeInfo> {
+	const lastImport = await loadLastTakeoutImport();
+	
+	if (!lastImport) {
+		return {
+			createdAt: null,
+			expiresAt: null,
+			daysUntilExpiry: 0,
+			daysRemaining: 0,
+			isExpiringSoon: false
+		};
+	}
+	
+	const now = Date.now();
+	const ttl = getTTL_MS();
+	const expiresAt = lastImport + ttl;
+	const msRemaining = expiresAt - now;
+	const daysRemaining = Math.max(0, Math.ceil(msRemaining / (24 * 60 * 60 * 1000)));
+	const isExpiringSoon = daysRemaining <= 7;
+	
+	return {
+		createdAt: lastImport,
+		expiresAt,
+		daysUntilExpiry: getRetentionDays(),
+		daysRemaining,
+		isExpiringSoon
+	};
+}
+
+/**
+ * Refresh the timestamp of the data (extend its lifetime)
+ */
+export async function refreshDataLifetime(): Promise<void> {
+	const database = await getDB();
+	const timestamp = Date.now();
+	
+	// Update all comment timestamps
+	const tx = database.transaction('comments', 'readwrite');
+	let cursor = await tx.store.openCursor();
+	
+	while (cursor) {
+		const updated = { ...cursor.value, timestamp };
+		await cursor.update(updated);
+		cursor = await cursor.continue();
+	}
+	
+	await tx.done;
+	
+	// Update takeout import timestamp
+	await saveLastTakeoutImport();
 }
 
 // Run cleanup on import

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { isTakeoutStale, loadLastTakeoutImport } from '$lib/services/storage';
+	import { isTakeoutStale, loadLastTakeoutImport, storageConfig } from '$lib/services/storage';
 
 	let showReminder = $state(false);
 	let daysSinceImport = $state(0);
@@ -16,8 +16,8 @@
 			return;
 		}
 
-		// Check if data is stale
-		const stale = await isTakeoutStale(7);
+		// Check if data is stale (uses configurable stale warning days)
+		const stale = await isTakeoutStale();
 		if (stale) {
 			const lastImport = await loadLastTakeoutImport();
 			if (lastImport) {
@@ -37,7 +37,11 @@
 {#if showReminder && !dismissed}
 	<div class="stale-reminder">
 		<div class="reminder-content">
-			<div class="reminder-icon">📅</div>
+			<div class="reminder-icon">
+				<svg width="24" height="24" viewBox="0 0 20 20" fill="currentColor">
+					<path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+				</svg>
+			</div>
 			<div class="reminder-text">
 				<strong>Your comment data may be outdated</strong>
 				<p>
@@ -86,7 +90,7 @@
 	}
 
 	.reminder-icon {
-		font-size: 1.5rem;
+		color: var(--warning);
 		flex-shrink: 0;
 	}
 

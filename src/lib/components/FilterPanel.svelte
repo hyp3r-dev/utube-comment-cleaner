@@ -128,26 +128,49 @@
 					</svg>
 				</button>
 			</div>
-			
-			<!-- Toggles -->
-			<div class="action-toggles">
-				<label class="toggle-label">
-					<input 
-						type="checkbox" 
-						checked={groupByVideo} 
-						onchange={(e) => onGroupByVideoChange?.(e.currentTarget.checked)} 
-					/>
-					<span>Group</span>
-				</label>
-				<label class="toggle-label">
-					<input 
-						type="checkbox" 
-						checked={hideSelectedFromList} 
-						onchange={(e) => onHideSelectedChange?.(e.currentTarget.checked)} 
-					/>
-					<span>Hide ✓</span>
-				</label>
-			</div>
+		</div>
+	</div>
+
+	<!-- Sort bar with toggles aligned right -->
+	<div class="sort-bar-row">
+		<div class="sort-bar">
+			<span class="sort-label">Sort by:</span>
+			{#each sortOptions as option}
+				<button
+					class="sort-btn"
+					class:active={$sortField === option.value}
+					onclick={() => handleSortChange(option.value)}
+				>
+					{option.label}
+					{#if $sortField === option.value}
+						<span class="sort-direction" class:asc={$sortOrder === 'asc'}>
+							<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+								<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+							</svg>
+						</span>
+					{/if}
+				</button>
+			{/each}
+		</div>
+		
+		<!-- Toggles with better labels -->
+		<div class="display-toggles">
+			<label class="toggle-label" title="Group comments by video when multiple comments are on the same video">
+				<input 
+					type="checkbox" 
+					checked={groupByVideo} 
+					onchange={(e) => onGroupByVideoChange?.(e.currentTarget.checked)} 
+				/>
+				<span>Group by video</span>
+			</label>
+			<label class="toggle-label" title="Hide comments that are already in the slash queue">
+				<input 
+					type="checkbox" 
+					checked={hideSelectedFromList} 
+					onchange={(e) => onHideSelectedChange?.(e.currentTarget.checked)} 
+				/>
+				<span>Hide queued</span>
+			</label>
 		</div>
 	</div>
 
@@ -235,26 +258,6 @@
 			</div>
 		</div>
 	{/if}
-
-	<div class="sort-bar">
-		<span class="sort-label">Sort by:</span>
-		{#each sortOptions as option}
-			<button
-				class="sort-btn"
-				class:active={$sortField === option.value}
-				onclick={() => handleSortChange(option.value)}
-			>
-				{option.label}
-				{#if $sortField === option.value}
-					<span class="sort-direction" class:asc={$sortOrder === 'asc'}>
-						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
-							<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-						</svg>
-					</span>
-				{/if}
-			</button>
-		{/each}
-	</div>
 </div>
 
 <style>
@@ -302,9 +305,27 @@
 		display: inline;
 	}
 
-	.action-toggles {
+	/* Sort bar row with toggles */
+	.sort-bar-row {
 		display: flex;
-		gap: 0.5rem;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		margin-top: 1rem;
+		padding-top: 1rem;
+		border-top: 1px solid var(--bg-tertiary);
+		flex-wrap: wrap;
+	}
+
+	.sort-bar {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+	}
+
+	.display-toggles {
+		display: flex;
+		gap: 0.75rem;
 		align-items: center;
 	}
 
@@ -312,14 +333,15 @@
 		display: flex;
 		align-items: center;
 		gap: 0.35rem;
-		font-size: 0.75rem;
+		font-size: 0.8rem;
 		color: var(--text-secondary);
 		cursor: pointer;
-		padding: 0.35rem 0.5rem;
+		padding: 0.4rem 0.75rem;
 		border-radius: var(--radius-sm);
 		background: var(--bg-tertiary);
 		border: 1px solid transparent;
 		transition: all 0.2s ease;
+		white-space: nowrap;
 	}
 
 	.toggle-label:hover {
@@ -493,15 +515,6 @@
 		grid-column: 1 / -1;
 	}
 
-	.sort-bar {
-		margin-top: 1rem;
-		padding-top: 1rem;
-		border-top: 1px solid var(--bg-tertiary);
-		display: flex;
-		align-items: center;
-		gap: 0.75rem;
-	}
-
 	.sort-label {
 		color: var(--text-muted);
 		font-size: 0.875rem;
@@ -550,6 +563,16 @@
 		.search-actions {
 			justify-content: space-between;
 		}
+
+		.sort-bar-row {
+			flex-direction: column;
+			align-items: stretch;
+			gap: 0.75rem;
+		}
+
+		.display-toggles {
+			justify-content: flex-end;
+		}
 	}
 
 	@media (max-width: 640px) {
@@ -569,12 +592,21 @@
 			flex-wrap: wrap;
 		}
 
+		.display-toggles {
+			flex-wrap: wrap;
+		}
+
 		.action-buttons .btn-text {
 			display: none;
 		}
 
 		.action-buttons .btn {
 			padding: 0.4rem;
+		}
+
+		.toggle-label {
+			font-size: 0.75rem;
+			padding: 0.35rem 0.5rem;
 		}
 	}
 </style>

@@ -1,9 +1,12 @@
 <script lang="ts">
 	import Logo from '$lib/components/Logo.svelte';
+	
+	type Language = 'en' | 'de';
+	let currentLang = $state<Language>('en');
 </script>
 
 <svelte:head>
-	<title>Privacy Policy - CommentSlash</title>
+	<title>{currentLang === 'en' ? 'Privacy Policy' : 'Datenschutzerklärung'} - CommentSlash</title>
 </svelte:head>
 
 <div class="legal-page">
@@ -18,6 +21,33 @@
 	<main class="main">
 		<div class="container">
 			<article class="legal-content">
+				<!-- Language Selector and Close Button Row -->
+				<div class="content-header">
+					<div class="language-selector">
+						<button 
+							class="lang-btn" 
+							class:active={currentLang === 'en'}
+							onclick={() => currentLang = 'en'}
+						>
+							🇬🇧 English
+						</button>
+						<button 
+							class="lang-btn" 
+							class:active={currentLang === 'de'}
+							onclick={() => currentLang = 'de'}
+						>
+							🇩🇪 Deutsch
+						</button>
+					</div>
+					<a href="/" class="close-btn" aria-label="Close and return to app">
+						<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+							<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
+						</svg>
+					</a>
+				</div>
+
+				{#if currentLang === 'en'}
+				<!-- ENGLISH VERSION -->
 				<h1>Privacy Policy</h1>
 				<p class="last-updated">Last updated: January 2026</p>
 
@@ -90,9 +120,9 @@
 				<section>
 					<h2>6. Data Retention</h2>
 					<ul>
-						<li><strong>Browser Storage:</strong> Data stored in IndexedDB automatically expires after 24 hours</li>
-						<li><strong>OAuth Tokens:</strong> Access tokens are stored only for the duration of your session</li>
-						<li><strong>Server Logs:</strong> Minimal server logs are retained for up to 8 hours and contain no personally identifiable information</li>
+						<li><strong>Browser Storage:</strong> Data stored in IndexedDB automatically expires after 30 days by default. After 14 days, you will receive a reminder that your data may be outdated. You can refresh the data lifetime at any time or configure these values via server settings.</li>
+						<li><strong>OAuth Tokens:</strong> Access tokens are stored only for the duration of your session. You can log out at any time to clear your token while preserving your comment data.</li>
+						<li><strong>Server Logs:</strong> Minimal server logs are retained for up to 8 hours and contain no personally identifiable information.</li>
 					</ul>
 				</section>
 
@@ -145,11 +175,136 @@
 					<p>If you have questions about this Privacy Policy, please open an issue at:<br/>
 					<a href="https://github.com/hyp3r-dev/utube-comment-cleaner/issues" target="_blank" rel="noopener noreferrer">https://github.com/hyp3r-dev/utube-comment-cleaner/issues</a></p>
 				</section>
+				{:else}
+				<!-- GERMAN VERSION -->
+				<h1>Datenschutzerklärung</h1>
+				<p class="last-updated">Zuletzt aktualisiert: Januar 2026</p>
 
-				<section class="german-summary">
-					<h2>Datenschutzerklärung (German Summary)</h2>
-					<p>Diese Anwendung verarbeitet Ihre YouTube-Kommentardaten ausschließlich lokal in Ihrem Browser. Es werden keine personenbezogenen Daten an unsere Server übertragen. Sie können Ihre Daten jederzeit über die integrierte "Daten löschen"-Funktion entfernen oder den Zugriff über Ihre Google-Kontoeinstellungen widerrufen.</p>
+				<section>
+					<h2>1. Einleitung</h2>
+					<p>CommentSlash ("wir", "unser" oder "uns") verpflichtet sich zum Schutz Ihrer Privatsphäre. Diese Datenschutzerklärung erläutert, wie wir Ihre Informationen erfassen, verwenden und schützen, wenn Sie unsere Webanwendung nutzen.</p>
 				</section>
+
+				<section>
+					<h2>2. Verantwortlicher</h2>
+					<p>Für Nutzer in der Europäischen Union (einschließlich Deutschland) ist der Verantwortliche:</p>
+					<p>CommentSlash<br/>
+					Kontakt: über GitHub Issues unter <a href="https://github.com/hyp3r-dev/utube-comment-cleaner" target="_blank" rel="noopener noreferrer">https://github.com/hyp3r-dev/utube-comment-cleaner</a></p>
+				</section>
+
+				<section>
+					<h2>3. Welche Daten wir erfassen</h2>
+					
+					<h3>3.1 Von Ihnen bereitgestellte Daten</h3>
+					<ul>
+						<li><strong>Google Takeout-Exportdateien:</strong> Wenn Sie Ihren Google Takeout-Export hochladen, verarbeiten wir Ihren YouTube-Kommentarverlauf lokal in Ihrem Browser. Diese Daten werden <strong>niemals an unsere Server übertragen</strong>.</li>
+						<li><strong>OAuth-Token:</strong> Wenn Sie Ihr YouTube-Konto verbinden, wird Ihr OAuth-Zugriffstoken ausschließlich verwendet, um in Ihrem Namen mit der YouTube Data API v3 zu interagieren.</li>
+					</ul>
+
+					<h3>3.2 Automatisch erfasste Daten</h3>
+					<ul>
+						<li><strong>Browser-Speicher:</strong> Kommentardaten werden lokal in der IndexedDB Ihres Browsers gespeichert. Diese Daten verbleiben auf Ihrem Gerät und sind für uns nicht zugänglich.</li>
+						<li><strong>Cookies:</strong> Wir verwenden essentielle Cookies für die OAuth-Statusverwaltung und Cookie-Zustimmungspräferenzen.</li>
+					</ul>
+
+					<h3>3.3 Daten, die wir NICHT erfassen</h3>
+					<ul>
+						<li>Wir erfassen keine persönlichen Identifikationsdaten</li>
+						<li>Wir verfolgen Ihr Surfverhalten nicht</li>
+						<li>Wir nutzen keine Analysedienste</li>
+						<li>Wir teilen keine Daten mit Dritten</li>
+						<li>Wir speichern Ihre Kommentare nicht auf unseren Servern</li>
+					</ul>
+				</section>
+
+				<section>
+					<h2>4. Wie wir Ihre Daten verwenden</h2>
+					<ul>
+						<li><strong>Google Takeout-Verarbeitung:</strong> Ihre hochgeladenen Dateien werden vollständig in Ihrem Browser verarbeitet, um Ihre YouTube-Kommentare zu extrahieren und anzuzeigen.</li>
+						<li><strong>YouTube-API-Zugriff:</strong> Bei Verbindung nutzen wir die YouTube Data API v3, um Ihr Zugriffstoken zu validieren, Kommentare mit zusätzlichen Metadaten anzureichern und Kommentare auf Ihre Anfrage zu löschen.</li>
+						<li><strong>Lokaler Speicher:</strong> Kommentardaten werden lokal zwischengespeichert, um die Leistung zu verbessern und Offline-Zugriff zu ermöglichen.</li>
+					</ul>
+				</section>
+
+				<section>
+					<h2>5. Drittanbieterdienste</h2>
+					
+					<h3>5.1 Google APIs</h3>
+					<p>Wir integrieren folgende Google-Dienste:</p>
+					<ul>
+						<li><strong>YouTube Data API v3:</strong> Wird verwendet, um Ihre Kommentare anzureichern und zu löschen</li>
+						<li><strong>Google OAuth 2.0:</strong> Wird für sichere Authentifizierung verwendet</li>
+					</ul>
+					<p>Diese Dienste unterliegen:</p>
+					<ul>
+						<li><a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google Datenschutzerklärung</a></li>
+						<li><a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer">YouTube Nutzungsbedingungen</a></li>
+						<li><a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services Nutzerdatenrichtlinie</a></li>
+					</ul>
+
+					<h3>5.2 Offenlegung der eingeschränkten Nutzung</h3>
+					<p>Die Nutzung und Übertragung von Informationen durch CommentSlash, die von Google APIs empfangen werden, entspricht der <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener noreferrer">Google API Services Nutzerdatenrichtlinie</a>, einschließlich der Anforderungen zur eingeschränkten Nutzung.</p>
+				</section>
+
+				<section>
+					<h2>6. Datenspeicherung</h2>
+					<ul>
+						<li><strong>Browser-Speicher:</strong> In IndexedDB gespeicherte Daten laufen standardmäßig nach 30 Tagen automatisch ab. Nach 14 Tagen erhalten Sie eine Erinnerung, dass Ihre Daten möglicherweise veraltet sind. Sie können die Datenlebensdauer jederzeit aktualisieren oder diese Werte über Servereinstellungen konfigurieren.</li>
+						<li><strong>OAuth-Token:</strong> Zugriffstoken werden nur für die Dauer Ihrer Sitzung gespeichert. Sie können sich jederzeit abmelden, um Ihr Token zu löschen, während Ihre Kommentardaten erhalten bleiben.</li>
+						<li><strong>Server-Logs:</strong> Minimale Server-Logs werden bis zu 8 Stunden aufbewahrt und enthalten keine persönlich identifizierbaren Informationen.</li>
+					</ul>
+				</section>
+
+				<section>
+					<h2>7. Ihre Rechte (DSGVO)</h2>
+					<p>Gemäß der Datenschutz-Grundverordnung (DSGVO) haben Sie das Recht auf:</p>
+					<ul>
+						<li><strong>Auskunft:</strong> Einsicht, welche Daten über Sie gespeichert sind (alle Daten befinden sich im lokalen Speicher Ihres Browsers)</li>
+						<li><strong>Berichtigung:</strong> Korrektur ungenauer Daten</li>
+						<li><strong>Löschung:</strong> Löschen Ihrer Daten über die Funktion "Alle Daten löschen"</li>
+						<li><strong>Datenübertragbarkeit:</strong> Export Ihrer Daten über unsere Exportfunktion</li>
+						<li><strong>Widerruf der Einwilligung:</strong> Sie können den OAuth-Zugriff jederzeit über Ihre Google-Kontoeinstellungen widerrufen</li>
+					</ul>
+					<p>Um diese Rechte auszuüben, können Sie:</p>
+					<ol>
+						<li>Die In-App-Datenverwaltungsfunktionen nutzen</li>
+						<li>Den lokalen Speicher Ihres Browsers löschen</li>
+						<li>Den App-Zugriff in Ihren <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer">Google-Kontoeinstellungen</a> widerrufen</li>
+					</ol>
+				</section>
+
+				<section>
+					<h2>8. Datensicherheit</h2>
+					<p>Wir implementieren angemessene Sicherheitsmaßnahmen:</p>
+					<ul>
+						<li>Alle Datenverarbeitung erfolgt lokal in Ihrem Browser</li>
+						<li>OAuth-Token werden sicher über HTTPS übertragen</li>
+						<li>Keine sensiblen Daten werden auf unseren Servern gespeichert</li>
+						<li>Server-Logs entfernen automatisch persönlich identifizierbare Informationen</li>
+					</ul>
+				</section>
+
+				<section>
+					<h2>9. Datenschutz für Kinder</h2>
+					<p>CommentSlash ist nicht für die Nutzung durch Kinder unter 13 Jahren vorgesehen. Wir erfassen wissentlich keine Daten von Kindern.</p>
+				</section>
+
+				<section>
+					<h2>10. Internationale Datenübertragungen</h2>
+					<p>Da die gesamte Datenverarbeitung lokal in Ihrem Browser erfolgt, finden keine internationalen Datenübertragungen durch unseren Dienst statt.</p>
+				</section>
+
+				<section>
+					<h2>11. Änderungen dieser Richtlinie</h2>
+					<p>Wir können diese Datenschutzerklärung von Zeit zu Zeit aktualisieren. Wir werden Nutzer über wesentliche Änderungen durch Aktualisierung des Datums "Zuletzt aktualisiert" informieren.</p>
+				</section>
+
+				<section>
+					<h2>12. Kontakt</h2>
+					<p>Bei Fragen zu dieser Datenschutzerklärung öffnen Sie bitte ein Issue unter:<br/>
+					<a href="https://github.com/hyp3r-dev/utube-comment-cleaner/issues" target="_blank" rel="noopener noreferrer">https://github.com/hyp3r-dev/utube-comment-cleaner/issues</a></p>
+				</section>
+				{/if}
 			</article>
 		</div>
 	</main>
@@ -157,13 +312,13 @@
 	<footer class="footer">
 		<div class="container">
 			<div class="footer-links">
-				<a href="/legal/privacy">Privacy Policy</a>
+				<a href="/legal/privacy">{currentLang === 'en' ? 'Privacy Policy' : 'Datenschutzerklärung'}</a>
 				<span class="separator">•</span>
-				<a href="/legal/terms">Terms of Service</a>
+				<a href="/legal/terms">{currentLang === 'en' ? 'Terms of Service' : 'Nutzungsbedingungen'}</a>
 				<span class="separator">•</span>
-				<a href="/">Back to App</a>
+				<a href="/">{currentLang === 'en' ? 'Back to App' : 'Zurück zur App'}</a>
 			</div>
-			<p>CommentSlash — Destroy your YouTube comments with precision ⚔️✨</p>
+			<p>CommentSlash — {currentLang === 'en' ? 'Destroy your YouTube comments with precision' : 'Lösche deine YouTube-Kommentare mit Präzision'} ⚔️✨</p>
 		</div>
 	</footer>
 </div>
@@ -209,6 +364,62 @@
 		border-radius: var(--radius-xl);
 		border: 1px solid var(--bg-tertiary);
 		padding: 2.5rem;
+		position: relative;
+	}
+
+	.content-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		margin-bottom: 1.5rem;
+		padding-bottom: 1rem;
+		border-bottom: 1px solid var(--bg-tertiary);
+	}
+
+	.language-selector {
+		display: flex;
+		gap: 0.5rem;
+	}
+
+	.close-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 32px;
+		height: 32px;
+		border-radius: 50%;
+		background: var(--bg-tertiary);
+		color: var(--text-secondary);
+		transition: all 0.2s ease;
+		flex-shrink: 0;
+		margin-top: -0.25rem;
+	}
+
+	.close-btn:hover {
+		background: var(--error);
+		color: white;
+	}
+
+	.lang-btn {
+		padding: 0.5rem 1rem;
+		border-radius: var(--radius-md);
+		background: var(--bg-tertiary);
+		color: var(--text-secondary);
+		font-size: 0.9rem;
+		cursor: pointer;
+		transition: all 0.2s ease;
+		border: 1px solid transparent;
+	}
+
+	.lang-btn:hover {
+		background: var(--bg-hover);
+		color: var(--text-primary);
+	}
+
+	.lang-btn.active {
+		background: rgba(99, 102, 241, 0.2);
+		border-color: var(--accent-primary);
+		color: var(--accent-tertiary);
 	}
 
 	.legal-content h1 {
@@ -271,18 +482,6 @@
 		color: var(--accent-primary);
 	}
 
-	.german-summary {
-		background: rgba(99, 102, 241, 0.1);
-		border: 1px solid rgba(99, 102, 241, 0.2);
-		border-radius: var(--radius-lg);
-		padding: 1.5rem;
-		margin-top: 2rem;
-	}
-
-	.german-summary h2 {
-		padding-top: 0;
-	}
-
 	.footer {
 		padding: 1.5rem 0;
 		text-align: center;
@@ -317,6 +516,10 @@
 
 		.legal-content h1 {
 			font-size: 1.5rem;
+		}
+
+		.language-selector {
+			flex-wrap: wrap;
 		}
 	}
 </style>
