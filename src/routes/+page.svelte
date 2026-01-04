@@ -82,20 +82,7 @@
 	let enableLegal = $state(false);
 	let enableCookieConsent = $state(false);
 	
-	// Scroll state for fade overlays - only show when content is scrolled behind the fade area
-	let commentsScrollContainer: HTMLDivElement | undefined = $state();
-	let canScrollUp = $state(false);
-	let canScrollDown = $state(false);
-	
-	// Handle scroll to update fade visibility
-	function handleCommentsScroll() {
-		if (!commentsScrollContainer) return;
-		const { scrollTop, scrollHeight, clientHeight } = commentsScrollContainer;
-		// Show top fade when scrolled down more than 20px
-		canScrollUp = scrollTop > 20;
-		// Show bottom fade when there's more than 20px to scroll
-		canScrollDown = scrollHeight - scrollTop - clientHeight > 20;
-	}
+
 
 	// Group comments by video ID
 	const groupedComments = $derived(() => {
@@ -155,13 +142,11 @@
 		return 'connected';
 	});
 	
-	// Update scroll state when filtered comments change (e.g., when comments are selected/deselected)
+	// Update comments list when filtered comments change
 	$effect(() => {
-		// Track dependencies
+		// Track dependencies - just re-render when these change
 		$filteredComments.length;
 		$selectedIds.size;
-		// Use setTimeout to wait for DOM update
-		setTimeout(handleCommentsScroll, 0);
 	});
 
 	onMount(async () => {
@@ -1064,12 +1049,7 @@
 							</div>
 
 							<div class="comments-scroll-wrapper">
-								<div class="fade-overlay fade-top" class:visible={canScrollUp}></div>
-								<div 
-									class="comments-scroll-container"
-									bind:this={commentsScrollContainer}
-									onscroll={handleCommentsScroll}
-								>
+								<div class="comments-scroll-container">
 								{#if $filteredComments.length === 0}
 									<div class="empty-state">
 										<div class="empty-icon">🔍</div>
@@ -1112,7 +1092,6 @@
 									</div>
 								{/if}
 							</div>
-							<div class="fade-overlay fade-bottom" class:visible={canScrollDown}></div>
 						</div>
 					</div>
 
@@ -1405,48 +1384,6 @@
 		/* Smooth scrolling for better UX */
 		scroll-behavior: smooth;
 		-webkit-overflow-scrolling: touch;
-	}
-
-	/* 
-	 * Scroll-aware fade overlays - only visible when there's content scrolled behind them.
-	 * Uses the actual background color (--bg-primary) to create a seamless fade effect.
-	 * The fade makes content appear to "disappear into" the background rather than behind a black box.
-	 */
-	.fade-overlay {
-		position: absolute;
-		left: 0;
-		right: 0.5rem;
-		height: 48px;
-		pointer-events: none;
-		z-index: 10;
-		opacity: 0;
-		transition: opacity 0.2s ease-out;
-	}
-	
-	.fade-overlay.visible {
-		opacity: 1;
-	}
-
-	.fade-top {
-		top: 0;
-		/* Gradient from background color (opaque) to transparent */
-		background: linear-gradient(
-			to bottom,
-			var(--bg-primary) 0%,
-			rgba(15, 15, 26, 0.7) 40%,
-			transparent 100%
-		);
-	}
-
-	.fade-bottom {
-		bottom: 0;
-		/* Gradient from transparent to background color (opaque) */
-		background: linear-gradient(
-			to top,
-			var(--bg-primary) 0%,
-			rgba(15, 15, 26, 0.7) 40%,
-			transparent 100%
-		);
 	}
 
 	.section-header {
