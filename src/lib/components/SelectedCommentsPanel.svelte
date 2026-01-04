@@ -2,6 +2,7 @@
 	import { selectedComments, selectedIds, deselectComment, deselectAll, selectComment } from '$lib/stores/comments';
 	import { pendingQuota, calculateDeleteQuotaCost, QUOTA_COSTS } from '$lib/stores/quota';
 	import type { YouTubeComment } from '$lib/types/comment';
+	import ShurikenIcon from './ShurikenIcon.svelte';
 	
 	// Delete result for each comment
 	type DeleteStatus = 'pending' | 'deleting' | 'success' | 'failed';
@@ -116,14 +117,7 @@
 	<div class="panel-header">
 		<div class="header-content">
 			<div class="header-icon">
-				<svg width="24" height="24" viewBox="0 0 20 20" fill="currentColor" class="header-shuriken">
-					<!-- Four-pointed shuriken -->
-					<path d="M10 2 L11.5 8.5 L10 10 L8.5 8.5 Z" />
-					<path d="M18 10 L11.5 11.5 L10 10 L11.5 8.5 Z" />
-					<path d="M10 18 L8.5 11.5 L10 10 L11.5 11.5 Z" />
-					<path d="M2 10 L8.5 8.5 L10 10 L8.5 11.5 Z" />
-					<circle cx="10" cy="10" r="1.5" />
-				</svg>
+				<ShurikenIcon size={24} animate={true} />
 			</div>
 			<div class="header-text">
 				<h3>Slash Queue</h3>
@@ -312,14 +306,7 @@
 					onblur={handleDeleteHoverEnd}
 					disabled={isDeleting}
 				>
-					<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" class="shuriken-icon">
-						<!-- Four-pointed shuriken -->
-						<path d="M10 2 L11.5 8.5 L10 10 L8.5 8.5 Z" />
-						<path d="M18 10 L11.5 11.5 L10 10 L11.5 8.5 Z" />
-						<path d="M10 18 L8.5 11.5 L10 10 L11.5 11.5 Z" />
-						<path d="M2 10 L8.5 8.5 L10 10 L8.5 11.5 Z" />
-						<circle cx="10" cy="10" r="1.5" fill="currentColor" />
-					</svg>
+					<ShurikenIcon size={18} className="delete-shuriken" />
 					<span class="btn-text">
 						Slash Selected
 						<span class="quota-cost">({deleteCost} quota)</span>
@@ -380,15 +367,6 @@
 		align-items: center;
 		justify-content: center;
 		color: var(--accent-tertiary);
-	}
-
-	.header-shuriken {
-		animation: slowSpin 8s linear infinite;
-	}
-
-	@keyframes slowSpin {
-		from { transform: rotate(0deg); }
-		to { transform: rotate(360deg); }
 	}
 
 	.header-text h3 {
@@ -805,6 +783,8 @@
 		display: flex;
 		align-items: center;
 		gap: 0.5rem;
+		position: relative;
+		overflow: hidden;
 	}
 
 	.btn-text {
@@ -820,16 +800,8 @@
 		font-weight: 500;
 	}
 
-	.delete-btn {
-		position: relative;
-		overflow: hidden;
-	}
-
-	.shuriken-icon {
-		transition: transform 0.3s ease;
-	}
-
-	.delete-btn:hover .shuriken-icon {
+	/* Shuriken animation on button hover */
+	.delete-btn:hover :global(.delete-shuriken) {
 		animation: shurikenSpin 0.5s ease-in-out;
 	}
 

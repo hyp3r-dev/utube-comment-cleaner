@@ -16,6 +16,7 @@
 	import GoogleSignInButton from '$lib/components/GoogleSignInButton.svelte';
 	import CookieConsent from '$lib/components/CookieConsent.svelte';
 	import StaleDataReminder from '$lib/components/StaleDataReminder.svelte';
+	import DataLifetimeIndicator from '$lib/components/DataLifetimeIndicator.svelte';
 	import { toasts } from '$lib/stores/toast';
 	import { 
 		YouTubeService, 
@@ -376,7 +377,7 @@
 			document.cookie = 'youtube_auth_status=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
 		}
 		
-		toasts.success('Logged out from YouTube. Your comment data is still saved.');
+		toasts.success('Logged out of YouTube. Your comment data is still saved.');
 	}
 
 	async function handleEnrichComments() {
@@ -798,6 +799,11 @@
 			<div class="header-actions">
 				{#if $isAuthenticated || $comments.length > 0}
 					<QuotaProgressBar />
+				{/if}
+				
+				<!-- Data lifetime indicator - show when we have comments -->
+				{#if $comments.length > 0}
+					<DataLifetimeIndicator />
 				{/if}
 				
 				<!-- YouTube connection status icon - only show when we have comments -->
