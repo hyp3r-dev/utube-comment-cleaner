@@ -197,3 +197,17 @@ Key variables from `src/lib/styles/global.css`:
 --radius-lg: 0.75rem;
 --radius-xl: 1rem;
 ```
+
+## Demo Data for Testing
+
+The `demodata/` directory contains sample Google Takeout exports for testing:
+
+- **`Kommentare-example.csv`** - German-language CSV with 30 sample comments in authentic Google Takeout format
+
+Use these files to test:
+- File import/parsing functionality
+- Comment display and filtering
+- UI changes related to comment lists
+- Multi-language CSV header support
+
+To test: Start dev server (`npm run dev`) → Import → Select file from `demodata/`

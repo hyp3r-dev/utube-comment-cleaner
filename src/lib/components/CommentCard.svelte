@@ -292,80 +292,89 @@
 		overflow: hidden;
 	}
 
-	/* Animated glow effect on hover - travels around the border */
+	/* Animated glow effect on hover - spinning gradient creates border glow effect */
 	.comment-card::before {
 		content: '';
 		position: absolute;
-		top: 0;
-		left: -100%;
-		width: 50%;
-		height: 2px;
-		background: linear-gradient(90deg, transparent, var(--accent-primary), var(--accent-secondary), var(--accent-tertiary), transparent);
+		top: 50%;
+		left: 50%;
+		width: 200%;
+		height: 200%;
+		/* Conic gradient creates a spinning spotlight effect */
+		background: conic-gradient(
+			from 0deg,
+			transparent 0deg,
+			transparent 60deg,
+			var(--accent-primary) 90deg,
+			var(--accent-secondary) 120deg,
+			var(--accent-tertiary) 150deg,
+			transparent 180deg,
+			transparent 360deg
+		);
 		opacity: 0;
 		transition: opacity 0.3s ease;
+		transform: translate(-50%, -50%);
+		z-index: 0;
 	}
 
+	/* Inner mask that reveals only the border glow */
 	.comment-card::after {
 		content: '';
 		position: absolute;
-		bottom: 0;
-		right: -100%;
-		width: 50%;
-		height: 2px;
-		background: linear-gradient(90deg, transparent, var(--accent-tertiary), var(--accent-secondary), var(--accent-primary), transparent);
-		opacity: 0;
-		transition: opacity 0.3s ease;
+		inset: 2px;
+		border-radius: calc(var(--radius-lg) - 2px);
+		background: var(--bg-card);
+		z-index: 0;
+	}
+
+	/* Ensure content is above the pseudo-elements */
+	.comment-card > * {
+		position: relative;
+		z-index: 1;
 	}
 
 	.comment-card:hover {
-		border-color: var(--accent-primary);
+		border-color: transparent;
 		box-shadow: var(--shadow-md), 0 0 20px rgba(99, 102, 241, 0.2);
 	}
 
 	.comment-card:hover::before {
 		opacity: 1;
-		animation: glowTop 2s linear infinite;
+		animation: glowRotate 3s linear infinite;
 	}
 
-	.comment-card:hover::after {
-		opacity: 1;
-		animation: glowBottom 2s linear infinite;
-	}
-
-	@keyframes glowTop {
-		0% {
-			left: -50%;
+	@keyframes glowRotate {
+		from {
+			transform: translate(-50%, -50%) rotate(0deg);
 		}
-		100% {
-			left: 100%;
-		}
-	}
-
-	@keyframes glowBottom {
-		0% {
-			right: -50%;
-		}
-		100% {
-			right: 100%;
+		to {
+			transform: translate(-50%, -50%) rotate(360deg);
 		}
 	}
 
 	.comment-card.selected {
-		border-color: var(--accent-primary);
+		border-color: transparent;
 		background: rgba(99, 102, 241, 0.1);
 		box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3), 0 0 20px rgba(99, 102, 241, 0.15);
 	}
 
 	.comment-card.selected::before {
 		opacity: 1;
-		background: linear-gradient(90deg, transparent, var(--accent-primary), var(--error), var(--accent-secondary), transparent);
-		animation: glowTop 1.5s linear infinite;
+		background: conic-gradient(
+			from 0deg,
+			transparent 0deg,
+			transparent 45deg,
+			var(--accent-primary) 70deg,
+			var(--error) 100deg,
+			var(--accent-secondary) 130deg,
+			transparent 160deg,
+			transparent 360deg
+		);
+		animation: glowRotate 2s linear infinite;
 	}
 
 	.comment-card.selected::after {
-		background: linear-gradient(90deg, transparent, var(--accent-secondary), var(--error), var(--accent-primary), transparent);
-		opacity: 1;
-		animation: glowBottom 1.5s linear infinite;
+		background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(99, 102, 241, 0.05));
 	}
 
 	/* Slide animation when comment is added to queue */

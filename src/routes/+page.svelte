@@ -65,6 +65,9 @@
 	let showCleanLeaveConfirm = $state(false);
 	let showWipeConfirm = $state(false);
 	let showMobileSidebar = $state(false);
+	// State for sidebar peek effect
+	let isNearRightEdge = $state(false);
+	let isDraggingComment = $state(false);
 	// Background deletion state
 	let isDeletingInBackground = $state(false);
 	let backgroundDeleteProgress = $state<{ deleted: number; total: number; failed: number } | undefined>();
@@ -236,6 +239,65 @@
 		} catch (e) {
 			console.error('Failed to load cached comments:', e);
 		}
+	});
+	
+	// Separate effect for sidebar peek event listeners (cleanup handled by $effect)
+	$effect(() => {
+		if (typeof window === 'undefined') return;
+		
+		// Edge detection for sidebar peek effect
+		const EDGE_THRESHOLD = 60; // pixels from right edge
+		
+		function handleMouseMove(e: MouseEvent) {
+			const distanceFromRight = window.innerWidth - e.clientX;
+			isNearRightEdge = distanceFromRight < EDGE_THRESHOLD;
+		}
+		
+		function handleDragOver(e: DragEvent) {
+			const distanceFromRight = window.innerWidth - e.clientX;
+			if (distanceFromRight < EDGE_THRESHOLD * 2) {
+				isDraggingComment = true;
+			}
+		}
+		
+		function handleDragEnd() {
+			isDraggingComment = false;
+		}
+		
+		function handleMouseLeave() {
+			isNearRightEdge = false;
+		}
+		
+		// Only add listeners on mobile/tablet viewport
+		const checkViewport = () => {
+			if (window.innerWidth <= 1024) {
+				document.addEventListener('mousemove', handleMouseMove);
+				document.addEventListener('dragover', handleDragOver);
+				document.addEventListener('dragend', handleDragEnd);
+				document.addEventListener('drop', handleDragEnd);
+				document.documentElement.addEventListener('mouseleave', handleMouseLeave);
+			} else {
+				document.removeEventListener('mousemove', handleMouseMove);
+				document.removeEventListener('dragover', handleDragOver);
+				document.removeEventListener('dragend', handleDragEnd);
+				document.removeEventListener('drop', handleDragEnd);
+				document.documentElement.removeEventListener('mouseleave', handleMouseLeave);
+				isNearRightEdge = false;
+				isDraggingComment = false;
+			}
+		};
+		
+		checkViewport();
+		window.addEventListener('resize', checkViewport);
+		
+		return () => {
+			document.removeEventListener('mousemove', handleMouseMove);
+			document.removeEventListener('dragover', handleDragOver);
+			document.removeEventListener('dragend', handleDragEnd);
+			document.removeEventListener('drop', handleDragEnd);
+			document.documentElement.removeEventListener('mouseleave', handleMouseLeave);
+			window.removeEventListener('resize', checkViewport);
+		};
 	});
 
 	function getErrorMessage(e: unknown): string {
@@ -1095,10 +1157,24 @@
 							</div>
 						</div>
 
-						<aside class="sidebar" class:sidebar-expanded={showMobileSidebar} class:has-items={$selectedComments.length > 0}>
+						<!-- svelte-ignore a11y_click_events_have_key_events -->
+						<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+						<aside 
+							class="sidebar" 
+							class:sidebar-expanded={showMobileSidebar} 
+							class:has-items={$selectedComments.length > 0} 
+							class:sidebar-peeking={isNearRightEdge || isDraggingComment}
+							onclick={(e) => {
+								// Only handle click when peeking and not expanded
+								if ((isNearRightEdge || isDraggingComment) && !showMobileSidebar) {
+									e.stopPropagation();
+									showMobileSidebar = true;
+								}
+							}}
+						>
 							<button 
 								class="sidebar-toggle" 
-								onclick={() => showMobileSidebar = !showMobileSidebar}
+								onclick={(e) => { e.stopPropagation(); showMobileSidebar = !showMobileSidebar; }}
 								aria-label={showMobileSidebar ? 'Close slash queue' : 'Open slash queue'}
 								aria-expanded={showMobileSidebar}
 							>
@@ -1364,6 +1440,8 @@
 		min-height: 0;
 		display: flex;
 		flex-direction: column;
+		/* Prevent layout collapse when content is empty */
+		width: 100%;
 	}
 
 	.comments-scroll-wrapper {
@@ -1436,6 +1514,12 @@
 		background: var(--bg-card);
 		border-radius: var(--radius-lg);
 		border: 1px solid var(--bg-tertiary);
+		/* Ensure empty state fills the container to prevent layout narrowing */
+		flex: 1;
+		display: flex;
+		flex-direction: column;
+		justify-content: center;
+		align-items: center;
 	}
 
 	.empty-icon {
@@ -1648,9 +1732,15 @@
 			border-radius: var(--radius-xl) 0 0 var(--radius-xl);
 		}
 		
-		/* Peek effect when there are items but sidebar is closed */
-		.sidebar.has-items:not(.sidebar-expanded) {
-			transform: translateX(calc(100% - 12px));
+		/* Peek effect when there are items but sidebar is closed - minimal peek */
+		.sidebar.has-items:not(.sidebar-expanded):not(.sidebar-peeking) {
+			transform: translateX(calc(100% - 8px));
+		}
+		
+		/* Larger peek when mouse is near right edge or dragging a comment */
+		.sidebar.sidebar-peeking:not(.sidebar-expanded) {
+			transform: translateX(calc(100% - 80px));
+			cursor: pointer;
 		}
 		
 		/* Fully expanded state */
@@ -1658,37 +1748,45 @@
 			transform: translateX(0);
 		}
 
-		/* Toggle button - sleek pill design */
+		/* Toggle button - minimal design that becomes more visible when peeking */
 		.sidebar-toggle {
 			display: flex;
 			align-items: center;
 			justify-content: center;
 			gap: 0.35rem;
 			position: absolute;
-			left: -48px;
+			left: -40px;
 			top: 50%;
 			transform: translateY(-50%);
 			width: auto;
-			min-width: 48px;
-			height: 48px;
-			padding: 0 0.75rem;
+			min-width: 40px;
+			height: 72px;
+			padding: 0 0.5rem;
 			/* Glassy toggle button */
-			background: rgba(99, 102, 241, 0.15);
+			background: rgba(99, 102, 241, 0.1);
 			backdrop-filter: blur(12px);
 			-webkit-backdrop-filter: blur(12px);
-			border: 1px solid rgba(99, 102, 241, 0.3);
-			border-radius: 24px 0 0 24px;
+			border: 1px solid rgba(99, 102, 241, 0.2);
+			border-right: none;
+			border-radius: 12px 0 0 12px;
 			cursor: pointer;
-			color: var(--text-primary);
-			flex-direction: row;
+			color: var(--text-secondary);
+			flex-direction: column;
 			transition: all 0.3s cubic-bezier(0.32, 0.72, 0, 1);
 			z-index: 1;
-			box-shadow: -4px 0 16px rgba(0, 0, 0, 0.3);
+			box-shadow: -2px 0 12px rgba(0, 0, 0, 0.2);
+		}
+		
+		/* Hide toggle button when sidebar is peeking - the visible sidebar itself is clickable */
+		.sidebar.sidebar-peeking:not(.sidebar-expanded) .sidebar-toggle {
+			opacity: 0;
+			pointer-events: none;
 		}
 		
 		.sidebar-toggle:hover {
-			background: rgba(99, 102, 241, 0.25);
-			border-color: rgba(99, 102, 241, 0.5);
+			background: rgba(99, 102, 241, 0.2);
+			border-color: rgba(99, 102, 241, 0.4);
+			color: var(--text-primary);
 			transform: translateY(-50%) translateX(-4px);
 		}
 		
@@ -1698,12 +1796,17 @@
 		}
 
 		.sidebar-toggle svg {
-			transition: transform 0.3s ease;
+			transition: transform 0.3s ease, opacity 0.3s ease;
 			flex-shrink: 0;
+			opacity: 0.6;
 		}
 
 		.sidebar-toggle svg.flipped {
 			transform: rotate(180deg);
+		}
+		
+		.sidebar-toggle:hover svg {
+			opacity: 1;
 		}
 
 		/* Queue badge - only show when there are items */
