@@ -36,41 +36,63 @@
 
 {#if !shouldHideGroup}
 <div class="video-group" class:collapsed={!isExpanded}>
-	<button 
-		class="group-header"
-		onclick={() => isExpanded = !isExpanded}
-	>
-		<div class="video-icon">
-			<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-				<path d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm0 2h12v8H4V6z"/>
-				<path d="M8 8l4 2-4 2V8z"/>
-			</svg>
-		</div>
-		
-		<div class="group-info">
-			<h4 class="video-title">{displayTitle}</h4>
-			<div class="group-stats">
-				<span class="stat">
-					<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
-						<path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd"/>
-					</svg>
-					{commentCount} comment{commentCount !== 1 ? 's' : ''}
-				</span>
-				<span class="stat">
-					<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
-						<path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z"/>
-					</svg>
-					{totalLikes} total likes
-				</span>
+	<div class="group-header-wrapper">
+		<button 
+			class="group-header"
+			onclick={() => isExpanded = !isExpanded}
+		>
+			<div class="video-icon">
+				<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+					<path d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm0 2h12v8H4V6z"/>
+					<path d="M8 8l4 2-4 2V8z"/>
+				</svg>
 			</div>
-		</div>
+			
+			<div class="group-info">
+				<h4 class="video-title">
+					{#if videoTitle}
+						{videoTitle}
+					{:else}
+						<span class="video-id-fallback">Video ID: {videoId}</span>
+					{/if}
+				</h4>
+				<div class="group-stats">
+					<span class="stat">
+						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+							<path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd"/>
+						</svg>
+						{commentCount} comment{commentCount !== 1 ? 's' : ''}
+					</span>
+					<span class="stat">
+						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+							<path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z"/>
+						</svg>
+						{totalLikes} total likes
+					</span>
+				</div>
+			</div>
+			
+			<div class="expand-icon" class:rotated={!isExpanded}>
+				<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+					<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+				</svg>
+			</div>
+		</button>
 		
-		<div class="expand-icon" class:rotated={!isExpanded}>
-			<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-				<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+		<!-- External link to video -->
+		<a 
+			href="https://www.youtube.com/watch?v={videoId}" 
+			target="_blank" 
+			rel="noopener noreferrer"
+			class="video-external-link"
+			title="Open video on YouTube"
+		>
+			<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+				<path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/>
+				<path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/>
 			</svg>
-		</div>
-	</button>
+		</a>
+	</div>
 	
 	{#if isExpanded}
 		<div class="group-content">
@@ -95,14 +117,20 @@
 	.video-group:hover {
 		border-color: rgba(99, 102, 241, 0.3);
 	}
+
+	.group-header-wrapper {
+		display: flex;
+		align-items: center;
+		background: var(--bg-tertiary);
+	}
 	
 	.group-header {
-		width: 100%;
+		flex: 1;
 		display: flex;
 		align-items: center;
 		gap: 1rem;
 		padding: 1rem 1.25rem;
-		background: var(--bg-tertiary);
+		background: transparent;
 		border: none;
 		cursor: pointer;
 		text-align: left;
@@ -111,6 +139,27 @@
 	
 	.group-header:hover {
 		background: var(--bg-hover);
+	}
+
+	.video-external-link {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.75rem 1rem;
+		color: var(--text-muted);
+		transition: all 0.2s ease;
+		border-left: 1px solid var(--bg-hover);
+	}
+
+	.video-external-link:hover {
+		background: var(--bg-hover);
+		color: var(--accent-tertiary);
+	}
+
+	.video-id-fallback {
+		font-family: monospace;
+		font-size: 0.85rem;
+		color: var(--text-muted);
 	}
 	
 	.video-icon {

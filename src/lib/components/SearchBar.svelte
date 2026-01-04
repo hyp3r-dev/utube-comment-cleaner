@@ -82,13 +82,14 @@
 		/>
 		
 		<div class="search-actions">
-			{#if hasQuery}
-				<div class="result-count">
+			<!-- Always show result count area to prevent layout shift -->
+			<div class="result-count" class:visible={hasQuery}>
+				{#if hasQuery}
 					<span class="count">{resultCount}</span>
 					<span class="separator">/</span>
 					<span class="total">{totalCount}</span>
-				</div>
-			{/if}
+				{/if}
+			</div>
 			
 			{#if hasLocalQuery}
 				<button 
@@ -200,6 +201,8 @@
 		align-items: center;
 		gap: 6px;
 		padding-right: 8px;
+		/* Reserve minimum width to prevent layout shift */
+		min-width: 90px;
 	}
 
 	.result-count {
@@ -209,6 +212,17 @@
 		font-size: 0.8rem;
 		font-weight: 500;
 		padding: 4px 0;
+		/* Reserve minimum width for consistent layout */
+		min-width: 60px;
+		/* Hidden by default */
+		opacity: 0;
+		visibility: hidden;
+		transition: opacity 0.15s ease;
+	}
+
+	.result-count.visible {
+		opacity: 1;
+		visibility: visible;
 	}
 
 	.result-count .count {

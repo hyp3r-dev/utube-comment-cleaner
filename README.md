@@ -160,6 +160,8 @@ volumes:
 | `ENABLE_COOKIE_CONSENT` | Show cookie consent banner on first visit (default: `false`) | No |
 | `DETAILED_LOGGING` | Enable detailed server logs (default: `false`) | No |
 | `DATA_DIR` | Directory for persistent data (default: `/app/data`) | No |
+| `LOCAL_DATA_RETENTION_DAYS` | Days to keep local comment data (default: `30`) | No |
+| `STALE_DATA_WARNING_DAYS` | Days after which to show stale data warning (default: `14`) | No |
 
 **Note:** When Google Login is enabled:
 - Users see a "Sign in with Google" button instead of manual token entry
@@ -224,7 +226,8 @@ The workflow will build and push the image to Docker Hub at `hyp3rsonix/comments
 
 - **No Server Storage** - Your OAuth token is never stored on any server
 - **Browser-Only Storage** - All comment data is stored in your browser's IndexedDB
-- **Auto-Expiration** - Cached data automatically expires after 24 hours
+- **Auto-Expiration** - Cached data automatically expires after 30 days by default (configurable via `LOCAL_DATA_RETENTION_DAYS`)
+- **Stale Data Warnings** - Get reminded when your data is outdated (configurable via `STALE_DATA_WARNING_DAYS`)
 - **Rate Limiting Aware** - Implements delays and batch operations to respect YouTube API limits
 - **Privacy-Focused Logging** - All server logs automatically redact emails, tokens, and user identifiers
 - **Minimal Data Collection** - The server only processes authentication requests; comment data stays in your browser

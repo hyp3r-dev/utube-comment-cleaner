@@ -50,6 +50,22 @@ export const legalConfig = {
 };
 
 /**
+ * Data retention configuration
+ * Controls how long local data is stored
+ */
+export const dataRetentionConfig = {
+	get retentionDays(): number {
+		const value = parseInt(env.LOCAL_DATA_RETENTION_DAYS || '30', 10);
+		return isNaN(value) ? 30 : value;
+	},
+	
+	get staleWarningDays(): number {
+		const value = parseInt(env.STALE_DATA_WARNING_DAYS || '14', 10);
+		return isNaN(value) ? 14 : value;
+	}
+};
+
+/**
  * Privacy configuration
  * Controls what user data is logged and how long logs are retained
  */
