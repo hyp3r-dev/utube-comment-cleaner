@@ -267,11 +267,9 @@
 		padding: 1rem;
 		cursor: pointer;
 		/* Optimized: only transition specific properties for better performance */
-		transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+		transition: border-color 0.2s ease, box-shadow 0.2s ease;
 		position: relative;
 		overflow: hidden;
-		/* GPU acceleration hint for smoother animations */
-		will-change: border-color, box-shadow;
 	}
 
 	.comment-card::before {
