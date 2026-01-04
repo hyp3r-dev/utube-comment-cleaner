@@ -1,19 +1,22 @@
 <script lang="ts">
 	import type { YouTubeComment } from '$lib/types/comment';
 	import SlashAnimation from './SlashAnimation.svelte';
+	import ShurikenIcon from './ShurikenIcon.svelte';
 	
 	let {
 		comments,
 		isDeleting = false,
 		deleteProgress,
 		onConfirm,
-		onCancel
+		onCancel,
+		isConnected = true
 	}: {
 		comments: YouTubeComment[];
 		isDeleting?: boolean;
 		deleteProgress?: { deleted: number; total: number };
 		onConfirm: () => void;
 		onCancel: () => void;
+		isConnected?: boolean;
 	} = $props();
 
 	let showSlashAnimation = $state(false);
@@ -24,6 +27,7 @@
 	}
 
 	function handleConfirmClick() {
+		if (!isConnected) return;
 		showSlashAnimation = true;
 	}
 
@@ -54,21 +58,7 @@
 		
 		<div class="modal-header">
 			<div class="warning-icon">
-				<svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-					<defs>
-						<linearGradient id="modal-blade" x1="0%" y1="0%" x2="100%" y2="100%">
-							<stop offset="0%" style="stop-color:#e0e7ff"/>
-							<stop offset="100%" style="stop-color:#a5b4fc"/>
-						</linearGradient>
-					</defs>
-					<!-- Katana -->
-					<path d="M8 40 L36 8 L40 12 L12 44 Z" fill="url(#modal-blade)"/>
-					<rect x="4" y="38" width="10" height="6" rx="2" fill="#dc2626" transform="rotate(-45 9 41)"/>
-					<ellipse cx="14" cy="36" rx="3" ry="1.5" fill="#fbbf24" transform="rotate(-45 14 36)"/>
-					<!-- Slash effects -->
-					<path d="M30 14 L38 6" stroke="#ef4444" stroke-width="2" stroke-linecap="round"/>
-					<path d="M34 18 L42 10" stroke="#ef4444" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
-				</svg>
+				<ShurikenIcon size={48} animate={true} className="modal-shuriken" />
 			</div>
 			<h2 id="modal-title">Confirm Slash</h2>
 			<p>Are you sure you want to slash these comments? This action cannot be undone.</p>
@@ -129,13 +119,17 @@
 				<button class="btn btn-secondary" onclick={onCancel}>
 					Cancel
 				</button>
-				<button class="btn btn-danger slash-btn" onclick={handleConfirmClick}>
-					<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor" class="slash-icon">
-						<path d="M3 17 L15 3 L17 5 L5 19 Z" />
-						<path d="M13 5 L17 1" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-					</svg>
-					Yes, Slash {comments.length} Comment{comments.length !== 1 ? 's' : ''}
-				</button>
+				{#if isConnected}
+					<button class="btn btn-danger slash-btn" onclick={handleConfirmClick}>
+						<ShurikenIcon size={18} className="btn-shuriken" />
+						Yes, Slash {comments.length} Comment{comments.length !== 1 ? 's' : ''}
+					</button>
+				{:else}
+					<div class="login-required-notice">
+						<ShurikenIcon size={16} className="notice-shuriken" />
+						<span>Connect to YouTube to slash comments</span>
+					</div>
+				{/if}
 			{/if}
 		</div>
 	</div>
@@ -357,19 +351,20 @@
 		overflow: hidden;
 	}
 
-	.slash-btn:hover .slash-icon {
-		animation: slashWiggle 0.3s ease-in-out;
+	/* Shuriken animation on button hover */
+	.slash-btn:hover :global(.btn-shuriken) {
+		animation: shurikenSpin 0.5s ease-in-out;
 	}
 
-	@keyframes slashWiggle {
-		0%, 100% {
-			transform: rotate(0deg);
+	@keyframes shurikenSpin {
+		0% {
+			transform: rotate(0deg) scale(1);
 		}
-		25% {
-			transform: rotate(-15deg);
+		50% {
+			transform: rotate(180deg) scale(1.1);
 		}
-		75% {
-			transform: rotate(15deg);
+		100% {
+			transform: rotate(360deg) scale(1);
 		}
 	}
 
@@ -386,6 +381,31 @@
 
 	.slash-btn:hover::after {
 		left: 100%;
+	}
+
+	/* Modal shuriken styling */
+	:global(.modal-shuriken) {
+		color: var(--error);
+		filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.5));
+	}
+
+	/* Login required notice */
+	.login-required-notice {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		padding: 0.75rem 1rem;
+		background: rgba(251, 191, 36, 0.15);
+		border: 1px solid rgba(251, 191, 36, 0.3);
+		border-radius: var(--radius-md);
+		color: var(--warning);
+		font-size: 0.85rem;
+		font-weight: 500;
+	}
+
+	:global(.notice-shuriken) {
+		color: var(--warning);
+		opacity: 0.8;
 	}
 
 	@media (max-width: 640px) {
@@ -405,6 +425,11 @@
 
 		.modal-footer .btn {
 			width: 100%;
+		}
+		
+		.login-required-notice {
+			width: 100%;
+			justify-content: center;
 		}
 	}
 </style>

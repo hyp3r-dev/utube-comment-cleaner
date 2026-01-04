@@ -37,9 +37,13 @@
 {#if !shouldHideGroup}
 <div class="video-group" class:collapsed={!isExpanded}>
 	<div class="group-header-wrapper">
-		<button 
-			class="group-header"
-			onclick={() => isExpanded = !isExpanded}
+		<!-- YouTube video link icon -->
+		<a 
+			href="https://www.youtube.com/watch?v={videoId}" 
+			target="_blank" 
+			rel="noopener noreferrer"
+			class="video-icon-link"
+			title="Open video on YouTube"
 		>
 			<div class="video-icon">
 				<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
@@ -47,7 +51,12 @@
 					<path d="M8 8l4 2-4 2V8z"/>
 				</svg>
 			</div>
-			
+		</a>
+		
+		<button 
+			class="group-header"
+			onclick={() => isExpanded = !isExpanded}
+		>
 			<div class="group-info">
 				<h4 class="video-title">
 					{#if videoTitle}
@@ -78,26 +87,12 @@
 				</svg>
 			</div>
 		</button>
-		
-		<!-- External link to video -->
-		<a 
-			href="https://www.youtube.com/watch?v={videoId}" 
-			target="_blank" 
-			rel="noopener noreferrer"
-			class="video-external-link"
-			title="Open video on YouTube"
-		>
-			<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-				<path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/>
-				<path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/>
-			</svg>
-		</a>
 	</div>
 	
 	{#if isExpanded}
 		<div class="group-content">
 			{#each comments as comment (comment.id)}
-				<CommentCard {comment} hideWhenSelected={hideSelectedComments} {onRemoveFromDatabase} />
+				<CommentCard {comment} hideWhenSelected={hideSelectedComments} {onRemoveFromDatabase} hideVideoInfo={true} />
 			{/each}
 		</div>
 	{/if}
@@ -110,8 +105,8 @@
 		border: 1px solid var(--bg-tertiary);
 		border-radius: var(--radius-xl);
 		overflow: hidden;
-		margin-bottom: 1rem;
-		transition: all 0.3s ease;
+		/* No margin needed - parent .video-groups container uses gap for spacing */
+		transition: border-color 0.2s ease, box-shadow 0.2s ease;
 	}
 	
 	.video-group:hover {
@@ -124,42 +119,14 @@
 		background: var(--bg-tertiary);
 	}
 	
-	.group-header {
-		flex: 1;
-		display: flex;
-		align-items: center;
-		gap: 1rem;
-		padding: 1rem 1.25rem;
-		background: transparent;
-		border: none;
-		cursor: pointer;
-		text-align: left;
-		transition: all 0.2s ease;
-	}
-	
-	.group-header:hover {
-		background: var(--bg-hover);
-	}
-
-	.video-external-link {
+	/* Clickable video icon link */
+	.video-icon-link {
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		padding: 0.75rem 1rem;
-		color: var(--text-muted);
-		transition: all 0.2s ease;
-		border-left: 1px solid var(--bg-hover);
-	}
-
-	.video-external-link:hover {
-		background: var(--bg-hover);
-		color: var(--accent-tertiary);
-	}
-
-	.video-id-fallback {
-		font-family: monospace;
-		font-size: 0.85rem;
-		color: var(--text-muted);
+		padding: 1rem;
+		padding-right: 0.5rem;
+		text-decoration: none;
 	}
 	
 	.video-icon {
@@ -172,6 +139,37 @@
 		color: #ef4444;
 		border-radius: var(--radius-md);
 		flex-shrink: 0;
+		transition: all 0.2s ease;
+	}
+	
+	.video-icon-link:hover .video-icon {
+		background: rgba(239, 68, 68, 0.25);
+		transform: scale(1.05);
+		box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+	}
+	
+	.group-header {
+		flex: 1;
+		display: flex;
+		align-items: center;
+		gap: 1rem;
+		padding: 1rem 1.25rem;
+		padding-left: 0.75rem;
+		background: transparent;
+		border: none;
+		cursor: pointer;
+		text-align: left;
+		transition: background-color 0.2s ease;
+	}
+	
+	.group-header:hover {
+		background: var(--bg-hover);
+	}
+
+	.video-id-fallback {
+		font-family: monospace;
+		font-size: 0.85rem;
+		color: var(--text-muted);
 	}
 	
 	.group-info {
@@ -236,8 +234,14 @@
 	}
 	
 	@media (max-width: 640px) {
+		.video-icon-link {
+			padding: 0.875rem;
+			padding-right: 0.5rem;
+		}
+		
 		.group-header {
 			padding: 0.875rem 1rem;
+			padding-left: 0.5rem;
 		}
 		
 		.video-icon {

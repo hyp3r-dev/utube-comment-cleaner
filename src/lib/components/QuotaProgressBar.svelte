@@ -9,10 +9,12 @@
 	import { getTimeUntilPacificMidnight } from '$lib/utils/timezone';
 
 	let isExpanded = $state(false);
+	let isPinned = $state(false); // When true, only closes on outside click
 	let timeDisplay = $state({ hours: 0, minutes: 0, seconds: 0, formatted: 'Loading...' });
 	let timerInterval: ReturnType<typeof setInterval> | null = null;
 	let isBoltAnimating = $state(false);
 	let lastUsedValue = $state(0);
+	let containerRef: HTMLDivElement | undefined = $state();
 
 	// Update time every second
 	onMount(() => {
@@ -23,13 +25,49 @@
 		updateTime();
 		timerInterval = setInterval(updateTime, 1000);
 		lastUsedValue = $quotaStore.used;
+		
+		// Add global click listener to close when clicking outside
+		document.addEventListener('click', handleOutsideClick);
 	});
 	
 	onDestroy(() => {
 		if (timerInterval) {
 			clearInterval(timerInterval);
 		}
+		document.removeEventListener('click', handleOutsideClick);
 	});
+
+	function handleOutsideClick(e: MouseEvent) {
+		if (isPinned && containerRef && !containerRef.contains(e.target as Node)) {
+			isPinned = false;
+			isExpanded = false;
+		}
+	}
+
+	function handleToggleClick(e: MouseEvent) {
+		e.stopPropagation();
+		if (isPinned) {
+			// If already pinned, unpin and close
+			isPinned = false;
+			isExpanded = false;
+		} else {
+			// Pin it open
+			isPinned = true;
+			isExpanded = true;
+		}
+	}
+
+	function handleMouseEnter() {
+		if (!isPinned) {
+			isExpanded = true;
+		}
+	}
+
+	function handleMouseLeave() {
+		if (!isPinned) {
+			isExpanded = false;
+		}
+	}
 
 	function getStatusColor(percentage: number): string {
 		if (percentage < 50) return 'var(--success)';
@@ -55,13 +93,18 @@
 	});
 </script>
 
-<div class="quota-bar" class:expanded={isExpanded}>
+<div 
+	class="quota-bar" 
+	class:expanded={isExpanded}
+	bind:this={containerRef}
+	onmouseenter={handleMouseEnter}
+	onmouseleave={handleMouseLeave}
+>
 	<button 
 		class="quota-toggle"
-		onclick={() => isExpanded = !isExpanded}
-		onmouseenter={() => isExpanded = true}
-		onmouseleave={() => isExpanded = false}
-		title="API Quota Usage"
+		class:pinned={isPinned}
+		onclick={handleToggleClick}
+		title="API Quota Usage - Click to pin"
 	>
 		<div class="quota-icon" class:animating={isBoltAnimating}>
 			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -166,6 +209,12 @@
 		background: var(--bg-hover);
 		color: var(--text-primary);
 		border-color: var(--accent-primary);
+	}
+
+	.quota-toggle.pinned {
+		border-color: var(--accent-primary);
+		background: var(--bg-hover);
+		box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
 	}
 
 	.quota-icon {

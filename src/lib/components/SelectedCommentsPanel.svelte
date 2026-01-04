@@ -10,7 +10,8 @@
 	let {
 		onDeleteRequest,
 		isDeleting = false,
-		deleteProgress
+		deleteProgress,
+		isConnected = true
 	}: {
 		onDeleteRequest?: () => void;
 		isDeleting?: boolean;
@@ -18,6 +19,7 @@
 			currentId?: string;
 			statuses: Map<string, { status: DeleteStatus; error?: string }>;
 		};
+		isConnected?: boolean;
 	} = $props();
 
 	let isDragOver = $state(false);
@@ -297,21 +299,34 @@
 				<button class="btn btn-ghost" onclick={deselectAll} disabled={isDeleting}>
 					Clear All
 				</button>
-				<button 
-					class="btn btn-danger delete-btn" 
-					onclick={onDeleteRequest}
-					onmouseenter={handleDeleteHoverStart}
-					onmouseleave={handleDeleteHoverEnd}
-					onfocus={handleDeleteHoverStart}
-					onblur={handleDeleteHoverEnd}
-					disabled={isDeleting}
-				>
-					<ShurikenIcon size={18} className="delete-shuriken" />
-					<span class="btn-text">
-						Slash Selected
-						<span class="quota-cost">({deleteCost} quota)</span>
-					</span>
-				</button>
+				{#if isConnected}
+					<button 
+						class="btn btn-danger delete-btn" 
+						onclick={onDeleteRequest}
+						onmouseenter={handleDeleteHoverStart}
+						onmouseleave={handleDeleteHoverEnd}
+						onfocus={handleDeleteHoverStart}
+						onblur={handleDeleteHoverEnd}
+						disabled={isDeleting}
+					>
+						<ShurikenIcon size={18} className="delete-shuriken" />
+						<span class="btn-text">
+							Slash Selected
+							<span class="quota-cost">({deleteCost} quota)</span>
+						</span>
+					</button>
+				{:else}
+					<button 
+						class="btn btn-disabled delete-btn-disabled" 
+						onclick={onDeleteRequest}
+						title="Connect to YouTube to slash comments"
+					>
+						<ShurikenIcon size={18} className="delete-shuriken-disabled" />
+						<span class="btn-text">
+							Login Required
+						</span>
+					</button>
+				{/if}
 			</div>
 		{/if}
 	{/if}
@@ -830,6 +845,24 @@
 
 	.delete-btn:hover::after {
 		left: 100%;
+	}
+
+	/* Disabled button when not connected to YouTube */
+	.btn-disabled {
+		background: var(--bg-tertiary);
+		color: var(--text-muted);
+		cursor: not-allowed;
+		opacity: 0.7;
+	}
+
+	.delete-btn-disabled {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	:global(.delete-shuriken-disabled) {
+		opacity: 0.5;
 	}
 
 	@media (max-width: 1024px) {

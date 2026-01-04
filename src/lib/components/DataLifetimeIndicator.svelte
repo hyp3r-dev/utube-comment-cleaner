@@ -1,18 +1,32 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { getDataLifetimeInfo, refreshDataLifetime, type DataLifetimeInfo } from '$lib/services/storage';
 	import { comments } from '$lib/stores/comments';
 
 	let lifetimeInfo = $state<DataLifetimeInfo | null>(null);
 	let showTooltip = $state(false);
+	let isPinned = $state(false); // When true, only closes on outside click
 	let isRefreshing = $state(false);
+	let containerRef: HTMLDivElement | undefined = $state();
 
 	// Only show when there are comments
 	const shouldShow = $derived($comments.length > 0 && lifetimeInfo?.createdAt !== null);
 
 	onMount(async () => {
 		await loadLifetimeInfo();
+		document.addEventListener('click', handleOutsideClick);
 	});
+
+	onDestroy(() => {
+		document.removeEventListener('click', handleOutsideClick);
+	});
+
+	function handleOutsideClick(e: MouseEvent) {
+		if (isPinned && containerRef && !containerRef.contains(e.target as Node)) {
+			isPinned = false;
+			showTooltip = false;
+		}
+	}
 
 	async function loadLifetimeInfo() {
 		lifetimeInfo = await getDataLifetimeInfo();
@@ -29,6 +43,31 @@
 		}
 	}
 
+	function handleIndicatorClick(e: MouseEvent) {
+		e.stopPropagation();
+		if (isPinned) {
+			// If already pinned, unpin and close
+			isPinned = false;
+			showTooltip = false;
+		} else {
+			// Pin it open
+			isPinned = true;
+			showTooltip = true;
+		}
+	}
+
+	function handleMouseEnter() {
+		if (!isPinned) {
+			showTooltip = true;
+		}
+	}
+
+	function handleMouseLeave() {
+		if (!isPinned) {
+			showTooltip = false;
+		}
+	}
+
 	function formatDate(timestamp: number): string {
 		return new Date(timestamp).toLocaleDateString('en-US', {
 			month: 'short',
@@ -42,22 +81,24 @@
 	<div 
 		class="lifetime-indicator"
 		class:expiring-soon={lifetimeInfo.isExpiringSoon}
+		class:pinned={isPinned}
 		role="button"
 		tabindex="0"
-		onmouseenter={() => showTooltip = true}
-		onmouseleave={() => showTooltip = false}
-		onfocus={() => showTooltip = true}
-		onblur={() => showTooltip = false}
-		onclick={handleRefresh}
-		onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleRefresh()}
+		bind:this={containerRef}
+		onmouseenter={handleMouseEnter}
+		onmouseleave={handleMouseLeave}
+		onfocus={handleMouseEnter}
+		onblur={handleMouseLeave}
+		onclick={handleIndicatorClick}
+		onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && handleIndicatorClick(e as unknown as MouseEvent)}
 	>
-		<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor" class:spinning={isRefreshing}>
+		<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
 			<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
 		</svg>
 		<span class="days-remaining">{lifetimeInfo.daysRemaining}d</span>
 
 		{#if showTooltip}
-			<div class="lifetime-tooltip">
+			<div class="lifetime-tooltip" onclick={(e) => e.stopPropagation()}>
 				<div class="tooltip-header">
 					<strong>Data Retention</strong>
 				</div>
@@ -76,7 +117,16 @@
 					</p>
 				</div>
 				<div class="tooltip-footer">
-					<span class="hint">Click to refresh expiry</span>
+					<button 
+						class="reset-btn" 
+						onclick={handleRefresh}
+						disabled={isRefreshing}
+					>
+						<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" class:spinning={isRefreshing}>
+							<path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/>
+						</svg>
+						{isRefreshing ? 'Resetting...' : 'Reset Timer'}
+					</button>
 				</div>
 			</div>
 		{/if}
@@ -104,6 +154,12 @@
 		color: var(--text-primary);
 	}
 
+	.lifetime-indicator.pinned {
+		border-color: var(--accent-primary);
+		background: var(--bg-hover);
+		box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+	}
+
 	.lifetime-indicator.expiring-soon {
 		border-color: var(--warning);
 		background: rgba(251, 191, 36, 0.1);
@@ -113,12 +169,12 @@
 		background: rgba(251, 191, 36, 0.2);
 	}
 
-	.lifetime-indicator svg {
-		flex-shrink: 0;
+	.lifetime-indicator.expiring-soon.pinned {
+		box-shadow: 0 0 0 2px rgba(251, 191, 36, 0.2);
 	}
 
-	.lifetime-indicator svg.spinning {
-		animation: spin 1s linear infinite;
+	.lifetime-indicator svg {
+		flex-shrink: 0;
 	}
 
 	@keyframes spin {
@@ -140,7 +196,7 @@
 		border: 1px solid var(--bg-tertiary);
 		border-radius: var(--radius-md);
 		padding: 0.75rem;
-		min-width: 180px;
+		min-width: 200px;
 		box-shadow: var(--shadow-lg);
 		z-index: 100;
 		animation: fadeIn 0.2s ease;
@@ -194,10 +250,34 @@
 		border-top: 1px solid var(--bg-tertiary);
 	}
 
-	.tooltip-footer .hint {
-		font-size: 0.65rem;
-		color: var(--text-muted);
-		font-style: italic;
+	.reset-btn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.4rem;
+		width: 100%;
+		padding: 0.5rem 0.75rem;
+		background: var(--bg-tertiary);
+		color: var(--text-secondary);
+		border-radius: var(--radius-sm);
+		font-size: 0.75rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.reset-btn:hover:not(:disabled) {
+		background: var(--accent-primary);
+		color: white;
+	}
+
+	.reset-btn:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.reset-btn svg.spinning {
+		animation: spin 1s linear infinite;
 	}
 
 	@media (max-width: 768px) {
