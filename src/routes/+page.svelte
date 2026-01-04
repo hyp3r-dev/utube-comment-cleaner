@@ -247,6 +247,7 @@
 		
 		// Edge detection for sidebar peek effect
 		const EDGE_THRESHOLD = 60; // pixels from right edge
+		let listenersAttached = false;
 		
 		function handleMouseMove(e: MouseEvent) {
 			const distanceFromRight = window.innerWidth - e.clientX;
@@ -268,22 +269,36 @@
 			isNearRightEdge = false;
 		}
 		
-		// Only add listeners on mobile/tablet viewport
-		const checkViewport = () => {
-			if (window.innerWidth <= 1024) {
+		function addListeners() {
+			if (!listenersAttached) {
 				document.addEventListener('mousemove', handleMouseMove);
 				document.addEventListener('dragover', handleDragOver);
 				document.addEventListener('dragend', handleDragEnd);
 				document.addEventListener('drop', handleDragEnd);
 				document.documentElement.addEventListener('mouseleave', handleMouseLeave);
-			} else {
+				listenersAttached = true;
+			}
+		}
+		
+		function removeListeners() {
+			if (listenersAttached) {
 				document.removeEventListener('mousemove', handleMouseMove);
 				document.removeEventListener('dragover', handleDragOver);
 				document.removeEventListener('dragend', handleDragEnd);
 				document.removeEventListener('drop', handleDragEnd);
 				document.documentElement.removeEventListener('mouseleave', handleMouseLeave);
+				listenersAttached = false;
 				isNearRightEdge = false;
 				isDraggingComment = false;
+			}
+		}
+		
+		// Only add listeners on mobile/tablet viewport
+		const checkViewport = () => {
+			if (window.innerWidth <= 1024) {
+				addListeners();
+			} else {
+				removeListeners();
 			}
 		};
 		
@@ -291,11 +306,7 @@
 		window.addEventListener('resize', checkViewport);
 		
 		return () => {
-			document.removeEventListener('mousemove', handleMouseMove);
-			document.removeEventListener('dragover', handleDragOver);
-			document.removeEventListener('dragend', handleDragEnd);
-			document.removeEventListener('drop', handleDragEnd);
-			document.documentElement.removeEventListener('mouseleave', handleMouseLeave);
+			removeListeners();
 			window.removeEventListener('resize', checkViewport);
 		};
 	});

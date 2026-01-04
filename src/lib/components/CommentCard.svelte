@@ -328,7 +328,9 @@
 	}
 
 	/* Ensure content is above the pseudo-elements */
-	.comment-card > * {
+	.comment-card > .slash-overlay,
+	.comment-card > .card-header,
+	.comment-card > .card-body {
 		position: relative;
 		z-index: 1;
 	}
