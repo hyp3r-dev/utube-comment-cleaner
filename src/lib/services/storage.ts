@@ -176,6 +176,32 @@ export async function clearCommentsOnly(): Promise<void> {
 	}
 }
 
+/**
+ * Save the last takeout import date
+ */
+export async function saveLastTakeoutImport(): Promise<void> {
+	await saveMetadata('lastTakeoutImport', Date.now());
+}
+
+/**
+ * Load the last takeout import date
+ */
+export async function loadLastTakeoutImport(): Promise<number | null> {
+	return loadMetadata<number>('lastTakeoutImport');
+}
+
+/**
+ * Check if takeout data is stale (older than specified days)
+ */
+export async function isTakeoutStale(daysThreshold: number = 7): Promise<boolean> {
+	const lastImport = await loadLastTakeoutImport();
+	if (!lastImport) return false;
+	
+	const now = Date.now();
+	const thresholdMs = daysThreshold * 24 * 60 * 60 * 1000;
+	return (now - lastImport) > thresholdMs;
+}
+
 // Run cleanup on import
 if (typeof window !== 'undefined') {
 	cleanExpiredData().catch(console.error);
