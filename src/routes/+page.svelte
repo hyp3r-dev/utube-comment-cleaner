@@ -14,6 +14,8 @@
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
 	import OAuthGuide from '$lib/components/OAuthGuide.svelte';
 	import GoogleSignInButton from '$lib/components/GoogleSignInButton.svelte';
+	import CookieConsent from '$lib/components/CookieConsent.svelte';
+	import StaleDataReminder from '$lib/components/StaleDataReminder.svelte';
 	import { toasts } from '$lib/stores/toast';
 	import { 
 		YouTubeService, 
@@ -24,7 +26,7 @@
 		YouTubeAPIError 
 	} from '$lib/services/youtube';
 	import { parseTakeoutFile, readFileAsText, parseZipFile, parseMultipleFiles } from '$lib/services/takeout';
-	import { saveComments, loadComments, deleteComments as deleteFromStorage, clearAllData, clearCommentsOnly } from '$lib/services/storage';
+	import { saveComments, loadComments, deleteComments as deleteFromStorage, clearAllData, clearCommentsOnly, saveLastTakeoutImport } from '$lib/services/storage';
 	import {
 		apiKey,
 		isAuthenticated,
@@ -58,6 +60,7 @@
 	let enrichProgress = $state<{ enriched: number; total: number } | undefined>();
 	let groupByVideo = $state(true);
 	let hideSelectedFromList = $state(true);
+	let showCleanLeaveConfirm = $state(false);
 	let showWipeConfirm = $state(false);
 	let showMobileSidebar = $state(false);
 	// Background deletion state
@@ -202,6 +205,8 @@
 			const cachedComments = await loadComments();
 			if (cachedComments.length > 0) {
 				comments.set(cachedComments);
+				// If we have cached data, mark as authenticated to show the dashboard
+				isAuthenticated.set(true);
 			}
 		} catch (e) {
 			console.error('Failed to load cached comments:', e);
@@ -251,6 +256,7 @@
 
 			comments.set(importedComments);
 			await saveComments(importedComments);
+			await saveLastTakeoutImport();
 			loadingProgress.set({ loaded: 1, total: 1 });
 			
 			isAuthenticated.set(true);
@@ -329,11 +335,13 @@
 		handleBackgroundDelete();
 	}
 
-	async function handleLogout() {
+	async function handleCleanLeave() {
+		showCleanLeaveConfirm = false;
 		logout();
 		await clearAllData();
 		inputApiKey = '';
 		youtubeService = null;
+		toasts.success('All data cleared. Thanks for using CommentSlash!');
 	}
 
 	async function handleEnrichComments() {
@@ -516,6 +524,7 @@
 			const merged = [...updatedComments, ...addedComments];
 			comments.set(merged);
 			await saveComments(merged);
+			await saveLastTakeoutImport();
 			
 			if (addedComments.length > 0) {
 				toasts.success(`Merge complete: ${addedComments.length} new comment(s) added.`);
@@ -769,10 +778,11 @@
 					/>
 				{/if}
 				
-				{#if $isAuthenticated}
-					<button class="btn btn-ghost btn-icon-only" onclick={handleLogout} title="Logout">
+				<!-- Clean & Leave button - only show when authenticated or has data -->
+				{#if $isAuthenticated || $comments.length > 0}
+					<button class="btn btn-ghost btn-icon-only btn-danger-text" onclick={() => showCleanLeaveConfirm = true} title="Clean & Leave - Clear all data and logout">
 						<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
-							<path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 001 1h12a1 1 0 001-1V4a1 1 0 00-1-1H3zm9 4a1 1 0 10-2 0v4a1 1 0 102 0V7zm-3 1a1 1 0 10-2 0v3a1 1 0 102 0V8z" clip-rule="evenodd" />
+							<path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
 						</svg>
 					</button>
 				{/if}
@@ -855,6 +865,9 @@
 				</div>
 			{:else}
 				<div class="dashboard">
+					<!-- Stale data reminder -->
+					<StaleDataReminder />
+					
 					{#if $error}
 						<div class="error-message mb-4">
 							<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
@@ -1068,7 +1081,14 @@
 
 	<footer class="footer">
 		<div class="container">
-			<p>CommentSlash — Destroy your YouTube comments with precision ⚔️✨</p>
+			<div class="footer-content">
+				<div class="footer-links">
+					<a href="/legal/privacy">Privacy Policy</a>
+					<span class="footer-separator">•</span>
+					<a href="/legal/terms">Terms of Service</a>
+				</div>
+				<p>CommentSlash — Destroy your YouTube comments with precision ⚔️✨</p>
+			</div>
 		</div>
 	</footer>
 </div>
@@ -1081,6 +1101,28 @@
 		onConfirm={handleDeleteConfirm}
 		onCancel={() => showDeleteModal = false}
 	/>
+{/if}
+
+{#if showCleanLeaveConfirm}
+	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+	<!-- svelte-ignore a11y_interactive_supports_focus -->
+	<div class="modal-overlay" onclick={() => showCleanLeaveConfirm = false} onkeydown={(e) => e.key === 'Escape' && (showCleanLeaveConfirm = false)} role="dialog" aria-modal="true">
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div class="modal-content wipe-modal" onclick={(e) => e.stopPropagation()}>
+			<div class="modal-header">
+				<h3>🗑️ Clean & Leave?</h3>
+			</div>
+			<div class="modal-body">
+				<p>This will permanently delete all data from your browser and log you out.</p>
+				<p class="modal-note">Your comments on YouTube will NOT be affected. This only clears your local data.</p>
+			</div>
+			<div class="modal-actions">
+				<button class="btn btn-ghost" onclick={() => showCleanLeaveConfirm = false}>Cancel</button>
+				<button class="btn btn-danger" onclick={handleCleanLeave}>Clean & Leave</button>
+			</div>
+		</div>
+	</div>
 {/if}
 
 {#if showWipeConfirm}
@@ -1106,6 +1148,7 @@
 {/if}
 
 <ToastContainer />
+<CookieConsent />
 
 <style>
 	/* 
@@ -1348,12 +1391,37 @@
 	}
 
 	.footer {
-		padding: 0.5rem 0;
+		padding: 0.75rem 0;
 		text-align: center;
 		color: var(--text-muted);
 		font-size: 0.75rem;
 		border-top: 1px solid var(--bg-tertiary);
 		flex-shrink: 0;
+	}
+
+	.footer-content {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+
+	.footer-links {
+		display: flex;
+		justify-content: center;
+		gap: 0.5rem;
+	}
+
+	.footer-links a {
+		color: var(--text-secondary);
+		font-size: 0.75rem;
+	}
+
+	.footer-links a:hover {
+		color: var(--accent-tertiary);
+	}
+
+	.footer-separator {
+		color: var(--text-muted);
 	}
 
 	/* Import section styles */
