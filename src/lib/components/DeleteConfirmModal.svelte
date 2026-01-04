@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { YouTubeComment } from '$lib/types/comment';
+	import { truncateText } from '$lib/utils/formatting';
 	import SlashAnimation from './SlashAnimation.svelte';
 	import ShurikenIcon from './ShurikenIcon.svelte';
 	
@@ -20,11 +21,6 @@
 	} = $props();
 
 	let showSlashAnimation = $state(false);
-
-	function truncateText(text: string, maxLength: number): string {
-		if (text.length <= maxLength) return text;
-		return text.slice(0, maxLength) + '...';
-	}
 
 	function handleConfirmClick() {
 		if (!isConnected) return;

@@ -2,6 +2,7 @@
 	import { selectedComments, selectedIds, deselectComment, deselectAll, selectComment } from '$lib/stores/comments';
 	import { pendingQuota, calculateDeleteQuotaCost, QUOTA_COSTS } from '$lib/stores/quota';
 	import type { YouTubeComment } from '$lib/types/comment';
+	import { truncateText } from '$lib/utils/formatting';
 	import ShurikenIcon from './ShurikenIcon.svelte';
 	
 	// Delete result for each comment
@@ -107,11 +108,6 @@
 		if (commentId) {
 			selectComment(commentId);
 		}
-	}
-
-	function truncateText(text: string, maxLength: number): string {
-		if (text.length <= maxLength) return text;
-		return text.slice(0, maxLength) + '...';
 	}
 	
 	function handleDeleteHoverStart() {

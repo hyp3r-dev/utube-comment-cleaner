@@ -22,6 +22,7 @@
 │   │   ├── stores/         # Svelte stores for state management
 │   │   ├── styles/         # Global CSS with CSS variables
 │   │   ├── types/          # TypeScript interfaces
+│   │   ├── utils/          # Shared utility functions (formatting, etc.)
 │   │   └── server/         # Server-only code (config, logging)
 │   └── routes/
 │       ├── +page.svelte    # Main application page
@@ -100,6 +101,13 @@ Example:
 - `src/lib/services/storage.ts` - IndexedDB persistence
 - Server-side code must be in `src/lib/server/` directory
 
+### Shared Utilities
+Common utility functions are in `src/lib/utils/`:
+- `formatting.ts` - Text/date formatting (`formatDate`, `truncateText`, `escapeHtml`)
+- `timezone.ts` - Timezone utilities
+
+**Always use shared utilities** instead of duplicating functions across components.
+
 ### Data Flow
 1. User imports Google Takeout → parsed in browser
 2. Comments stored in IndexedDB (30-day TTL)
@@ -107,12 +115,63 @@ Example:
 4. API calls go through `YouTubeService` class
 5. Quota tracked locally and on server (when OAuth configured)
 
+## Performance Best Practices
+
+### CSS Animations (CRITICAL)
+**DO:**
+- Use `transform` and `opacity` for animations (GPU-accelerated)
+- Use `box-shadow` for hover glow effects (efficient)
+- Add `transform: translateZ(0)` to enable hardware acceleration
+- Use `contain: layout style` to prevent layout thrashing
+- Keep animations simple and use CSS transitions where possible
+
+**DON'T:**
+- Use rotating/animating pseudo-elements larger than the element itself
+- Use continuously running animations on idle elements (e.g., `animation: spin infinite`)
+- Animate `width`, `height`, `top`, `left` (causes layout recalculation)
+- Use complex gradients (especially `conic-gradient`) in animations
+- Create large compositing layers with `::before`/`::after` pseudo-elements
+
+Example of performant hover effect:
+```css
+.card {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  transform: translateZ(0);
+  contain: layout style;
+}
+
+.card:hover {
+  transform: translateY(-2px) translateZ(0);
+  box-shadow: 
+    0 4px 20px rgba(99, 102, 241, 0.15),
+    0 0 0 1px rgba(99, 102, 241, 0.4);
+}
+```
+
+### Drag & Drop
+- Set `draggable="true"` on the element
+- Use `e.dataTransfer.setDragImage()` to prevent browser's default image drag
+- Set `e.dataTransfer.effectAllowed = 'move'`
+- Always provide proper drag feedback with CSS classes
+
+### Component Size Guidelines
+- **Ideal**: < 300 lines per component
+- **Acceptable**: 300-500 lines for complex components
+- **Refactor needed**: > 500 lines - extract sub-components or utilities
+
+### When to Extract Code
+1. **Utility functions** used in 2+ components → `src/lib/utils/`
+2. **Complex logic** (>50 lines) → extract to a separate function/module
+3. **Repeated UI patterns** → create reusable component
+4. **Large style blocks** → consider CSS variables or utility classes
+
 ## Common Patterns
 
 ### Adding a New Component
 ```svelte
 <script lang="ts">
   import { comments } from '$lib/stores/comments';
+  import { formatDate, truncateText } from '$lib/utils/formatting';
   
   let { prop1, prop2 = 'default' }: {
     prop1: string;
@@ -164,6 +223,7 @@ Before submitting changes:
 2. Run `npm run build` - must complete successfully
 3. Test the feature in browser (dev or preview mode)
 4. For UI changes, verify responsiveness (mobile breakpoints at 640px, 768px, 1024px)
+5. For animations, test performance with browser DevTools (aim for 60fps)
 
 ## Common Gotchas
 
@@ -172,6 +232,8 @@ Before submitting changes:
 3. **IndexedDB**: Only available in browser, check `typeof window !== 'undefined'`
 4. **CSS variables**: Always use defined variables from global.css
 5. **OAuth tokens**: Never log or expose tokens - use server-side handling
+6. **Animation performance**: Never use continuously running animations on multiple elements
+7. **Drag behavior**: Always set proper drag data and prevent default image drag
 
 ## File Naming Conventions
 
@@ -179,6 +241,7 @@ Before submitting changes:
 - Routes: `+page.svelte`, `+layout.svelte`, `+server.ts`
 - Stores: `camelCase.ts` (e.g., `comments.ts`)
 - Types: `camelCase.ts` in `src/lib/types/`
+- Utils: `camelCase.ts` in `src/lib/utils/`
 
 ## CSS Variables Reference
 
