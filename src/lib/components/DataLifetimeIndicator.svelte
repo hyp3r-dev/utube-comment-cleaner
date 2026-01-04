@@ -2,6 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { getDataLifetimeInfo, refreshDataLifetime, type DataLifetimeInfo } from '$lib/services/storage';
 	import { comments } from '$lib/stores/comments';
+	import { formatDate } from '$lib/utils/formatting';
 
 	let lifetimeInfo = $state<DataLifetimeInfo | null>(null);
 	let showTooltip = $state(false);
@@ -82,14 +83,6 @@
 				closeTimeout = null;
 			}, CLOSE_DELAY_MS);
 		}
-	}
-
-	function formatDate(timestamp: number): string {
-		return new Date(timestamp).toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric'
-		});
 	}
 </script>
 

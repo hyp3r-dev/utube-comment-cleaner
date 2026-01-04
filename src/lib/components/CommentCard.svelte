@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { YouTubeComment } from '$lib/types/comment';
 	import { selectedIds, selectComment } from '$lib/stores/comments';
+	import { formatDate, escapeHtml, truncateText } from '$lib/utils/formatting';
 	
 	let { 
 		comment,
@@ -52,32 +53,6 @@
 		}
 	}
 
-	function formatDate(dateString: string): string {
-		if (!dateString) return 'Unknown date';
-		try {
-			const date = new Date(dateString);
-			if (isNaN(date.getTime())) return 'Unknown date';
-			return new Intl.DateTimeFormat('en-US', {
-				month: 'short',
-				day: 'numeric',
-				year: 'numeric'
-			}).format(date);
-		} catch {
-			return 'Unknown date';
-		}
-	}
-	
-	function escapeHtml(text: string): string {
-		const div = document.createElement('div');
-		div.textContent = text;
-		return div.innerHTML;
-	}
-
-	function truncateText(text: string, maxLength: number): string {
-		if (text.length <= maxLength) return text;
-		return text.slice(0, maxLength) + '...';
-	}
-
 	function handleCardClick(e: MouseEvent) {
 		// Don't toggle selection, just expand/collapse
 		e.stopPropagation();
@@ -90,10 +65,20 @@
 	}
 	
 	function handleDragStartWrapper(e: DragEvent) {
-		// Set drag data so drop target can identify the comment
-		e.dataTransfer?.setData('text/plain', comment.id);
-		e.dataTransfer!.effectAllowed = 'move';
+		// Prevent default browser image/text drag behavior
+		if (e.dataTransfer) {
+			// Set drag data so drop target can identify the comment
+			e.dataTransfer.setData('text/plain', comment.id);
+			e.dataTransfer.effectAllowed = 'move';
+			// Create a custom drag image to avoid browser's default image drag
+			const dragImage = e.currentTarget as HTMLElement;
+			e.dataTransfer.setDragImage(dragImage, 0, 0);
+		}
 		onDragStart?.();
+	}
+	
+	function handleDragEnd() {
+		onDragEnd?.();
 	}
 	
 	// Check if text is long enough to need expansion
@@ -116,11 +101,12 @@
 	class:animating-to-queue={isAnimatingOut}
 	draggable="true"
 	ondragstart={handleDragStartWrapper}
-	ondragend={onDragEnd}
+	ondragend={handleDragEnd}
 	role="article"
 	tabindex="0"
 	onclick={handleCardClick}
 	onkeydown={(e) => e.key === 'Enter' && handleCardClick(e as unknown as MouseEvent)}
+	aria-label={`Comment: ${truncateText(comment.textOriginal, 100)}${isSelected ? ' (selected for deletion)' : ''}`}
 >
 	<!-- Slash effect overlay when selected -->
 	{#if isSelected}
@@ -287,96 +273,49 @@
 		border-radius: var(--radius-lg);
 		padding: 1rem;
 		cursor: pointer;
-		transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
 		position: relative;
-		overflow: hidden;
+		/* GPU-accelerated transitions only */
+		transition: transform 0.25s ease, box-shadow 0.25s ease;
+		/* Prevent any layout shift during animations */
+		contain: layout style;
+		/* Enable hardware acceleration */
+		transform: translateZ(0);
+		backface-visibility: hidden;
 	}
 
-	/* Animated glow effect on hover - spinning gradient creates border glow effect */
-	.comment-card::before {
-		content: '';
-		position: absolute;
-		top: 50%;
-		left: 50%;
-		width: 200%;
-		height: 200%;
-		/* Conic gradient creates a spinning spotlight effect */
-		background: conic-gradient(
-			from 0deg,
-			transparent 0deg,
-			transparent 60deg,
-			var(--accent-primary) 90deg,
-			var(--accent-secondary) 120deg,
-			var(--accent-tertiary) 150deg,
-			transparent 180deg,
-			transparent 360deg
-		);
-		opacity: 0;
-		transition: opacity 0.3s ease;
-		transform: translate(-50%, -50%);
-		z-index: 0;
-	}
-
-	/* Inner mask that reveals only the border glow */
-	.comment-card::after {
-		content: '';
-		position: absolute;
-		inset: 2px;
-		border-radius: calc(var(--radius-lg) - 2px);
-		background: var(--bg-card);
-		z-index: 0;
-	}
-
-	/* Ensure content is above the pseudo-elements */
-	.comment-card > .slash-overlay,
-	.comment-card > .card-header,
-	.comment-card > .card-body {
-		position: relative;
-		z-index: 1;
-	}
-
+	/* 
+	 * Performant hover glow effect using box-shadow only
+	 * No pseudo-elements or continuous animations = zero performance impact
+	 */
 	.comment-card:hover {
-		border-color: transparent;
-		box-shadow: var(--shadow-md), 0 0 20px rgba(99, 102, 241, 0.2);
+		transform: translateY(-2px) translateZ(0);
+		box-shadow: 
+			0 4px 20px rgba(99, 102, 241, 0.15),
+			0 0 0 1px rgba(99, 102, 241, 0.4),
+			inset 0 1px 0 rgba(255, 255, 255, 0.05);
+	}
+	
+	/* Subtle lift on focus for accessibility */
+	.comment-card:focus-visible {
+		outline: 2px solid var(--accent-primary);
+		outline-offset: 2px;
 	}
 
-	.comment-card:hover::before {
-		opacity: 1;
-		animation: glowRotate 3s linear infinite;
-	}
-
-	@keyframes glowRotate {
-		from {
-			transform: translate(-50%, -50%) rotate(0deg);
-		}
-		to {
-			transform: translate(-50%, -50%) rotate(360deg);
-		}
-	}
-
+	/* Selected state - elegant accent border with soft glow */
 	.comment-card.selected {
-		border-color: transparent;
-		background: rgba(99, 102, 241, 0.1);
-		box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3), 0 0 20px rgba(99, 102, 241, 0.15);
+		background: rgba(99, 102, 241, 0.08);
+		box-shadow: 
+			0 0 0 2px rgba(99, 102, 241, 0.5),
+			0 0 20px rgba(99, 102, 241, 0.15),
+			inset 0 1px 0 rgba(99, 102, 241, 0.1);
 	}
-
-	.comment-card.selected::before {
-		opacity: 1;
-		background: conic-gradient(
-			from 0deg,
-			transparent 0deg,
-			transparent 45deg,
-			var(--accent-primary) 70deg,
-			var(--error) 100deg,
-			var(--accent-secondary) 130deg,
-			transparent 160deg,
-			transparent 360deg
-		);
-		animation: glowRotate 2s linear infinite;
-	}
-
-	.comment-card.selected::after {
-		background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(99, 102, 241, 0.05));
+	
+	.comment-card.selected:hover {
+		transform: translateY(-2px) translateZ(0);
+		box-shadow: 
+			0 0 0 2px var(--accent-primary),
+			0 4px 24px rgba(99, 102, 241, 0.25),
+			inset 0 1px 0 rgba(99, 102, 241, 0.15);
 	}
 
 	/* Slide animation when comment is added to queue */
@@ -386,21 +325,22 @@
 
 	@keyframes slideToQueue {
 		0% {
-			transform: translateX(0);
+			transform: translateX(0) translateZ(0);
 			opacity: 1;
 		}
 		100% {
-			transform: translateX(100%);
+			transform: translateX(100%) translateZ(0);
 			opacity: 0;
 		}
 	}
 
+	/* Slash effect overlay when selected */
 	.slash-overlay {
 		position: absolute;
 		inset: 0;
 		pointer-events: none;
 		overflow: hidden;
-		z-index: 1;
+		border-radius: var(--radius-lg);
 	}
 
 	.slash-line {
@@ -409,10 +349,10 @@
 		left: -10%;
 		width: 120%;
 		height: 2px;
-		background: linear-gradient(90deg, transparent, #ef4444, #ef4444, transparent);
+		background: linear-gradient(90deg, transparent, var(--error), var(--error), transparent);
 		transform: rotate(-15deg);
 		animation: slashAcross 0.4s ease-out forwards;
-		box-shadow: 0 0 10px #ef4444, 0 0 20px #ef4444;
+		box-shadow: 0 0 10px var(--error), 0 0 20px var(--error);
 	}
 
 	@keyframes slashAcross {
@@ -426,9 +366,12 @@
 		}
 	}
 
+	/* Dragging state - visual feedback */
 	.comment-card.dragging {
-		opacity: 0.5;
-		transform: scale(0.95);
+		opacity: 0.6;
+		transform: scale(0.98) translateZ(0);
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+		cursor: grabbing;
 	}
 
 	.card-header {
