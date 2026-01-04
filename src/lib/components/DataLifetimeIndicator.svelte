@@ -177,9 +177,10 @@
 		flex-shrink: 0;
 	}
 
-	@keyframes spin {
+	/* Counter-clockwise spin animation for reset button (going back in time) */
+	@keyframes spinCounterClockwise {
 		from { transform: rotate(0deg); }
-		to { transform: rotate(360deg); }
+		to { transform: rotate(-360deg); }
 	}
 
 	.days-remaining {
@@ -277,7 +278,7 @@
 	}
 
 	.reset-btn svg.spinning {
-		animation: spin 1s linear infinite;
+		animation: spinCounterClockwise 1s linear infinite;
 	}
 
 	@media (max-width: 768px) {

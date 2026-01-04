@@ -27,6 +27,33 @@
 	let isHoveringDelete = $state(false);
 	let expandedErrorId = $state<string | null>(null);
 	
+	// Animation duration constants (must match CSS animations)
+	const SLIDE_IN_DURATION_MS = 400;  // matches slideInFromLeft animation (0.35s + easing buffer)
+	const SLIDE_OUT_DURATION_MS = 350; // matches slideOutToLeft animation (0.35s)
+	
+	// Track new items for slide-in animation
+	let newItemIds = $state<Set<string>>(new Set());
+	let removingIds = $state<Set<string>>(new Set());
+	
+	// Track when items are added (use non-reactive variable to avoid infinite loop)
+	let prevIds: Set<string> = new Set();
+	
+	$effect(() => {
+		const currentIds = new Set($selectedComments.map(c => c.id));
+		const added = [...currentIds].filter(id => !prevIds.has(id));
+		
+		// Mark new items for animation
+		if (added.length > 0) {
+			newItemIds = new Set([...newItemIds, ...added]);
+			// Clear animation flag after animation completes
+			setTimeout(() => {
+				newItemIds = new Set([...newItemIds].filter(id => !added.includes(id)));
+			}, SLIDE_IN_DURATION_MS);
+		}
+		
+		prevIds = currentIds;
+	});
+	
 	// Queue search state
 	let showQueueSearch = $state(false);
 	let queueSearchQuery = $state('');
@@ -41,6 +68,25 @@
 			c.videoTitle?.toLowerCase().includes(query)
 		);
 	});
+	
+	// Handle removing a single comment with animation
+	function handleRemoveWithAnimation(commentId: string) {
+		removingIds = new Set([...removingIds, commentId]);
+		setTimeout(() => {
+			deselectComment(commentId);
+			removingIds = new Set([...removingIds].filter(id => id !== commentId));
+		}, SLIDE_OUT_DURATION_MS);
+	}
+	
+	// Handle clearing all with animation
+	function handleClearAllWithAnimation() {
+		const allIds = $selectedComments.map(c => c.id);
+		removingIds = new Set(allIds);
+		setTimeout(() => {
+			deselectAll();
+			removingIds = new Set();
+		}, SLIDE_OUT_DURATION_MS);
+	}
 
 	function handleDragOver(e: DragEvent) {
 		e.preventDefault();
@@ -190,6 +236,8 @@
 						{@const status = getCommentStatus(comment.id)}
 						{@const hasError = hasDeleteError(comment)}
 						{@const isExpanded = expandedErrorId === comment.id}
+						{@const isNew = newItemIds.has(comment.id)}
+						{@const isRemoving = removingIds.has(comment.id)}
 						<div 
 							class="selected-item" 
 							class:deleting={status === 'deleting'}
@@ -197,6 +245,8 @@
 							class:failed={status === 'failed'}
 							class:has-error={hasError}
 							class:expanded={isExpanded}
+							class:slide-in={isNew}
+							class:slide-out={isRemoving}
 						>
 							<!-- svelte-ignore a11y_click_events_have_key_events -->
 							<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -245,7 +295,7 @@
 								{:else if !isDeleting}
 									<button 
 										class="remove-btn" 
-										onclick={(e) => { e.stopPropagation(); deselectComment(comment.id); }}
+										onclick={(e) => { e.stopPropagation(); handleRemoveWithAnimation(comment.id); }}
 										title="Remove from queue"
 									>
 										<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
@@ -269,7 +319,7 @@
 									{/if}
 									<button 
 										class="btn btn-sm btn-ghost remove-from-queue-btn"
-										onclick={(e) => { e.stopPropagation(); deselectComment(comment.id); }}
+										onclick={(e) => { e.stopPropagation(); handleRemoveWithAnimation(comment.id); }}
 									>
 										Remove from queue
 									</button>
@@ -296,7 +346,7 @@
 
 		{#if $selectedComments.length > 0}
 			<div class="panel-footer">
-				<button class="btn btn-ghost" onclick={deselectAll} disabled={isDeleting}>
+				<button class="btn btn-ghost" onclick={handleClearAllWithAnimation} disabled={isDeleting}>
 					Clear All
 				</button>
 				{#if isConnected}
@@ -552,6 +602,38 @@
 
 	.selected-item.expanded {
 		background: rgba(239, 68, 68, 0.15);
+	}
+
+	/* Slide-in animation when item is added to queue */
+	.selected-item.slide-in {
+		animation: slideInFromLeft 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+	}
+
+	@keyframes slideInFromLeft {
+		0% {
+			transform: translateX(-100%);
+			opacity: 0;
+		}
+		100% {
+			transform: translateX(0);
+			opacity: 1;
+		}
+	}
+
+	/* Slide-out animation when item is removed from queue */
+	.selected-item.slide-out {
+		animation: slideOutToLeft 0.35s cubic-bezier(0.36, 0, 0.66, -0.56) forwards;
+	}
+
+	@keyframes slideOutToLeft {
+		0% {
+			transform: translateX(0);
+			opacity: 1;
+		}
+		100% {
+			transform: translateX(-100%);
+			opacity: 0;
+		}
 	}
 
 	/* Deleting state - pulsing effect */

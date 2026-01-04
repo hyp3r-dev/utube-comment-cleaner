@@ -20,11 +20,31 @@
 		hideVideoInfo?: boolean;
 	} = $props();
 
+	// Animation duration constant (must match CSS slideToQueue animation)
+	const SLIDE_TO_QUEUE_DURATION_MS = 400;
+	
 	let isExpanded = $state(false);
+	let isAnimatingOut = $state(false);
 	let isSelected = $derived($selectedIds.has(comment.id));
 	
-	// Hide selected comments when hideWhenSelected is true
-	let shouldHide = $derived(hideWhenSelected && isSelected);
+	// Track previous selection state to detect changes
+	let prevSelected: boolean | undefined;
+	
+	// Track selection changes for animation
+	$effect(() => {
+		const currentSelected = isSelected;
+		if (currentSelected && prevSelected === false && hideWhenSelected) {
+			// Comment was just selected - trigger slide out animation
+			isAnimatingOut = true;
+			setTimeout(() => {
+				isAnimatingOut = false;
+			}, SLIDE_TO_QUEUE_DURATION_MS);
+		}
+		prevSelected = currentSelected;
+	});
+	
+	// Hide selected comments when hideWhenSelected is true (after animation completes)
+	let shouldHide = $derived(hideWhenSelected && isSelected && !isAnimatingOut);
 
 	function handleRemoveFromDatabase() {
 		if (onRemoveFromDatabase) {
@@ -93,6 +113,7 @@
 	class:selected={isSelected}
 	class:dragging={isDragging}
 	class:expanded={isExpanded}
+	class:animating-to-queue={isAnimatingOut}
 	draggable="true"
 	ondragstart={handleDragStartWrapper}
 	ondragend={onDragEnd}
@@ -266,43 +287,103 @@
 		border-radius: var(--radius-lg);
 		padding: 1rem;
 		cursor: pointer;
-		/* Optimized: only transition specific properties for better performance */
-		transition: border-color 0.2s ease, box-shadow 0.2s ease;
+		transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
 		position: relative;
 		overflow: hidden;
 	}
 
+	/* Animated encirculating border effect on hover */
 	.comment-card::before {
 		content: '';
 		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		height: 3px;
-		background: var(--gradient-primary);
-		transform: scaleX(0);
-		transform-origin: left;
-		transition: transform 0.25s ease;
+		top: -2px;
+		left: -2px;
+		right: -2px;
+		bottom: -2px;
+		background: conic-gradient(
+			from 0deg,
+			transparent 0deg,
+			var(--accent-primary) 60deg,
+			var(--accent-secondary) 120deg,
+			var(--accent-tertiary) 180deg,
+			transparent 240deg,
+			transparent 360deg
+		);
+		border-radius: calc(var(--radius-lg) + 2px);
+		opacity: 0;
+		z-index: -1;
+		transition: opacity 0.3s ease;
+	}
+
+	/* Background overlay to create the border effect */
+	.comment-card::after {
+		content: '';
+		position: absolute;
+		top: 1px;
+		left: 1px;
+		right: 1px;
+		bottom: 1px;
+		background: var(--bg-card);
+		border-radius: calc(var(--radius-lg) - 1px);
+		z-index: -1;
 	}
 
 	.comment-card:hover {
-		border-color: var(--accent-primary);
-		box-shadow: var(--shadow-md);
+		border-color: transparent;
+		box-shadow: var(--shadow-md), 0 0 20px rgba(99, 102, 241, 0.2);
 	}
 
 	.comment-card:hover::before {
-		transform: scaleX(1);
+		opacity: 1;
+		animation: rotateBorder 3s linear infinite;
+	}
+
+	@keyframes rotateBorder {
+		from {
+			transform: rotate(0deg);
+		}
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
 	.comment-card.selected {
-		border-color: var(--accent-primary);
+		border-color: transparent;
 		background: rgba(99, 102, 241, 0.1);
-		box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
+		box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3), 0 0 20px rgba(99, 102, 241, 0.15);
 	}
 
 	.comment-card.selected::before {
-		transform: scaleX(1);
-		background: linear-gradient(90deg, #6366f1, #ef4444, #8b5cf6);
+		opacity: 1;
+		background: conic-gradient(
+			from 0deg,
+			#6366f1 0deg,
+			#ef4444 90deg,
+			#8b5cf6 180deg,
+			#6366f1 270deg,
+			#6366f1 360deg
+		);
+		animation: rotateBorder 2s linear infinite;
+	}
+
+	.comment-card.selected::after {
+		background: rgba(99, 102, 241, 0.05);
+	}
+
+	/* Slide animation when comment is added to queue */
+	.comment-card.animating-to-queue {
+		animation: slideToQueue 0.4s ease-out forwards;
+	}
+
+	@keyframes slideToQueue {
+		0% {
+			transform: translateX(0);
+			opacity: 1;
+		}
+		100% {
+			transform: translateX(100%);
+			opacity: 0;
+		}
 	}
 
 	.slash-overlay {
