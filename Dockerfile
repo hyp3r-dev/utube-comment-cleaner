@@ -54,5 +54,6 @@ ENV DATA_DIR=/app/data
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
   CMD curl -f http://localhost:3000/api/health || exit 1
 
-# Start the application
-CMD ["node", "build"]
+# Start the application with environment variables propagated via s6-overlay
+# The with-contenv wrapper ensures Docker environment variables are passed to the node process
+CMD ["with-contenv", "node", "build"]

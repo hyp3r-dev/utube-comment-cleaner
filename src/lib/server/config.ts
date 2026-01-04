@@ -9,9 +9,17 @@ import { env } from '$env/dynamic/private';
  * Google Sign-In instead of manual access token entry.
  */
 export const oauthConfig = {
-	clientId: env.GOOGLE_CLIENT_ID || '',
-	clientSecret: env.GOOGLE_CLIENT_SECRET || '',
-	redirectUri: env.GOOGLE_REDIRECT_URI || '',
+	// Use getters to ensure env vars are read at runtime, not module load time
+	// This is critical for Docker deployments where env vars are set at container start
+	get clientId(): string {
+		return env.GOOGLE_CLIENT_ID || '';
+	},
+	get clientSecret(): string {
+		return env.GOOGLE_CLIENT_SECRET || '';
+	},
+	get redirectUri(): string {
+		return env.GOOGLE_REDIRECT_URI || '';
+	},
 	
 	get isConfigured(): boolean {
 		return !!(this.clientId && this.clientSecret && this.redirectUri);
@@ -31,11 +39,14 @@ export const oauthConfig = {
  * Controls whether legal pages and cookie consent are shown
  */
 export const legalConfig = {
-	// Enable legal pages (Privacy Policy, Terms of Service)
-	enableLegal: env.ENABLE_LEGAL === 'true',
+	// Use getters to ensure env vars are read at runtime, not module load time
+	get enableLegal(): boolean {
+		return env.ENABLE_LEGAL === 'true';
+	},
 	
-	// Enable cookie consent banner
-	enableCookieConsent: env.ENABLE_COOKIE_CONSENT === 'true'
+	get enableCookieConsent(): boolean {
+		return env.ENABLE_COOKIE_CONSENT === 'true';
+	}
 };
 
 /**
@@ -46,8 +57,10 @@ export const privacyConfig = {
 	// Maximum log retention in hours
 	logRetentionHours: 8,
 	
-	// Enable/disable detailed logging (when false, minimal privacy-preserving logs)
-	detailedLogging: env.DETAILED_LOGGING === 'true',
+	// Use getter to ensure env var is read at runtime
+	get detailedLogging(): boolean {
+		return env.DETAILED_LOGGING === 'true';
+	},
 	
 	// Redact patterns for PII in logs
 	redactionPatterns: [
