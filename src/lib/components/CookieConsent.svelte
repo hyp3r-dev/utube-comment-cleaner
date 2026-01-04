@@ -48,7 +48,7 @@
 			<div class="banner-text">
 				<strong>Cookie Notice</strong>
 				<p>
-					We use essential cookies only for authentication and to remember your preferences. 
+					We only use essential cookies for authentication and to remember your preferences. 
 					No tracking or analytics cookies are used. Your data stays in your browser.
 					{#if showLegalLinks}
 						<a href="/legal/privacy">Learn more</a>
