@@ -130,6 +130,9 @@ services:
       - GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
       - GOOGLE_CLIENT_SECRET=your-client-secret
       - GOOGLE_REDIRECT_URI=https://your-domain.com/api/auth/callback
+      # Legal & Compliance (optional, for GDPR compliance)
+      - ENABLE_LEGAL=true           # Show Privacy Policy and Terms of Service links
+      - ENABLE_COOKIE_CONSENT=true  # Show cookie consent banner
       # Privacy settings (optional)
       - DETAILED_LOGGING=false  # Set to 'true' for verbose logs
     volumes:
@@ -153,6 +156,8 @@ volumes:
 | `GOOGLE_CLIENT_ID` | OAuth 2.0 Client ID from Google Cloud Console | For Google Login |
 | `GOOGLE_CLIENT_SECRET` | OAuth 2.0 Client Secret | For Google Login |
 | `GOOGLE_REDIRECT_URI` | Full URL to your callback endpoint (e.g., `https://example.com/api/auth/callback`) | For Google Login |
+| `ENABLE_LEGAL` | Show Privacy Policy and Terms of Service links in footer (default: `false`) | No |
+| `ENABLE_COOKIE_CONSENT` | Show cookie consent banner on first visit (default: `false`) | No |
 | `DETAILED_LOGGING` | Enable detailed server logs (default: `false`) | No |
 | `DATA_DIR` | Directory for persistent data (default: `/app/data`) | No |
 

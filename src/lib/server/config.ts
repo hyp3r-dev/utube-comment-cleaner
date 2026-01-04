@@ -27,6 +27,18 @@ export const oauthConfig = {
 };
 
 /**
+ * Legal and compliance configuration
+ * Controls whether legal pages and cookie consent are shown
+ */
+export const legalConfig = {
+	// Enable legal pages (Privacy Policy, Terms of Service)
+	enableLegal: env.ENABLE_LEGAL === 'true',
+	
+	// Enable cookie consent banner
+	enableCookieConsent: env.ENABLE_COOKIE_CONSENT === 'true'
+};
+
+/**
  * Privacy configuration
  * Controls what user data is logged and how long logs are retained
  */

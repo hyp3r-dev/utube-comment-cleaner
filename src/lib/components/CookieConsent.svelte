@@ -1,13 +1,25 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	let { 
+		enabled = false,
+		showLegalLinks = true
+	}: { 
+		enabled?: boolean;
+		showLegalLinks?: boolean;
+	} = $props();
 
 	let showBanner = $state(false);
 	let isAnimatingOut = $state(false);
+	let hasChecked = $state(false);
 
 	const CONSENT_KEY = 'commentslash_cookie_consent';
 
-	onMount(() => {
-		// Check if user has already consented
+	// Use $effect to react to enabled prop changes
+	$effect(() => {
+		// Only run once when enabled becomes true
+		if (!enabled || hasChecked) return;
+		hasChecked = true;
+		
+		// Check if user has already acknowledged
 		const consent = localStorage.getItem(CONSENT_KEY);
 		if (!consent) {
 			// Small delay before showing for smoother UX
@@ -17,18 +29,10 @@
 		}
 	});
 
-	function acceptAll() {
-		dismissBanner('all');
-	}
-
-	function acceptEssential() {
-		dismissBanner('essential');
-	}
-
-	function dismissBanner(type: 'all' | 'essential') {
+	function dismissBanner() {
 		isAnimatingOut = true;
 		localStorage.setItem(CONSENT_KEY, JSON.stringify({
-			type,
+			acknowledged: true,
 			timestamp: new Date().toISOString()
 		}));
 		setTimeout(() => {
@@ -44,18 +48,17 @@
 			<div class="banner-text">
 				<strong>Cookie Notice</strong>
 				<p>
-					We use essential cookies for authentication and to remember your preferences. 
+					We use essential cookies only for authentication and to remember your preferences. 
 					No tracking or analytics cookies are used. Your data stays in your browser.
-					<a href="/legal/privacy">Learn more</a>
+					{#if showLegalLinks}
+						<a href="/legal/privacy">Learn more</a>
+					{/if}
 				</p>
 			</div>
 		</div>
 		<div class="banner-actions">
-			<button class="btn btn-ghost btn-sm" onclick={acceptEssential}>
-				Essential Only
-			</button>
-			<button class="btn btn-primary btn-sm" onclick={acceptAll}>
-				Accept All
+			<button class="btn btn-primary btn-sm" onclick={dismissBanner}>
+				Got it
 			</button>
 		</div>
 	</div>

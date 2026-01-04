@@ -76,6 +76,10 @@
 	let googleLoginEnabled = $state(false);
 	let isCheckingAuth = $state(true);
 	let oauthLoading = $state(false);
+	
+	// Legal and compliance settings (from server config)
+	let enableLegal = $state(false);
+	let enableCookieConsent = $state(false);
 
 	// Group comments by video ID
 	const groupedComments = $derived(() => {
@@ -136,15 +140,17 @@
 	});
 
 	onMount(async () => {
-		// Check if Google Login mode is enabled
+		// Check if Google Login mode is enabled and fetch config
 		try {
 			const configResponse = await fetch('/api/auth/config');
 			if (configResponse.ok) {
 				const config = await configResponse.json();
 				googleLoginEnabled = config.googleLoginEnabled;
+				enableLegal = config.enableLegal;
+				enableCookieConsent = config.enableCookieConsent;
 			}
 		} catch (e) {
-			console.debug('Google Login check failed (may not be configured):', e);
+			console.debug('Config check failed (may not be configured):', e);
 		}
 		isCheckingAuth = false;
 		
@@ -1082,11 +1088,13 @@
 	<footer class="footer">
 		<div class="container">
 			<div class="footer-content">
-				<div class="footer-links">
-					<a href="/legal/privacy">Privacy Policy</a>
-					<span class="footer-separator">•</span>
-					<a href="/legal/terms">Terms of Service</a>
-				</div>
+				{#if enableLegal}
+					<div class="footer-links">
+						<a href="/legal/privacy">Privacy Policy</a>
+						<span class="footer-separator">•</span>
+						<a href="/legal/terms">Terms of Service</a>
+					</div>
+				{/if}
 				<p>CommentSlash — Destroy your YouTube comments with precision ⚔️✨</p>
 			</div>
 		</div>
@@ -1148,7 +1156,7 @@
 {/if}
 
 <ToastContainer />
-<CookieConsent />
+<CookieConsent enabled={enableCookieConsent} showLegalLinks={enableLegal} />
 
 <style>
 	/* 
