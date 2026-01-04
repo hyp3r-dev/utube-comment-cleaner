@@ -18,16 +18,16 @@
 	class:error={status === 'error'}
 	onclick={onConnect}
 	title={
-		status === 'disconnected' ? 'Click to connect YouTube account' :
-		status === 'connected' ? 'Connected to YouTube (idle)' :
-		status === 'working' ? 'Processing API requests...' :
-		'Connection error - click to retry'
+		status === 'disconnected' ? 'YouTube: Not connected' :
+		status === 'connected' ? 'YouTube: Connected (idle)' :
+		status === 'working' ? 'YouTube: Processing...' :
+		'YouTube: Connection error'
 	}
 	aria-label={
-		status === 'disconnected' ? 'Connect YouTube account' :
-		status === 'connected' ? 'YouTube connected' :
-		status === 'working' ? 'YouTube working' :
-		'YouTube connection error'
+		status === 'disconnected' ? 'YouTube connection status: disconnected' :
+		status === 'connected' ? 'YouTube connection status: connected' :
+		status === 'working' ? 'YouTube connection status: working' :
+		'YouTube connection status: error'
 	}
 >
 	<div class="icon-container">

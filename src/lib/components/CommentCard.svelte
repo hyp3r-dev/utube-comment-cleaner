@@ -23,9 +23,11 @@
 
 	// Animation duration constant (must match CSS slideToQueue animation)
 	const SLIDE_TO_QUEUE_DURATION_MS = 400;
+	const SLASH_ANIMATION_DURATION_MS = 400;
 	
 	let isExpanded = $state(false);
 	let isAnimatingOut = $state(false);
+	let showSlashEffect = $state(false);
 	let isSelected = $derived($selectedIds.has(comment.id));
 	
 	// Track previous selection state to detect changes
@@ -34,12 +36,20 @@
 	// Track selection changes for animation
 	$effect(() => {
 		const currentSelected = isSelected;
-		if (currentSelected && prevSelected === false && hideWhenSelected) {
-			// Comment was just selected - trigger slide out animation
-			isAnimatingOut = true;
+		if (currentSelected && prevSelected === false) {
+			// Comment was just selected - show slash effect animation once
+			showSlashEffect = true;
 			setTimeout(() => {
-				isAnimatingOut = false;
-			}, SLIDE_TO_QUEUE_DURATION_MS);
+				showSlashEffect = false;
+			}, SLASH_ANIMATION_DURATION_MS);
+			
+			// Trigger slide out animation if hideWhenSelected is true
+			if (hideWhenSelected) {
+				isAnimatingOut = true;
+				setTimeout(() => {
+					isAnimatingOut = false;
+				}, SLIDE_TO_QUEUE_DURATION_MS);
+			}
 		}
 		prevSelected = currentSelected;
 	});
@@ -70,9 +80,13 @@
 			// Set drag data so drop target can identify the comment
 			e.dataTransfer.setData('text/plain', comment.id);
 			e.dataTransfer.effectAllowed = 'move';
-			// Create a custom drag image to avoid browser's default image drag
+			// Create a custom drag image positioned relative to cursor click position
+			// This ensures the ghost stays where you grabbed it, not jumping to corner
 			const dragImage = e.currentTarget as HTMLElement;
-			e.dataTransfer.setDragImage(dragImage, 0, 0);
+			const rect = dragImage.getBoundingClientRect();
+			const offsetX = e.clientX - rect.left;
+			const offsetY = e.clientY - rect.top;
+			e.dataTransfer.setDragImage(dragImage, offsetX, offsetY);
 		}
 		onDragStart?.();
 	}
@@ -108,8 +122,8 @@
 	onkeydown={(e) => e.key === 'Enter' && handleCardClick(e as unknown as MouseEvent)}
 	aria-label={`Comment: ${truncateText(comment.textOriginal, 100)}${isSelected ? ' (selected for deletion)' : ''}`}
 >
-	<!-- Slash effect overlay when selected -->
-	{#if isSelected}
+	<!-- Slash effect overlay when comment is first selected (plays once) -->
+	{#if showSlashEffect}
 		<div class="slash-overlay">
 			<div class="slash-line"></div>
 		</div>
@@ -286,13 +300,16 @@
 	/* 
 	 * Performant hover glow effect using box-shadow only
 	 * No pseudo-elements or continuous animations = zero performance impact
+	 * Removed translateY to prevent upward movement - only glow effect
 	 */
 	.comment-card:hover {
-		transform: translateY(-2px) translateZ(0);
+		transform: translateZ(0);
 		box-shadow: 
-			0 4px 20px rgba(99, 102, 241, 0.15),
-			0 0 0 1px rgba(99, 102, 241, 0.4),
-			inset 0 1px 0 rgba(255, 255, 255, 0.05);
+			0 0 25px rgba(99, 102, 241, 0.2),
+			0 0 0 1px rgba(99, 102, 241, 0.5),
+			0 0 40px rgba(167, 139, 250, 0.1),
+			inset 0 1px 0 rgba(255, 255, 255, 0.08);
+		border-color: rgba(99, 102, 241, 0.4);
 	}
 	
 	/* Subtle lift on focus for accessibility */
@@ -311,10 +328,11 @@
 	}
 	
 	.comment-card.selected:hover {
-		transform: translateY(-2px) translateZ(0);
+		transform: translateZ(0);
 		box-shadow: 
 			0 0 0 2px var(--accent-primary),
-			0 4px 24px rgba(99, 102, 241, 0.25),
+			0 0 30px rgba(99, 102, 241, 0.3),
+			0 0 50px rgba(167, 139, 250, 0.15),
 			inset 0 1px 0 rgba(99, 102, 241, 0.15);
 	}
 
@@ -366,12 +384,15 @@
 		}
 	}
 
-	/* Dragging state - visual feedback */
+	/* Dragging state - ghosty visual feedback to show this is being moved */
 	.comment-card.dragging {
-		opacity: 0.6;
+		opacity: 0.4;
 		transform: scale(0.98) translateZ(0);
-		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+		box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
 		cursor: grabbing;
+		filter: grayscale(30%);
+		border-color: rgba(99, 102, 241, 0.5);
+		border-style: dashed;
 	}
 
 	.card-header {

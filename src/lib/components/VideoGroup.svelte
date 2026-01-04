@@ -17,7 +17,11 @@
 		onRemoveFromDatabase?: (commentId: string) => void;
 	} = $props();
 
+	// Animation duration - must match CommentCard's SLIDE_TO_QUEUE_DURATION_MS
+	const SLIDE_TO_QUEUE_DURATION_MS = 400;
+
 	let isExpanded = $state(true);
+	let isAnimatingOut = $state(false);
 	
 	const displayTitle = $derived(videoTitle || `Video: ${videoId}`);
 	const commentCount = $derived(comments.length);
@@ -30,12 +34,28 @@
 			: comments.length
 	);
 	
-	// Hide the entire group if all comments are selected (in slash queue)
-	const shouldHideGroup = $derived(hideSelectedComments && visibleCount === 0);
+	// Track previous visible count to detect when last comment is selected
+	let prevVisibleCount: number | undefined;
+	
+	// Trigger fade-out animation when all comments become selected
+	$effect(() => {
+		const currentCount = visibleCount;
+		if (hideSelectedComments && currentCount === 0 && prevVisibleCount !== undefined && prevVisibleCount > 0) {
+			// Last comment was just selected - wait for its animation to complete
+			isAnimatingOut = true;
+			setTimeout(() => {
+				isAnimatingOut = false;
+			}, SLIDE_TO_QUEUE_DURATION_MS);
+		}
+		prevVisibleCount = currentCount;
+	});
+	
+	// Hide the entire group if all comments are selected (in slash queue) AND not animating
+	const shouldHideGroup = $derived(hideSelectedComments && visibleCount === 0 && !isAnimatingOut);
 </script>
 
 {#if !shouldHideGroup}
-<div class="video-group" class:collapsed={!isExpanded}>
+<div class="video-group" class:collapsed={!isExpanded} class:fading-out={isAnimatingOut}>
 	<div class="group-header-wrapper">
 		<!-- YouTube video link icon -->
 		<a 
@@ -107,6 +127,23 @@
 		overflow: hidden;
 		/* No margin needed - parent .video-groups container uses gap for spacing */
 		transition: border-color 0.2s ease, box-shadow 0.2s ease;
+	}
+	
+	/* Fade out animation when all comments in group are selected */
+	.video-group.fading-out {
+		animation: fadeOutGroup 0.4s ease-out forwards;
+		pointer-events: none;
+	}
+	
+	@keyframes fadeOutGroup {
+		0% {
+			opacity: 1;
+			transform: scale(1);
+		}
+		100% {
+			opacity: 0;
+			transform: scale(0.98);
+		}
 	}
 	
 	.video-group:hover {

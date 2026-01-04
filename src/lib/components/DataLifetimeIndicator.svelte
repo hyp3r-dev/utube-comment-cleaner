@@ -286,8 +286,17 @@
 		cursor: not-allowed;
 	}
 
+	.reset-btn svg {
+		/* Ensure rotation is centered */
+		transform-origin: center;
+		/* Disable transitions to prevent ghosting when animation starts/stops */
+		transition: none;
+	}
+	
 	.reset-btn svg.spinning {
 		animation: spinCounterClockwise 1s linear infinite;
+		/* Hint browser to prepare for animation */
+		will-change: transform;
 	}
 
 	@media (max-width: 768px) {
