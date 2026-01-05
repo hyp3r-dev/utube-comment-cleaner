@@ -341,7 +341,7 @@
 		}
 	}
 
-	/* Slash effect overlay - cool diagonal slash animation */
+	/* Slash effect overlay - clean diagonal slash animation */
 	.slash-overlay {
 		position: absolute;
 		inset: 0;
@@ -353,44 +353,43 @@
 
 	.slash-line {
 		position: absolute;
-		width: 200%;
-		height: 4px;
-		left: -50%;
-		/* Using rgba values for the gradient since we need varying opacity levels */
-		/* The base error color is var(--error): #ef4444 / rgb(239, 68, 68) */
+		/* Keep the slash line within bounds - use width that fits inside the card */
+		width: 100%;
+		height: 3px;
+		left: 0;
+		top: 50%;
+		/* Clean gradient without excessive blur */
 		background: linear-gradient(
 			90deg,
 			transparent 0%,
-			rgba(239, 68, 68, 0.3) 20%,
-			var(--error) 45%,
-			#fff 50%,
-			var(--error) 55%,
-			rgba(239, 68, 68, 0.3) 80%,
+			rgba(239, 68, 68, 0.4) 25%,
+			var(--error) 50%,
+			rgba(239, 68, 68, 0.4) 75%,
 			transparent 100%
 		);
-		transform: rotate(-20deg);
+		/* Diagonal rotation - contained within card */
+		transform-origin: center;
 		animation: slashDiagonal 0.4s ease-out forwards;
+		/* Subtle glow without excessive blur that bleeds outside */
 		box-shadow: 
-			0 0 15px rgba(239, 68, 68, 0.8),
-			0 0 30px rgba(239, 68, 68, 0.5),
-			0 0 45px rgba(239, 68, 68, 0.3);
-		filter: blur(0.5px);
+			0 0 8px rgba(239, 68, 68, 0.6),
+			0 0 16px rgba(239, 68, 68, 0.3);
 	}
 
 	@keyframes slashDiagonal {
 		0% {
-			top: -30%;
 			opacity: 0;
+			transform: translateX(-120%) translateY(-50%) rotate(-25deg) scaleX(0.5);
 		}
-		10% {
+		15% {
 			opacity: 1;
 		}
-		90% {
+		85% {
 			opacity: 1;
 		}
 		100% {
-			top: 130%;
 			opacity: 0;
+			transform: translateX(120%) translateY(-50%) rotate(-25deg) scaleX(0.5);
 		}
 	}
 
