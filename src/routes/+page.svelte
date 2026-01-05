@@ -57,7 +57,8 @@
 		isLoadingWindow,
 		initializeSlidingWindow,
 		reloadSlidingWindow,
-		clearSlidingWindow
+		clearSlidingWindow,
+		handleScrollPosition
 	} from '$lib/stores/slidingWindow';
 	import type { YouTubeComment } from '$lib/types/comment';
 	import JSZip from 'jszip';
@@ -168,6 +169,40 @@
 		$windowedComments.length;
 		$selectedIds.size;
 	});
+
+	// Scroll handler for grouped view to trigger sliding window loading
+	// Threshold for triggering scroll position updates (items scrolled since last report)
+	const SCROLL_INDEX_CHANGE_THRESHOLD = 5;
+	let lastReportedScrollIndex = -1;
+	function handleGroupedViewScroll(event: Event) {
+		const target = event.target as HTMLElement;
+		if (!target) return;
+		
+		const scrollTop = target.scrollTop;
+		const scrollHeight = target.scrollHeight;
+		const clientHeight = target.clientHeight;
+		
+		// Guard against division by zero when content isn't scrollable
+		const scrollableHeight = scrollHeight - clientHeight;
+		if (scrollableHeight <= 0) return;
+		
+		// Calculate approximate scroll percentage (0.0 to 1.0)
+		const scrollPercentage = scrollTop / scrollableHeight;
+		
+		// Calculate approximate current index within the windowed comments
+		// This maps the scroll position to an index in the current window
+		const windowLength = $windowedComments.length;
+		if (windowLength === 0) return;
+		
+		// Clamp index to valid range within the window [0, windowLength-1]
+		const currentIndex = Math.max(0, Math.min(Math.floor(scrollPercentage * windowLength), windowLength - 1));
+		
+		// Only trigger loading if we've scrolled significantly to avoid excessive calls
+		if (Math.abs(currentIndex - lastReportedScrollIndex) > SCROLL_INDEX_CHANGE_THRESHOLD) {
+			handleScrollPosition(currentIndex);
+			lastReportedScrollIndex = currentIndex;
+		}
+	}
 
 	onMount(async () => {
 		// Check if Google Login mode is enabled and fetch config
@@ -417,6 +452,23 @@
 		}
 	}
 
+	// Helper to check if data is a valid CommentSlash export
+	function isValidCommentSlashExport(data: unknown): data is { comments: YouTubeComment[] } {
+		return typeof data === 'object' && data !== null && 
+			'comments' in data && Array.isArray((data as { comments: unknown }).comments);
+	}
+
+	// Helper to finalize CommentSlash import
+	async function finalizeCommentSlashImport(importedComments: YouTubeComment[]): Promise<void> {
+		await saveComments(importedComments);
+		loadingProgress.set({ loaded: 1, total: 1 });
+		
+		const allComments = await loadComments();
+		comments.set(allComments);
+		await initializeSlidingWindow($filters, $sortField, $sortOrder, $searchQuery);
+		isAuthenticated.set(true);
+	}
+
 	async function handleFileImport(files: FileList | File[]) {
 		const fileArray = Array.from(files);
 		if (fileArray.length === 0) return;
@@ -426,12 +478,45 @@
 		loadingProgress.set({ loaded: 0, total: 1 });
 
 		try {
+			// Check if it's a single file that might be a CommentSlash export
+			if (fileArray.length === 1) {
+				const file = fileArray[0];
+				
+				// Check for CommentSlash JSON export
+				if (file.name.endsWith('.json')) {
+					const jsonString = await readFileAsText(file);
+					const importData = JSON.parse(jsonString);
+					
+					if (isValidCommentSlashExport(importData)) {
+						await finalizeCommentSlashImport(importData.comments);
+						return;
+					}
+				}
+				
+				// Check for CommentSlash ZIP export (contains comments.json)
+				if (file.name.endsWith('.zip')) {
+					const zip = await JSZip.loadAsync(file);
+					const jsonFile = zip.file('comments.json');
+					
+					if (jsonFile) {
+						const jsonString = await jsonFile.async('string');
+						const importData = JSON.parse(jsonString);
+						
+						if (isValidCommentSlashExport(importData)) {
+							await finalizeCommentSlashImport(importData.comments);
+							return;
+						}
+					}
+				}
+			}
+			
+			// Fall back to Google Takeout parsing
 			const importedComments = await parseMultipleFiles(fileArray, (progress) => {
 				loadingProgress.set(progress);
 			});
 			
 			if (importedComments.length === 0) {
-				error.set('No comments found in the uploaded file(s). Make sure you uploaded the correct Google Takeout export (ZIP file or CSV).');
+				error.set('No comments found in the uploaded file(s). Make sure you uploaded a valid Google Takeout export or CommentSlash export.');
 				isLoading.set(false);
 				return;
 			}
@@ -450,7 +535,7 @@
 			
 			isAuthenticated.set(true);
 		} catch (e) {
-			error.set(e instanceof Error ? e.message : 'Failed to parse file(s). Please make sure they are valid Google Takeout exports.');
+			error.set(e instanceof Error ? e.message : 'Failed to parse file(s). Please make sure they are valid exports.');
 		} finally {
 			isLoading.set(false);
 		}
@@ -647,6 +732,38 @@
 		URL.revokeObjectURL(url);
 	}
 
+	// Helper function to merge imported comments with existing ones
+	async function mergeImportedComments(
+		importedComments: YouTubeComment[], 
+		isTakeout: boolean = false
+	): Promise<{ added: number; skipped: number }> {
+		const existingIds = new Set($comments.map(c => c.id));
+		const newComments = importedComments.filter(c => !existingIds.has(c.id));
+		
+		if (newComments.length > 0) {
+			const merged = [...$comments, ...newComments];
+			comments.set(merged);
+			await saveComments(merged);
+			if (isTakeout) {
+				await saveLastTakeoutImport();
+			}
+		}
+		
+		return {
+			added: newComments.length,
+			skipped: importedComments.length - newComments.length
+		};
+	}
+
+	// Helper function to show import result toast
+	function showImportResultToast(added: number, skipped: number): void {
+		if (added > 0) {
+			toasts.success(`Import complete: ${added} new comment(s) added, ${skipped} duplicate(s) skipped.`);
+		} else {
+			toasts.info(`All ${skipped} comment(s) were already in your collection.`);
+		}
+	}
+
 	async function handleImportJson(event: Event) {
 		const input = event.target as HTMLInputElement;
 		const files = input.files;
@@ -657,45 +774,66 @@
 		
 		try {
 			const file = files[0];
-			let jsonString: string;
 			
+			// Try to detect file type and parse accordingly
 			if (file.name.endsWith('.zip')) {
+				// For ZIP files, try to detect if it's an in-service export or Google Takeout
 				const zip = await JSZip.loadAsync(file);
 				const jsonFile = zip.file('comments.json');
-				if (!jsonFile) {
-					throw new Error('No comments.json found in the zip file');
+				
+				if (jsonFile) {
+					// Try in-service export format first
+					const jsonString = await jsonFile.async('string');
+					const importData = JSON.parse(jsonString);
+					
+					if (importData.comments && Array.isArray(importData.comments)) {
+						const result = await mergeImportedComments(importData.comments, false);
+						showImportResultToast(result.added, result.skipped);
+						isAuthenticated.set(true);
+						return;
+					}
 				}
-				jsonString = await jsonFile.async('string');
+				
+				// No comments.json found or invalid format - try as Google Takeout
+				const parsedComments = await parseMultipleFiles([file], (progress) => {
+					loadingProgress.set(progress);
+				});
+				
+				if (parsedComments.length === 0) {
+					throw new Error('No comments found in the ZIP file. Make sure it contains Google Takeout comment data or a valid CommentSlash export.');
+				}
+				
+				const result = await mergeImportedComments(parsedComments, true);
+				showImportResultToast(result.added, result.skipped);
+				isAuthenticated.set(true);
+			} else if (file.name.endsWith('.json')) {
+				// JSON file - try in-service format
+				const jsonString = await readFileAsText(file);
+				const importData = JSON.parse(jsonString);
+				
+				if (importData.comments && Array.isArray(importData.comments)) {
+					const result = await mergeImportedComments(importData.comments, false);
+					showImportResultToast(result.added, result.skipped);
+					isAuthenticated.set(true);
+				} else {
+					throw new Error('Invalid JSON format. Expected a CommentSlash export file with a "comments" array.');
+				}
+			} else if (file.name.endsWith('.csv')) {
+				// CSV file - parse as Google Takeout format
+				const parsedComments = await parseMultipleFiles([file], (progress) => {
+					loadingProgress.set(progress);
+				});
+				
+				if (parsedComments.length === 0) {
+					throw new Error('No comments found in the CSV file.');
+				}
+				
+				const result = await mergeImportedComments(parsedComments, true);
+				showImportResultToast(result.added, result.skipped);
+				isAuthenticated.set(true);
 			} else {
-				jsonString = await readFileAsText(file);
+				throw new Error('Unsupported file type. Please use .json, .csv, or .zip files.');
 			}
-			
-			const importData = JSON.parse(jsonString);
-			
-			if (!importData.comments || !Array.isArray(importData.comments)) {
-				throw new Error('Invalid export file format');
-			}
-			
-			// Merge with existing comments
-			const existingIds = new Set($comments.map(c => c.id));
-			const newComments = importData.comments.filter((c: YouTubeComment) => !existingIds.has(c.id));
-			
-			if (newComments.length > 0) {
-				const merged = [...$comments, ...newComments];
-				comments.set(merged);
-				await saveComments(merged);
-			}
-			
-			const addedCount = newComments.length;
-			const skippedCount = importData.comments.length - addedCount;
-			
-			if (addedCount > 0) {
-				toasts.success(`Import complete: ${addedCount} new comment(s) added, ${skippedCount} duplicate(s) skipped.`);
-			} else {
-				toasts.info(`All ${skippedCount} comment(s) were already in your collection.`);
-			}
-			
-			isAuthenticated.set(true);
 		} catch (e) {
 			error.set(e instanceof Error ? e.message : 'Failed to import comments');
 		} finally {
@@ -1065,7 +1203,7 @@
 						>
 							<input
 								type="file"
-								accept=".csv,.zip"
+								accept=".csv,.zip,.json"
 								onchange={handleFileSelect}
 								bind:this={fileInput}
 								class="file-input"
@@ -1074,9 +1212,9 @@
 							<div class="drop-zone-content">
 								<div class="drop-icon">📦</div>
 								<p class="drop-text">
-									Drag & drop your Google Takeout export here
+									Drag & drop your export here
 								</p>
-								<p class="drop-subtext">Supports <strong>ZIP files</strong> or CSV • or click to browse</p>
+								<p class="drop-subtext">Supports Google Takeout (<strong>ZIP</strong> or <strong>CSV</strong>) and CommentSlash exports (<strong>JSON</strong>)</p>
 								<button class="btn btn-primary" onclick={() => fileInput?.click()}>
 									<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
 										<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd" />
@@ -1200,7 +1338,7 @@
 					<!-- Hidden file input for import -->
 					<input
 						type="file"
-						accept=".json,.zip"
+						accept=".json,.zip,.csv"
 						onchange={handleImportJson}
 						bind:this={importJsonInput}
 						class="hidden-input"
@@ -1238,7 +1376,7 @@
 										</div>
 									</div>
 								{:else if groupByVideo}
-									<div class="comments-scroll-container">
+									<div class="comments-scroll-container" onscroll={handleGroupedViewScroll}>
 										<div class="video-groups">
 											{#each groupedComments() as group (group.videoId)}
 												{#if group.comments.length >= 2}
@@ -1602,8 +1740,9 @@
 		/* Smooth scrolling for better UX */
 		scroll-behavior: smooth;
 		-webkit-overflow-scrolling: touch;
-		/* Ensure consistent width */
+		/* Ensure consistent width - reserve space for scrollbar */
 		width: 100%;
+		scrollbar-gutter: stable;
 	}
 
 	.section-header {

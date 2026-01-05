@@ -74,7 +74,6 @@
 	.stat-badge:hover {
 		border-color: var(--accent-primary);
 		background: var(--bg-hover);
-		transform: translateY(-2px);
 	}
 
 	.stat-icon {
