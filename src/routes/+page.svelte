@@ -692,45 +692,136 @@
 		
 		try {
 			const file = files[0];
-			let jsonString: string;
 			
+			// Try to detect file type and parse accordingly
 			if (file.name.endsWith('.zip')) {
+				// For ZIP files, try to detect if it's an in-service export or Google Takeout
 				const zip = await JSZip.loadAsync(file);
 				const jsonFile = zip.file('comments.json');
-				if (!jsonFile) {
-					throw new Error('No comments.json found in the zip file');
+				
+				if (jsonFile) {
+					// In-service export format
+					const jsonString = await jsonFile.async('string');
+					const importData = JSON.parse(jsonString);
+					
+					if (importData.comments && Array.isArray(importData.comments)) {
+						// Merge with existing comments
+						const existingIds = new Set($comments.map(c => c.id));
+						const newComments = importData.comments.filter((c: YouTubeComment) => !existingIds.has(c.id));
+						
+						if (newComments.length > 0) {
+							const merged = [...$comments, ...newComments];
+							comments.set(merged);
+							await saveComments(merged);
+						}
+						
+						const addedCount = newComments.length;
+						const skippedCount = importData.comments.length - addedCount;
+						
+						if (addedCount > 0) {
+							toasts.success(`Import complete: ${addedCount} new comment(s) added, ${skippedCount} duplicate(s) skipped.`);
+						} else {
+							toasts.info(`All ${skippedCount} comment(s) were already in your collection.`);
+						}
+						
+						isAuthenticated.set(true);
+						return;
+					}
 				}
-				jsonString = await jsonFile.async('string');
+				
+				// No comments.json found or invalid format - try as Google Takeout
+				const parsedComments = await parseMultipleFiles([file], (progress) => {
+					loadingProgress.set(progress);
+				});
+				
+				if (parsedComments.length === 0) {
+					throw new Error('No comments found in the ZIP file. Make sure it contains Google Takeout comment data or a valid CommentSlash export.');
+				}
+				
+				// Merge with existing comments
+				const existingIds = new Set($comments.map(c => c.id));
+				const newComments = parsedComments.filter(c => !existingIds.has(c.id));
+				
+				if (newComments.length > 0) {
+					const merged = [...$comments, ...newComments];
+					comments.set(merged);
+					await saveComments(merged);
+					await saveLastTakeoutImport();
+				}
+				
+				const addedCount = newComments.length;
+				const skippedCount = parsedComments.length - addedCount;
+				
+				if (addedCount > 0) {
+					toasts.success(`Import complete: ${addedCount} new comment(s) added, ${skippedCount} duplicate(s) skipped.`);
+				} else {
+					toasts.info(`All ${skippedCount} comment(s) were already in your collection.`);
+				}
+				
+				isAuthenticated.set(true);
+			} else if (file.name.endsWith('.json')) {
+				// JSON file - try in-service format first
+				const jsonString = await readFileAsText(file);
+				const importData = JSON.parse(jsonString);
+				
+				if (importData.comments && Array.isArray(importData.comments)) {
+					// In-service export format
+					const existingIds = new Set($comments.map(c => c.id));
+					const newComments = importData.comments.filter((c: YouTubeComment) => !existingIds.has(c.id));
+					
+					if (newComments.length > 0) {
+						const merged = [...$comments, ...newComments];
+						comments.set(merged);
+						await saveComments(merged);
+					}
+					
+					const addedCount = newComments.length;
+					const skippedCount = importData.comments.length - addedCount;
+					
+					if (addedCount > 0) {
+						toasts.success(`Import complete: ${addedCount} new comment(s) added, ${skippedCount} duplicate(s) skipped.`);
+					} else {
+						toasts.info(`All ${skippedCount} comment(s) were already in your collection.`);
+					}
+					
+					isAuthenticated.set(true);
+				} else {
+					throw new Error('Invalid JSON format. Expected a CommentSlash export file with a "comments" array.');
+				}
+			} else if (file.name.endsWith('.csv')) {
+				// CSV file - parse as Google Takeout format
+				const parsedComments = await parseMultipleFiles([file], (progress) => {
+					loadingProgress.set(progress);
+				});
+				
+				if (parsedComments.length === 0) {
+					throw new Error('No comments found in the CSV file.');
+				}
+				
+				// Merge with existing comments
+				const existingIds = new Set($comments.map(c => c.id));
+				const newComments = parsedComments.filter(c => !existingIds.has(c.id));
+				
+				if (newComments.length > 0) {
+					const merged = [...$comments, ...newComments];
+					comments.set(merged);
+					await saveComments(merged);
+					await saveLastTakeoutImport();
+				}
+				
+				const addedCount = newComments.length;
+				const skippedCount = parsedComments.length - addedCount;
+				
+				if (addedCount > 0) {
+					toasts.success(`Import complete: ${addedCount} new comment(s) added, ${skippedCount} duplicate(s) skipped.`);
+				} else {
+					toasts.info(`All ${skippedCount} comment(s) were already in your collection.`);
+				}
+				
+				isAuthenticated.set(true);
 			} else {
-				jsonString = await readFileAsText(file);
+				throw new Error('Unsupported file type. Please use .json, .csv, or .zip files.');
 			}
-			
-			const importData = JSON.parse(jsonString);
-			
-			if (!importData.comments || !Array.isArray(importData.comments)) {
-				throw new Error('Invalid export file format');
-			}
-			
-			// Merge with existing comments
-			const existingIds = new Set($comments.map(c => c.id));
-			const newComments = importData.comments.filter((c: YouTubeComment) => !existingIds.has(c.id));
-			
-			if (newComments.length > 0) {
-				const merged = [...$comments, ...newComments];
-				comments.set(merged);
-				await saveComments(merged);
-			}
-			
-			const addedCount = newComments.length;
-			const skippedCount = importData.comments.length - addedCount;
-			
-			if (addedCount > 0) {
-				toasts.success(`Import complete: ${addedCount} new comment(s) added, ${skippedCount} duplicate(s) skipped.`);
-			} else {
-				toasts.info(`All ${skippedCount} comment(s) were already in your collection.`);
-			}
-			
-			isAuthenticated.set(true);
 		} catch (e) {
 			error.set(e instanceof Error ? e.message : 'Failed to import comments');
 		} finally {
@@ -1235,7 +1326,7 @@
 					<!-- Hidden file input for import -->
 					<input
 						type="file"
-						accept=".json,.zip"
+						accept=".json,.zip,.csv"
 						onchange={handleImportJson}
 						bind:this={importJsonInput}
 						class="hidden-input"

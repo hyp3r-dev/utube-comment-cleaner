@@ -400,9 +400,17 @@
 		padding-top: 1rem;
 		border-top: 1px solid var(--bg-tertiary);
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+		/* Use fixed 3-column layout on wider screens to prevent layout shifts */
+		grid-template-columns: repeat(3, 1fr);
 		gap: 1.5rem;
 		animation: slideDown 0.3s ease;
+	}
+
+	/* On smaller screens, allow auto-fit for responsiveness */
+	@media (max-width: 900px) {
+		.filter-content {
+			grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+		}
 	}
 
 	@keyframes slideDown {
