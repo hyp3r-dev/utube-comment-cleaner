@@ -103,6 +103,8 @@ body {
 	min-height: 100vh;
 	min-height: 100dvh; /* Modern viewport unit for mobile Safari */
 	overflow-x: hidden;
+	/* Prevent layout shift when scrollbar appears/disappears */
+	scrollbar-gutter: stable;
 }
 
 /* Scrollbar styling */

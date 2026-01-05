@@ -82,7 +82,6 @@
 	}
 
 	.youtube-status:hover {
-		transform: translateY(-2px);
 		box-shadow: var(--shadow-md);
 	}
 

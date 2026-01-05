@@ -39,8 +39,8 @@ export async function initializeSlidingWindow(
 ): Promise<void> {
 	isLoadingWindow.set(true);
 	
-	// Store current state
-	currentFilters = filters;
+	// Store current state (deep copy to avoid reference issues)
+	currentFilters = JSON.parse(JSON.stringify(filters));
 	currentSortField = sortField;
 	currentSortOrder = sortOrder;
 	currentSearchQuery = searchQuery;

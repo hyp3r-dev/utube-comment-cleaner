@@ -57,7 +57,8 @@
 		isLoadingWindow,
 		initializeSlidingWindow,
 		reloadSlidingWindow,
-		clearSlidingWindow
+		clearSlidingWindow,
+		handleScrollPosition
 	} from '$lib/stores/slidingWindow';
 	import type { YouTubeComment } from '$lib/types/comment';
 	import JSZip from 'jszip';
@@ -168,6 +169,30 @@
 		$windowedComments.length;
 		$selectedIds.size;
 	});
+
+	// Scroll handler for grouped view to trigger sliding window loading
+	let lastReportedScrollIndex = -1;
+	function handleGroupedViewScroll(event: Event) {
+		const target = event.target as HTMLElement;
+		if (!target) return;
+		
+		const scrollTop = target.scrollTop;
+		const scrollHeight = target.scrollHeight;
+		const clientHeight = target.clientHeight;
+		
+		// Calculate approximate scroll percentage
+		const scrollPercentage = scrollTop / (scrollHeight - clientHeight);
+		
+		// Calculate approximate current index based on total comments
+		const totalComments = $windowedComments.length;
+		const currentIndex = Math.floor(scrollPercentage * totalComments);
+		
+		// Only trigger loading if we've scrolled significantly (every ~10 items)
+		if (Math.abs(currentIndex - lastReportedScrollIndex) > 5) {
+			handleScrollPosition(currentIndex);
+			lastReportedScrollIndex = currentIndex;
+		}
+	}
 
 	onMount(async () => {
 		// Check if Google Login mode is enabled and fetch config
@@ -1238,7 +1263,7 @@
 										</div>
 									</div>
 								{:else if groupByVideo}
-									<div class="comments-scroll-container">
+									<div class="comments-scroll-container" onscroll={handleGroupedViewScroll}>
 										<div class="video-groups">
 											{#each groupedComments() as group (group.videoId)}
 												{#if group.comments.length >= 2}
@@ -1602,8 +1627,9 @@
 		/* Smooth scrolling for better UX */
 		scroll-behavior: smooth;
 		-webkit-overflow-scrolling: touch;
-		/* Ensure consistent width */
+		/* Ensure consistent width - reserve space for scrollbar */
 		width: 100%;
+		scrollbar-gutter: stable;
 	}
 
 	.section-header {
