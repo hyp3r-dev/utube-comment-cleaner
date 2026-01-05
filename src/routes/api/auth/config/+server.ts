@@ -1,7 +1,7 @@
 // API endpoint to check if Google Login mode is configured
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { oauthConfig, legalConfig, dataRetentionConfig } from '$lib/server/config';
+import { oauthConfig, legalConfig, dataRetentionConfig, impressumConfig } from '$lib/server/config';
 
 export const GET: RequestHandler = async () => {
 	return json({
@@ -13,6 +13,7 @@ export const GET: RequestHandler = async () => {
 		// Legal and compliance settings
 		enableLegal: legalConfig.enableLegal,
 		enableCookieConsent: legalConfig.enableCookieConsent,
+		enableImpressum: impressumConfig.enabled,
 		// Data retention settings (configurable via docker env)
 		localDataRetentionDays: dataRetentionConfig.retentionDays,
 		staleDataWarningDays: dataRetentionConfig.staleWarningDays

@@ -28,25 +28,37 @@
 		YouTubeAPIError 
 	} from '$lib/services/youtube';
 	import { parseTakeoutFile, readFileAsText, parseZipFile, parseMultipleFiles } from '$lib/services/takeout';
-	import { saveComments, loadComments, deleteComments as deleteFromStorage, clearAllData, clearCommentsOnly, saveLastTakeoutImport } from '$lib/services/storage';
+	import { saveComments, deleteComments as deleteFromStorage, clearAllData, clearCommentsOnly, saveLastTakeoutImport, getCommentCount, getFilteredCommentIds } from '$lib/services/storage';
 	import {
 		apiKey,
 		isAuthenticated,
 		comments,
 		selectedComments,
 		selectedIds,
+		selectionOrder,
 		filteredComments,
 		isLoading,
 		loadingProgress,
 		error,
 		removeComments,
-		selectAllFiltered,
 		deselectAll,
 		logout,
 		updateComments,
 		setDeleteError,
-		moveToBottomOfQueueBatch
+		moveToBottomOfQueueBatch,
+		filters,
+		sortField,
+		sortOrder,
+		searchQuery
 	} from '$lib/stores/comments';
+	import {
+		windowedComments,
+		totalAvailable,
+		isLoadingWindow,
+		initializeSlidingWindow,
+		reloadSlidingWindow,
+		clearSlidingWindow
+	} from '$lib/stores/slidingWindow';
 	import type { YouTubeComment } from '$lib/types/comment';
 	import JSZip from 'jszip';
 
@@ -85,6 +97,7 @@
 	// Legal and compliance settings (from server config)
 	let enableLegal = $state(false);
 	let enableCookieConsent = $state(false);
+	let enableImpressum = $state(false);
 	
 
 
@@ -92,7 +105,7 @@
 	const groupedComments = $derived(() => {
 		const groups = new Map<string, { videoId: string; videoTitle?: string; comments: YouTubeComment[] }>();
 		
-		for (const comment of $filteredComments) {
+		for (const comment of $windowedComments) {
 			const existing = groups.get(comment.videoId);
 			if (existing) {
 				existing.comments.push(comment);
@@ -129,12 +142,14 @@
 	const enrichedCount = $derived(enrichmentStats().enriched);
 	const unenrichableCount = $derived(enrichmentStats().unenrichable);
 
-	// Count visible comments (excluding those in slash queue when hideSelectedFromList is enabled)
+	// Count visible comments (total available from sliding window or windowedComments length)
 	const visibleCommentsCount = $derived(() => {
+		// Use totalAvailable if we have it, otherwise use windowedComments length
+		const total = $totalAvailable > 0 ? $totalAvailable : $windowedComments.length;
 		if (!hideSelectedFromList) {
-			return $filteredComments.length;
+			return total;
 		}
-		return $filteredComments.filter(c => !$selectedIds.has(c.id)).length;
+		return $windowedComments.filter(c => !$selectedIds.has(c.id)).length;
 	});
 
 	// YouTube connection status for the navbar icon
@@ -146,10 +161,10 @@
 		return 'connected';
 	});
 	
-	// Update comments list when filtered comments change
+	// Update comments list when windowed comments change
 	$effect(() => {
 		// Track dependencies - just re-render when these change
-		$filteredComments.length;
+		$windowedComments.length;
 		$selectedIds.size;
 	});
 
@@ -162,6 +177,7 @@
 				googleLoginEnabled = config.googleLoginEnabled;
 				enableLegal = config.enableLegal;
 				enableCookieConsent = config.enableCookieConsent;
+				enableImpressum = config.enableImpressum;
 				
 				// Store data retention config in localStorage for storage service
 				if (config.localDataRetentionDays) {
@@ -176,9 +192,17 @@
 		}
 		isCheckingAuth = false;
 		
-		// Check for OAuth callback success
+		// Check for OAuth callback - handle success or error
 		const params = new URLSearchParams(window.location.search);
-		if (params.get('auth_success') === 'true') {
+		const authSuccess = params.get('auth_success') === 'true';
+		const authError = params.get('auth_error');
+		
+		// Clean up the URL immediately to prevent re-processing
+		if (authSuccess || authError) {
+			window.history.replaceState({}, '', '/');
+		}
+		
+		if (authSuccess) {
 			// Fetch the token securely from the server
 			try {
 				const tokenResponse = await fetch('/api/auth/token');
@@ -187,7 +211,9 @@
 					if (tokenData.success && tokenData.access_token) {
 						inputApiKey = tokenData.access_token;
 						handleConnectToken();
-						toasts.success('Successfully signed in with Google!');
+						// Don't show duplicate success message - handleConnectToken already shows one
+					} else {
+						toasts.error('Failed to retrieve access token.');
 					}
 				} else {
 					toasts.error('Failed to complete sign-in. Please try again.');
@@ -196,13 +222,8 @@
 				console.error('Failed to fetch OAuth token:', e);
 				toasts.error('Failed to complete sign-in. Please try again.');
 			}
-			
-			// Clean up the URL
-			window.history.replaceState({}, '', '/');
-		} else if (params.get('auth_error')) {
-			const authError = params.get('auth_error');
+		} else if (authError) {
 			toasts.error(`Sign-in failed: ${authError}`);
-			window.history.replaceState({}, '', '/');
 		}
 		
 		// Check if we have an existing auth status cookie (Google Login mode)
@@ -228,16 +249,25 @@
 			}
 		}
 		
-		// Try to load cached comments
+		// Try to check if we have cached comments
 		try {
-			const cachedComments = await loadComments();
-			if (cachedComments.length > 0) {
-				comments.set(cachedComments);
+			const cachedCount = await getCommentCount();
+			if (cachedCount > 0) {
+				// Initialize sliding window with cached comments
+				await initializeSlidingWindow($filters, $sortField, $sortOrder, $searchQuery);
 				// If we have cached data, mark as authenticated to show the dashboard
 				isAuthenticated.set(true);
 			}
 		} catch (e) {
 			console.error('Failed to load cached comments:', e);
+		}
+	});
+	
+	// Effect to reload sliding window when filters/sort/search change
+	$effect(() => {
+		// Only run if we have data
+		if ($isAuthenticated && $totalAvailable > 0) {
+			reloadSlidingWindow($filters, $sortField, $sortOrder, $searchQuery);
 		}
 	});
 	
@@ -333,6 +363,56 @@
 		return 'An unexpected error occurred. Please try again.';
 	}
 
+	/**
+	 * Select all comments that match current filters
+	 * Queries IndexedDB to get ALL matching IDs, not just loaded ones
+	 */
+	async function handleSelectAllFiltered() {
+		try {
+			// Build query options from current filters
+			const options = {
+				labels: $filters.labels,
+				minCharacters: $filters.minCharacters > 0 ? $filters.minCharacters : undefined,
+				maxCharacters: $filters.maxCharacters < 10000 ? $filters.maxCharacters : undefined,
+				minLikes: $filters.minLikes > 0 ? $filters.minLikes : undefined,
+				maxLikes: $filters.maxLikes < 1000000 ? $filters.maxLikes : undefined,
+				videoPrivacy: $filters.videoPrivacy,
+				moderationStatus: $filters.moderationStatus,
+				searchQuery: $searchQuery || undefined,
+				showOnlyWithErrors: $filters.showOnlyWithErrors
+			};
+			
+			// Get ALL matching IDs from IndexedDB
+			const matchingIds = await getFilteredCommentIds(options);
+			
+			// Add to selection
+			const currentIds = $selectedIds;
+			const currentOrder = $selectionOrder;
+			
+			// Filter out IDs that are already selected
+			const newIds = matchingIds.filter(id => !currentIds.has(id));
+			
+			if (newIds.length > 0) {
+				// Update selection order: new IDs at the beginning
+				selectionOrder.set([...newIds, ...currentOrder]);
+				
+				// Update selectedIds
+				selectedIds.update(ids => {
+					const updated = new Set(ids);
+					newIds.forEach(id => updated.add(id));
+					return updated;
+				});
+				
+				toasts.success(`Added ${newIds.length} comment(s) to slash queue (${matchingIds.length} total matched)`);
+			} else {
+				toasts.info(`All ${matchingIds.length} matching comments are already in the queue`);
+			}
+		} catch (e) {
+			console.error('Failed to select all filtered:', e);
+			toasts.error('Failed to select comments. Please try again.');
+		}
+	}
+
 	async function handleFileImport(files: FileList | File[]) {
 		const fileArray = Array.from(files);
 		if (fileArray.length === 0) return;
@@ -352,10 +432,13 @@
 				return;
 			}
 
-			comments.set(importedComments);
+			// Save to IndexedDB
 			await saveComments(importedComments);
 			await saveLastTakeoutImport();
 			loadingProgress.set({ loaded: 1, total: 1 });
+			
+			// Reinitialize sliding window with new data
+			await initializeSlidingWindow($filters, $sortField, $sortOrder, $searchQuery);
 			
 			isAuthenticated.set(true);
 		} catch (e) {
@@ -492,7 +575,17 @@
 			if (result.missing.length > 0) {
 				const missingUpdates = new Map<string, Partial<YouTubeComment>>();
 				result.missing.forEach(id => {
-					missingUpdates.set(id, { isUnenrichable: true });
+					// Get the existing labels for this comment
+					const existingComment = $comments.find(c => c.id === id);
+					const existingLabels = existingComment?.labels || [];
+					// Add 'unenrichable' label if not already present
+					const labels = existingLabels.includes('unenrichable') 
+						? existingLabels 
+						: [...existingLabels, 'unenrichable' as const];
+					missingUpdates.set(id, { 
+						isUnenrichable: true,
+						labels
+					});
 				});
 				updateComments(missingUpdates);
 			}
@@ -632,7 +725,12 @@
 			// Mark externally deleted comments
 			const updatedComments = $comments.map(c => {
 				if (!newIds.has(c.id) && !c.isExternallyDeleted) {
-					return { ...c, isExternallyDeleted: true };
+					// Add 'externally_deleted' label
+					const existingLabels = c.labels || [];
+					const labels = existingLabels.includes('externally_deleted')
+						? existingLabels
+						: [...existingLabels, 'externally_deleted' as const];
+					return { ...c, isExternallyDeleted: true, labels };
 				}
 				return c;
 			});
@@ -1116,14 +1214,14 @@
 							<div class="section-header">
 								<h2>Your Comments</h2>
 								<div class="header-actions">
-									<button class="btn btn-ghost" onclick={selectAllFiltered}>
+									<button class="btn btn-ghost" onclick={handleSelectAllFiltered}>
 										Select All Visible ({visibleCommentsCount()})
 									</button>
 								</div>
 							</div>
 
 							<div class="comments-scroll-wrapper">
-								{#if $filteredComments.length === 0}
+								{#if $windowedComments.length === 0 && !$isLoadingWindow}
 									<div class="comments-scroll-container">
 										<div class="empty-state">
 											<div class="empty-icon">🔍</div>
@@ -1158,12 +1256,17 @@
 										</div>
 									</div>
 								{:else}
-									<!-- Use virtualized list for non-grouped view (better performance) -->
+									<!-- Use virtualized list with sliding window for non-grouped view -->
 									<VirtualizedCommentList 
-										comments={$filteredComments}
+										comments={$windowedComments}
 										hideWhenSelected={hideSelectedFromList}
 										onRemoveFromDatabase={handleRemoveFromDatabase}
 									/>
+								{/if}
+								{#if $isLoadingWindow}
+									<div class="loading-indicator">
+										<LoadingSpinner size={20} message="Loading more comments..." />
+									</div>
 								{/if}
 							</div>
 						</div>
@@ -1227,6 +1330,10 @@
 						<a href="/legal/privacy">Privacy Policy</a>
 						<span class="footer-separator">•</span>
 						<a href="/legal/terms">Terms of Service</a>
+						{#if enableImpressum}
+							<span class="footer-separator">•</span>
+							<a href="/legal/impressum">Impressum</a>
+						{/if}
 					</div>
 				{/if}
 				<p>CommentSlash — Destroy your YouTube comments with precision ⚔️✨</p>
@@ -1453,6 +1560,8 @@
 		flex-direction: column;
 		/* Prevent layout collapse when content is empty */
 		width: 100%;
+		/* Force grid item to maintain its track width */
+		overflow: hidden;
 	}
 
 	.comments-scroll-wrapper {
@@ -1461,6 +1570,17 @@
 		min-height: 0;
 		display: flex;
 		flex-direction: column;
+	}
+	
+	.loading-indicator {
+		position: sticky;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		padding: 1rem;
+		text-align: center;
+		background: linear-gradient(to top, var(--bg-primary) 50%, transparent);
+		z-index: 10;
 	}
 
 	.comments-scroll-container {
@@ -1473,6 +1593,8 @@
 		/* Smooth scrolling for better UX */
 		scroll-behavior: smooth;
 		-webkit-overflow-scrolling: touch;
+		/* Ensure consistent width */
+		width: 100%;
 	}
 
 	.section-header {

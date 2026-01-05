@@ -382,9 +382,10 @@
 				<span class="separator">•</span>
 				<a href="/legal/terms">{currentLang === 'en' ? 'Terms of Service' : 'Nutzungsbedingungen'}</a>
 				<span class="separator">•</span>
+				<a href="/legal/impressum">Impressum</a>
+				<span class="separator">•</span>
 				<a href="/">{currentLang === 'en' ? 'Back to App' : 'Zurück zur App'}</a>
 			</div>
-			<p>CommentSlash — {currentLang === 'en' ? 'Destroy your YouTube comments with precision' : 'Lösche deine YouTube-Kommentare mit Präzision'} ⚔️✨</p>
 		</div>
 	</footer>
 </div>

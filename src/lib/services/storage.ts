@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
-import type { YouTubeComment } from '$lib/types/comment';
+import type { YouTubeComment, CommentLabel } from '$lib/types/comment';
 
 const DB_NAME = 'commentslash-db';
 const DB_VERSION = 1;
@@ -336,6 +336,159 @@ export async function searchCommentsInDB(query: string): Promise<Set<string>> {
 }
 
 /**
+ * Load comments with pagination and filtering
+ * This allows working with large datasets without loading everything into memory
+ */
+export interface CommentQueryOptions {
+	// Pagination
+	limit?: number;
+	offset?: number;
+	
+	// Filters
+	labels?: CommentLabel[];
+	minCharacters?: number;
+	maxCharacters?: number;
+	minLikes?: number;
+	maxLikes?: number;
+	videoPrivacy?: ('public' | 'private' | 'unlisted' | 'unknown')[];
+	moderationStatus?: ('published' | 'heldForReview' | 'likelySpam' | 'rejected' | 'unknown')[];
+	searchQuery?: string;
+	showOnlyWithErrors?: boolean;
+	
+	// Sorting
+	sortBy?: 'likeCount' | 'publishedAt' | 'textLength';
+	sortOrder?: 'asc' | 'desc';
+}
+
+export async function queryComments(options: CommentQueryOptions = {}): Promise<{
+	comments: YouTubeComment[];
+	total: number;
+	hasMore: boolean;
+}> {
+	const database = await getDB();
+	const now = Date.now();
+	const cutoff = now - getTTL_MS();
+	
+	// Get all comments (we need to filter and count)
+	const all = await database.getAll('comments');
+	
+	// Filter comments
+	let filtered = all
+		.filter(item => item.timestamp >= cutoff)
+		.map(item => item.data)
+		.filter(comment => {
+			// Label filter
+			if (options.labels && options.labels.length > 0) {
+				const commentLabels = comment.labels || [];
+				const hasMatchingLabel = options.labels.some(label => commentLabels.includes(label));
+				if (!hasMatchingLabel) return false;
+			}
+			
+			// Character length filter
+			if (options.minCharacters !== undefined || options.maxCharacters !== undefined) {
+				const textLength = comment.textOriginal.length;
+				if (options.minCharacters !== undefined && textLength < options.minCharacters) return false;
+				if (options.maxCharacters !== undefined && textLength > options.maxCharacters) return false;
+			}
+			
+			// Like count filter
+			if (options.minLikes !== undefined || options.maxLikes !== undefined) {
+				if (options.minLikes !== undefined && comment.likeCount < options.minLikes) return false;
+				if (options.maxLikes !== undefined && comment.likeCount > options.maxLikes) return false;
+			}
+			
+			// Video privacy filter
+			if (options.videoPrivacy && options.videoPrivacy.length > 0) {
+				const privacyStatus = comment.videoPrivacyStatus || 'unknown';
+				if (!options.videoPrivacy.includes(privacyStatus)) return false;
+			}
+			
+			// Moderation status filter
+			if (options.moderationStatus && options.moderationStatus.length > 0) {
+				const modStatus = comment.moderationStatus || 'unknown';
+				if (!options.moderationStatus.includes(modStatus)) return false;
+			}
+			
+			// Search query filter
+			if (options.searchQuery) {
+				const query = options.searchQuery.toLowerCase();
+				const matchesText = comment.textOriginal.toLowerCase().includes(query);
+				const matchesVideo = comment.videoTitle?.toLowerCase().includes(query);
+				if (!matchesText && !matchesVideo) return false;
+			}
+			
+			// Show only comments with delete errors
+			if (options.showOnlyWithErrors && !comment.lastDeleteError) return false;
+			
+			return true;
+		});
+	
+	const total = filtered.length;
+	
+	// Sort comments
+	if (options.sortBy) {
+		filtered = filtered.sort((a, b) => {
+			let comparison = 0;
+			
+			switch (options.sortBy) {
+				case 'likeCount':
+					comparison = a.likeCount - b.likeCount;
+					break;
+				case 'publishedAt':
+					comparison = new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime();
+					break;
+				case 'textLength':
+					comparison = a.textOriginal.length - b.textOriginal.length;
+					break;
+			}
+			
+			return options.sortOrder === 'desc' ? -comparison : comparison;
+		});
+	}
+	
+	// Apply pagination
+	const offset = options.offset || 0;
+	const limit = options.limit || filtered.length;
+	const paginatedComments = filtered.slice(offset, offset + limit);
+	const hasMore = offset + limit < total;
+	
+	return {
+		comments: paginatedComments,
+		total,
+		hasMore
+	};
+}
+
+/**
+ * Stream comments in batches using a callback
+ * This is more memory-efficient for very large datasets
+ */
+export async function streamComments(
+	batchSize: number,
+	callback: (batch: YouTubeComment[], index: number, total: number) => void | Promise<void>,
+	options: Omit<CommentQueryOptions, 'limit' | 'offset'> = {}
+): Promise<void> {
+	const database = await getDB();
+	const now = Date.now();
+	const cutoff = now - getTTL_MS();
+	
+	// Get all comments that match filters
+	const result = await queryComments({
+		...options,
+		limit: undefined, // Get all matching
+		offset: 0
+	});
+	
+	const total = result.total;
+	
+	// Stream in batches
+	for (let i = 0; i < total; i += batchSize) {
+		const batch = result.comments.slice(i, Math.min(i + batchSize, total));
+		await callback(batch, i / batchSize, Math.ceil(total / batchSize));
+	}
+}
+
+/**
  * Get total count of non-expired comments in IndexedDB
  */
 export async function getCommentCount(): Promise<number> {
@@ -345,6 +498,73 @@ export async function getCommentCount(): Promise<number> {
 
 	const all = await database.getAll('comments');
 	return all.filter(item => item.timestamp >= cutoff).length;
+}
+
+/**
+ * Get all comment IDs that match filters (for "Select All Visible")
+ * Returns only IDs to minimize memory usage
+ */
+export async function getFilteredCommentIds(options: Omit<CommentQueryOptions, 'limit' | 'offset'>): Promise<string[]> {
+	const database = await getDB();
+	const now = Date.now();
+	const cutoff = now - getTTL_MS();
+	
+	// Get all comments
+	const all = await database.getAll('comments');
+	
+	// Filter comments and extract IDs
+	const matchingIds = all
+		.filter(item => item.timestamp >= cutoff)
+		.map(item => item.data)
+		.filter(comment => {
+			// Label filter
+			if (options.labels && options.labels.length > 0) {
+				const commentLabels = comment.labels || [];
+				const hasMatchingLabel = options.labels.some(label => commentLabels.includes(label));
+				if (!hasMatchingLabel) return false;
+			}
+			
+			// Character length filter
+			if (options.minCharacters !== undefined || options.maxCharacters !== undefined) {
+				const textLength = comment.textOriginal.length;
+				if (options.minCharacters !== undefined && textLength < options.minCharacters) return false;
+				if (options.maxCharacters !== undefined && textLength > options.maxCharacters) return false;
+			}
+			
+			// Like count filter
+			if (options.minLikes !== undefined || options.maxLikes !== undefined) {
+				if (options.minLikes !== undefined && comment.likeCount < options.minLikes) return false;
+				if (options.maxLikes !== undefined && comment.likeCount > options.maxLikes) return false;
+			}
+			
+			// Video privacy filter
+			if (options.videoPrivacy && options.videoPrivacy.length > 0) {
+				const privacyStatus = comment.videoPrivacyStatus || 'unknown';
+				if (!options.videoPrivacy.includes(privacyStatus)) return false;
+			}
+			
+			// Moderation status filter
+			if (options.moderationStatus && options.moderationStatus.length > 0) {
+				const modStatus = comment.moderationStatus || 'unknown';
+				if (!options.moderationStatus.includes(modStatus)) return false;
+			}
+			
+			// Search query filter
+			if (options.searchQuery) {
+				const query = options.searchQuery.toLowerCase();
+				const matchesText = comment.textOriginal.toLowerCase().includes(query);
+				const matchesVideo = comment.videoTitle?.toLowerCase().includes(query);
+				if (!matchesText && !matchesVideo) return false;
+			}
+			
+			// Show only comments with delete errors
+			if (options.showOnlyWithErrors && !comment.lastDeleteError) return false;
+			
+			return true;
+		})
+		.map(comment => comment.id);
+	
+	return matchingIds;
 }
 
 // Run cleanup on import
