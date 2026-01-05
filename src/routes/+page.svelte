@@ -194,8 +194,8 @@
 		const windowLength = $windowedComments.length;
 		if (windowLength === 0) return;
 		
-		// Clamp index to valid range within the window
-		const currentIndex = Math.min(Math.floor(scrollPercentage * windowLength), windowLength - 1);
+		// Clamp index to valid range within the window [0, windowLength-1]
+		const currentIndex = Math.max(0, Math.min(Math.floor(scrollPercentage * windowLength), windowLength - 1));
 		
 		// Only trigger loading if we've scrolled significantly to avoid excessive calls
 		if (Math.abs(currentIndex - lastReportedScrollIndex) > SCROLL_INDEX_CHANGE_THRESHOLD) {
