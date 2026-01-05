@@ -171,6 +171,8 @@
 	});
 
 	// Scroll handler for grouped view to trigger sliding window loading
+	// Threshold for triggering scroll position updates (items scrolled since last report)
+	const SCROLL_INDEX_CHANGE_THRESHOLD = 5;
 	let lastReportedScrollIndex = -1;
 	function handleGroupedViewScroll(event: Event) {
 		const target = event.target as HTMLElement;
@@ -184,17 +186,19 @@
 		const scrollableHeight = scrollHeight - clientHeight;
 		if (scrollableHeight <= 0) return;
 		
-		// Calculate approximate scroll percentage
+		// Calculate approximate scroll percentage (0.0 to 1.0)
 		const scrollPercentage = scrollTop / scrollableHeight;
 		
-		// Calculate approximate current index based on windowed comments (local to the current window)
+		// Calculate approximate current index within the windowed comments
+		// This maps the scroll position to an index in the current window
 		const windowLength = $windowedComments.length;
 		if (windowLength === 0) return;
 		
-		const currentIndex = Math.floor(scrollPercentage * windowLength);
+		// Clamp index to valid range within the window
+		const currentIndex = Math.min(Math.floor(scrollPercentage * windowLength), windowLength - 1);
 		
-		// Only trigger loading if we've scrolled significantly (every ~5 items)
-		if (Math.abs(currentIndex - lastReportedScrollIndex) > 5) {
+		// Only trigger loading if we've scrolled significantly to avoid excessive calls
+		if (Math.abs(currentIndex - lastReportedScrollIndex) > SCROLL_INDEX_CHANGE_THRESHOLD) {
 			handleScrollPosition(currentIndex);
 			lastReportedScrollIndex = currentIndex;
 		}
