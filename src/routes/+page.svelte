@@ -452,6 +452,23 @@
 		}
 	}
 
+	// Helper to check if data is a valid CommentSlash export
+	function isValidCommentSlashExport(data: unknown): data is { comments: YouTubeComment[] } {
+		return typeof data === 'object' && data !== null && 
+			'comments' in data && Array.isArray((data as { comments: unknown }).comments);
+	}
+
+	// Helper to finalize CommentSlash import
+	async function finalizeCommentSlashImport(importedComments: YouTubeComment[]): Promise<void> {
+		await saveComments(importedComments);
+		loadingProgress.set({ loaded: 1, total: 1 });
+		
+		const allComments = await loadComments();
+		comments.set(allComments);
+		await initializeSlidingWindow($filters, $sortField, $sortOrder, $searchQuery);
+		isAuthenticated.set(true);
+	}
+
 	async function handleFileImport(files: FileList | File[]) {
 		const fileArray = Array.from(files);
 		if (fileArray.length === 0) return;
@@ -470,15 +487,8 @@
 					const jsonString = await readFileAsText(file);
 					const importData = JSON.parse(jsonString);
 					
-					if (importData.comments && Array.isArray(importData.comments)) {
-						// It's a CommentSlash export
-						await saveComments(importData.comments);
-						loadingProgress.set({ loaded: 1, total: 1 });
-						
-						const allComments = await loadComments();
-						comments.set(allComments);
-						await initializeSlidingWindow($filters, $sortField, $sortOrder, $searchQuery);
-						isAuthenticated.set(true);
+					if (isValidCommentSlashExport(importData)) {
+						await finalizeCommentSlashImport(importData.comments);
 						return;
 					}
 				}
@@ -492,15 +502,8 @@
 						const jsonString = await jsonFile.async('string');
 						const importData = JSON.parse(jsonString);
 						
-						if (importData.comments && Array.isArray(importData.comments)) {
-							// It's a CommentSlash ZIP export
-							await saveComments(importData.comments);
-							loadingProgress.set({ loaded: 1, total: 1 });
-							
-							const allComments = await loadComments();
-							comments.set(allComments);
-							await initializeSlidingWindow($filters, $sortField, $sortOrder, $searchQuery);
-							isAuthenticated.set(true);
+						if (isValidCommentSlashExport(importData)) {
+							await finalizeCommentSlashImport(importData.comments);
 							return;
 						}
 					}
