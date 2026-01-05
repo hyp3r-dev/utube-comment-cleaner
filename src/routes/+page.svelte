@@ -269,9 +269,15 @@
 	
 	// Effect to reload sliding window when filters/sort/search change
 	$effect(() => {
-		// Only run if we have data
-		if ($isAuthenticated && $totalAvailable > 0) {
-			reloadSlidingWindow($filters, $sortField, $sortOrder, $searchQuery);
+		// Track filters/sort/search changes (dependencies for the effect)
+		const currentFilters = $filters;
+		const currentSortField = $sortField;
+		const currentSortOrder = $sortOrder;
+		const currentSearchQuery = $searchQuery;
+		
+		// Only reload if authenticated (has cached data)
+		if ($isAuthenticated) {
+			reloadSlidingWindow(currentFilters, currentSortField, currentSortOrder, currentSearchQuery);
 		}
 	});
 	
@@ -980,23 +986,23 @@
 		<div class="container header-content">
 			<Logo size={36} />
 			
-			<!-- Navbar stats - only show when we have comments -->
-			{#if $totalAvailable > 0}
+			<!-- Navbar stats - only show when we have comments loaded (even if current filter shows 0) -->
+			{#if $comments.length > 0}
 				<NavbarStats />
 			{/if}
 			
 			<div class="header-actions">
-				{#if $isAuthenticated || $totalAvailable > 0}
+				{#if $isAuthenticated || $comments.length > 0}
 					<QuotaProgressBar />
 				{/if}
 				
 				<!-- Data lifetime indicator - show when we have comments -->
-				{#if $totalAvailable > 0}
+				{#if $comments.length > 0}
 					<DataLifetimeIndicator />
 				{/if}
 				
 				<!-- YouTube connection status icon - only show when we have comments -->
-				{#if $totalAvailable > 0}
+				{#if $comments.length > 0}
 					<YouTubeStatusIcon 
 						status={youtubeConnectionStatus} 
 						onConnect={() => {
@@ -1030,7 +1036,7 @@
 						progress={$loadingProgress}
 					/>
 				</div>
-			{:else if !$isAuthenticated && $totalAvailable === 0}
+			{:else if !$isAuthenticated && $comments.length === 0}
 				<div class="auth-section">
 					<div class="hero animate-slide-up">
 						<h1>Welcome to <span class="text-gradient">CommentSlash</span></h1>
