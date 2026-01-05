@@ -28,7 +28,7 @@
 		YouTubeAPIError 
 	} from '$lib/services/youtube';
 	import { parseTakeoutFile, readFileAsText, parseZipFile, parseMultipleFiles } from '$lib/services/takeout';
-	import { saveComments, deleteComments as deleteFromStorage, clearAllData, clearCommentsOnly, saveLastTakeoutImport, getCommentCount, getFilteredCommentIds } from '$lib/services/storage';
+	import { saveComments, deleteComments as deleteFromStorage, clearAllData, clearCommentsOnly, saveLastTakeoutImport, getCommentCount, getFilteredCommentIds, loadComments } from '$lib/services/storage';
 	import {
 		apiKey,
 		isAuthenticated,
@@ -142,14 +142,15 @@
 	const enrichedCount = $derived(enrichmentStats().enriched);
 	const unenrichableCount = $derived(enrichmentStats().unenrichable);
 
-	// Count visible comments (total available from sliding window or windowedComments length)
+	// Count visible comments (total available from sliding window minus selected if hidden)
 	const visibleCommentsCount = $derived(() => {
-		// Use totalAvailable if we have it, otherwise use windowedComments length
-		const total = $totalAvailable > 0 ? $totalAvailable : $windowedComments.length;
+		// Use totalAvailable which represents ALL comments matching current filters in IndexedDB
+		const total = $totalAvailable;
 		if (!hideSelectedFromList) {
 			return total;
 		}
-		return $windowedComments.filter(c => !$selectedIds.has(c.id)).length;
+		// When hiding selected, subtract selected count from total
+		return Math.max(0, total - $selectedIds.size);
 	});
 
 	// YouTube connection status for the navbar icon
@@ -253,6 +254,9 @@
 		try {
 			const cachedCount = await getCommentCount();
 			if (cachedCount > 0) {
+				// Load all comments into the store for stats and enrichment
+				const allComments = await loadComments();
+				comments.set(allComments);
 				// Initialize sliding window with cached comments
 				await initializeSlidingWindow($filters, $sortField, $sortOrder, $searchQuery);
 				// If we have cached data, mark as authenticated to show the dashboard
@@ -436,6 +440,10 @@
 			await saveComments(importedComments);
 			await saveLastTakeoutImport();
 			loadingProgress.set({ loaded: 1, total: 1 });
+			
+			// Load all comments into store for stats and enrichment
+			const allComments = await loadComments();
+			comments.set(allComments);
 			
 			// Reinitialize sliding window with new data
 			await initializeSlidingWindow($filters, $sortField, $sortOrder, $searchQuery);
@@ -973,22 +981,22 @@
 			<Logo size={36} />
 			
 			<!-- Navbar stats - only show when we have comments -->
-			{#if $comments.length > 0}
+			{#if $totalAvailable > 0}
 				<NavbarStats />
 			{/if}
 			
 			<div class="header-actions">
-				{#if $isAuthenticated || $comments.length > 0}
+				{#if $isAuthenticated || $totalAvailable > 0}
 					<QuotaProgressBar />
 				{/if}
 				
 				<!-- Data lifetime indicator - show when we have comments -->
-				{#if $comments.length > 0}
+				{#if $totalAvailable > 0}
 					<DataLifetimeIndicator />
 				{/if}
 				
 				<!-- YouTube connection status icon - only show when we have comments -->
-				{#if $comments.length > 0}
+				{#if $totalAvailable > 0}
 					<YouTubeStatusIcon 
 						status={youtubeConnectionStatus} 
 						onConnect={() => {
@@ -1022,7 +1030,7 @@
 						progress={$loadingProgress}
 					/>
 				</div>
-			{:else if !$isAuthenticated && $comments.length === 0}
+			{:else if !$isAuthenticated && $totalAvailable === 0}
 				<div class="auth-section">
 					<div class="hero animate-slide-up">
 						<h1>Welcome to <span class="text-gradient">CommentSlash</span></h1>
@@ -1335,8 +1343,9 @@
 							<a href="/legal/impressum">Impressum</a>
 						{/if}
 					</div>
+				{:else}
+					<p>CommentSlash — Destroy your YouTube comments with precision ⚔️✨</p>
 				{/if}
-				<p>CommentSlash — Destroy your YouTube comments with precision ⚔️✨</p>
 			</div>
 		</div>
 	</footer>
