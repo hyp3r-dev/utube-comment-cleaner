@@ -682,6 +682,38 @@
 		URL.revokeObjectURL(url);
 	}
 
+	// Helper function to merge imported comments with existing ones
+	async function mergeImportedComments(
+		importedComments: YouTubeComment[], 
+		isTakeout: boolean = false
+	): Promise<{ added: number; skipped: number }> {
+		const existingIds = new Set($comments.map(c => c.id));
+		const newComments = importedComments.filter(c => !existingIds.has(c.id));
+		
+		if (newComments.length > 0) {
+			const merged = [...$comments, ...newComments];
+			comments.set(merged);
+			await saveComments(merged);
+			if (isTakeout) {
+				await saveLastTakeoutImport();
+			}
+		}
+		
+		return {
+			added: newComments.length,
+			skipped: importedComments.length - newComments.length
+		};
+	}
+
+	// Helper function to show import result toast
+	function showImportResultToast(added: number, skipped: number): void {
+		if (added > 0) {
+			toasts.success(`Import complete: ${added} new comment(s) added, ${skipped} duplicate(s) skipped.`);
+		} else {
+			toasts.info(`All ${skipped} comment(s) were already in your collection.`);
+		}
+	}
+
 	async function handleImportJson(event: Event) {
 		const input = event.target as HTMLInputElement;
 		const files = input.files;
@@ -700,30 +732,13 @@
 				const jsonFile = zip.file('comments.json');
 				
 				if (jsonFile) {
-					// In-service export format
+					// Try in-service export format first
 					const jsonString = await jsonFile.async('string');
 					const importData = JSON.parse(jsonString);
 					
 					if (importData.comments && Array.isArray(importData.comments)) {
-						// Merge with existing comments
-						const existingIds = new Set($comments.map(c => c.id));
-						const newComments = importData.comments.filter((c: YouTubeComment) => !existingIds.has(c.id));
-						
-						if (newComments.length > 0) {
-							const merged = [...$comments, ...newComments];
-							comments.set(merged);
-							await saveComments(merged);
-						}
-						
-						const addedCount = newComments.length;
-						const skippedCount = importData.comments.length - addedCount;
-						
-						if (addedCount > 0) {
-							toasts.success(`Import complete: ${addedCount} new comment(s) added, ${skippedCount} duplicate(s) skipped.`);
-						} else {
-							toasts.info(`All ${skippedCount} comment(s) were already in your collection.`);
-						}
-						
+						const result = await mergeImportedComments(importData.comments, false);
+						showImportResultToast(result.added, result.skipped);
 						isAuthenticated.set(true);
 						return;
 					}
@@ -738,52 +753,17 @@
 					throw new Error('No comments found in the ZIP file. Make sure it contains Google Takeout comment data or a valid CommentSlash export.');
 				}
 				
-				// Merge with existing comments
-				const existingIds = new Set($comments.map(c => c.id));
-				const newComments = parsedComments.filter(c => !existingIds.has(c.id));
-				
-				if (newComments.length > 0) {
-					const merged = [...$comments, ...newComments];
-					comments.set(merged);
-					await saveComments(merged);
-					await saveLastTakeoutImport();
-				}
-				
-				const addedCount = newComments.length;
-				const skippedCount = parsedComments.length - addedCount;
-				
-				if (addedCount > 0) {
-					toasts.success(`Import complete: ${addedCount} new comment(s) added, ${skippedCount} duplicate(s) skipped.`);
-				} else {
-					toasts.info(`All ${skippedCount} comment(s) were already in your collection.`);
-				}
-				
+				const result = await mergeImportedComments(parsedComments, true);
+				showImportResultToast(result.added, result.skipped);
 				isAuthenticated.set(true);
 			} else if (file.name.endsWith('.json')) {
-				// JSON file - try in-service format first
+				// JSON file - try in-service format
 				const jsonString = await readFileAsText(file);
 				const importData = JSON.parse(jsonString);
 				
 				if (importData.comments && Array.isArray(importData.comments)) {
-					// In-service export format
-					const existingIds = new Set($comments.map(c => c.id));
-					const newComments = importData.comments.filter((c: YouTubeComment) => !existingIds.has(c.id));
-					
-					if (newComments.length > 0) {
-						const merged = [...$comments, ...newComments];
-						comments.set(merged);
-						await saveComments(merged);
-					}
-					
-					const addedCount = newComments.length;
-					const skippedCount = importData.comments.length - addedCount;
-					
-					if (addedCount > 0) {
-						toasts.success(`Import complete: ${addedCount} new comment(s) added, ${skippedCount} duplicate(s) skipped.`);
-					} else {
-						toasts.info(`All ${skippedCount} comment(s) were already in your collection.`);
-					}
-					
+					const result = await mergeImportedComments(importData.comments, false);
+					showImportResultToast(result.added, result.skipped);
 					isAuthenticated.set(true);
 				} else {
 					throw new Error('Invalid JSON format. Expected a CommentSlash export file with a "comments" array.');
@@ -798,26 +778,8 @@
 					throw new Error('No comments found in the CSV file.');
 				}
 				
-				// Merge with existing comments
-				const existingIds = new Set($comments.map(c => c.id));
-				const newComments = parsedComments.filter(c => !existingIds.has(c.id));
-				
-				if (newComments.length > 0) {
-					const merged = [...$comments, ...newComments];
-					comments.set(merged);
-					await saveComments(merged);
-					await saveLastTakeoutImport();
-				}
-				
-				const addedCount = newComments.length;
-				const skippedCount = parsedComments.length - addedCount;
-				
-				if (addedCount > 0) {
-					toasts.success(`Import complete: ${addedCount} new comment(s) added, ${skippedCount} duplicate(s) skipped.`);
-				} else {
-					toasts.info(`All ${skippedCount} comment(s) were already in your collection.`);
-				}
-				
+				const result = await mergeImportedComments(parsedComments, true);
+				showImportResultToast(result.added, result.skipped);
 				isAuthenticated.set(true);
 			} else {
 				throw new Error('Unsupported file type. Please use .json, .csv, or .zip files.');
