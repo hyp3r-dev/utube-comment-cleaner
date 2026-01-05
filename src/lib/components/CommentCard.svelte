@@ -287,34 +287,19 @@
 		border-radius: var(--radius-lg);
 		padding: 1rem;
 		cursor: pointer;
-		/* Only transition properties that actually change for better performance */
-		transition: border-color 0.25s ease, box-shadow 0.25s ease, background 0.25s ease;
 		position: relative;
-		overflow: hidden;
+		/* GPU-accelerated transitions for smooth performance - only transition properties that change */
+		transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
 	}
 
-	/* Top gradient bar that slides in on hover - original cool effect */
-	.comment-card::before {
-		content: '';
-		position: absolute;
-		top: 0;
-		left: 0;
-		right: 0;
-		height: 3px;
-		background: var(--gradient-primary);
-		transform: scaleX(0);
-		transform-origin: left;
-		transition: transform 0.3s ease;
-	}
-
-	/* Original hover effect - border highlight + shadow + gradient bar */
+	/* Performant hover effect using only box-shadow and border-color (no pseudo-element animations) */
 	.comment-card:hover {
 		border-color: var(--accent-primary);
-		box-shadow: var(--shadow-md);
-	}
-
-	.comment-card:hover::before {
-		transform: scaleX(1);
+		box-shadow: 
+			0 0 0 1px rgba(99, 102, 241, 0.3),
+			0 4px 12px rgba(0, 0, 0, 0.3),
+			0 0 20px rgba(99, 102, 241, 0.15),
+			inset 0 1px 0 rgba(255, 255, 255, 0.05);
 	}
 
 	/* Subtle lift on focus for accessibility */
@@ -323,17 +308,14 @@
 		outline-offset: 2px;
 	}
 
-	/* Selected state - accent border with glow */
+	/* Selected state - accent border with purple glow */
 	.comment-card.selected {
 		border-color: var(--accent-primary);
-		background: rgba(99, 102, 241, 0.1);
-		box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
-	}
-
-	/* Selected state shows rainbow gradient bar */
-	.comment-card.selected::before {
-		transform: scaleX(1);
-		background: linear-gradient(90deg, #6366f1, #ef4444, #8b5cf6);
+		background: rgba(99, 102, 241, 0.08);
+		box-shadow: 
+			0 0 0 2px rgba(99, 102, 241, 0.4),
+			0 0 16px rgba(99, 102, 241, 0.2),
+			0 4px 12px rgba(0, 0, 0, 0.25);
 	}
 
 	/* Slide animation when comment is added to queue - smooth swipe right */
