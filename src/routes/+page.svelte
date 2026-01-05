@@ -28,19 +28,19 @@
 		YouTubeAPIError 
 	} from '$lib/services/youtube';
 	import { parseTakeoutFile, readFileAsText, parseZipFile, parseMultipleFiles } from '$lib/services/takeout';
-	import { saveComments, deleteComments as deleteFromStorage, clearAllData, clearCommentsOnly, saveLastTakeoutImport, getCommentCount } from '$lib/services/storage';
+	import { saveComments, deleteComments as deleteFromStorage, clearAllData, clearCommentsOnly, saveLastTakeoutImport, getCommentCount, getFilteredCommentIds } from '$lib/services/storage';
 	import {
 		apiKey,
 		isAuthenticated,
 		comments,
 		selectedComments,
 		selectedIds,
+		selectionOrder,
 		filteredComments,
 		isLoading,
 		loadingProgress,
 		error,
 		removeComments,
-		selectAllFiltered,
 		deselectAll,
 		logout,
 		updateComments,
@@ -361,6 +361,56 @@
 			return e.message;
 		}
 		return 'An unexpected error occurred. Please try again.';
+	}
+
+	/**
+	 * Select all comments that match current filters
+	 * Queries IndexedDB to get ALL matching IDs, not just loaded ones
+	 */
+	async function handleSelectAllFiltered() {
+		try {
+			// Build query options from current filters
+			const options = {
+				labels: $filters.labels,
+				minCharacters: $filters.minCharacters > 0 ? $filters.minCharacters : undefined,
+				maxCharacters: $filters.maxCharacters < 10000 ? $filters.maxCharacters : undefined,
+				minLikes: $filters.minLikes > 0 ? $filters.minLikes : undefined,
+				maxLikes: $filters.maxLikes < 1000000 ? $filters.maxLikes : undefined,
+				videoPrivacy: $filters.videoPrivacy,
+				moderationStatus: $filters.moderationStatus,
+				searchQuery: $searchQuery || undefined,
+				showOnlyWithErrors: $filters.showOnlyWithErrors
+			};
+			
+			// Get ALL matching IDs from IndexedDB
+			const matchingIds = await getFilteredCommentIds(options);
+			
+			// Add to selection
+			const currentIds = $selectedIds;
+			const currentOrder = $selectionOrder;
+			
+			// Filter out IDs that are already selected
+			const newIds = matchingIds.filter(id => !currentIds.has(id));
+			
+			if (newIds.length > 0) {
+				// Update selection order: new IDs at the beginning
+				selectionOrder.set([...newIds, ...currentOrder]);
+				
+				// Update selectedIds
+				selectedIds.update(ids => {
+					const updated = new Set(ids);
+					newIds.forEach(id => updated.add(id));
+					return updated;
+				});
+				
+				toasts.success(`Added ${newIds.length} comment(s) to slash queue (${matchingIds.length} total matched)`);
+			} else {
+				toasts.info(`All ${matchingIds.length} matching comments are already in the queue`);
+			}
+		} catch (e) {
+			console.error('Failed to select all filtered:', e);
+			toasts.error('Failed to select comments. Please try again.');
+		}
 	}
 
 	async function handleFileImport(files: FileList | File[]) {
@@ -1164,7 +1214,7 @@
 							<div class="section-header">
 								<h2>Your Comments</h2>
 								<div class="header-actions">
-									<button class="btn btn-ghost" onclick={selectAllFiltered}>
+									<button class="btn btn-ghost" onclick={handleSelectAllFiltered}>
 										Select All Visible ({visibleCommentsCount()})
 									</button>
 								</div>

@@ -500,6 +500,73 @@ export async function getCommentCount(): Promise<number> {
 	return all.filter(item => item.timestamp >= cutoff).length;
 }
 
+/**
+ * Get all comment IDs that match filters (for "Select All Visible")
+ * Returns only IDs to minimize memory usage
+ */
+export async function getFilteredCommentIds(options: Omit<CommentQueryOptions, 'limit' | 'offset'>): Promise<string[]> {
+	const database = await getDB();
+	const now = Date.now();
+	const cutoff = now - getTTL_MS();
+	
+	// Get all comments
+	const all = await database.getAll('comments');
+	
+	// Filter comments and extract IDs
+	const matchingIds = all
+		.filter(item => item.timestamp >= cutoff)
+		.map(item => item.data)
+		.filter(comment => {
+			// Label filter
+			if (options.labels && options.labels.length > 0) {
+				const commentLabels = comment.labels || [];
+				const hasMatchingLabel = options.labels.some(label => commentLabels.includes(label));
+				if (!hasMatchingLabel) return false;
+			}
+			
+			// Character length filter
+			if (options.minCharacters !== undefined || options.maxCharacters !== undefined) {
+				const textLength = comment.textOriginal.length;
+				if (options.minCharacters !== undefined && textLength < options.minCharacters) return false;
+				if (options.maxCharacters !== undefined && textLength > options.maxCharacters) return false;
+			}
+			
+			// Like count filter
+			if (options.minLikes !== undefined || options.maxLikes !== undefined) {
+				if (options.minLikes !== undefined && comment.likeCount < options.minLikes) return false;
+				if (options.maxLikes !== undefined && comment.likeCount > options.maxLikes) return false;
+			}
+			
+			// Video privacy filter
+			if (options.videoPrivacy && options.videoPrivacy.length > 0) {
+				const privacyStatus = comment.videoPrivacyStatus || 'unknown';
+				if (!options.videoPrivacy.includes(privacyStatus)) return false;
+			}
+			
+			// Moderation status filter
+			if (options.moderationStatus && options.moderationStatus.length > 0) {
+				const modStatus = comment.moderationStatus || 'unknown';
+				if (!options.moderationStatus.includes(modStatus)) return false;
+			}
+			
+			// Search query filter
+			if (options.searchQuery) {
+				const query = options.searchQuery.toLowerCase();
+				const matchesText = comment.textOriginal.toLowerCase().includes(query);
+				const matchesVideo = comment.videoTitle?.toLowerCase().includes(query);
+				if (!matchesText && !matchesVideo) return false;
+			}
+			
+			// Show only comments with delete errors
+			if (options.showOnlyWithErrors && !comment.lastDeleteError) return false;
+			
+			return true;
+		})
+		.map(comment => comment.id);
+	
+	return matchingIds;
+}
+
 // Run cleanup on import
 if (typeof window !== 'undefined') {
 	cleanExpiredData().catch(console.error);

@@ -1,9 +1,11 @@
 <script lang="ts">
 	import { selectedComments, selectedIds, deselectComment, deselectAll, selectComment } from '$lib/stores/comments';
+	import { queueWindowedComments, initializeQueueWindow, handleQueueScroll, updateQueueWindow } from '$lib/stores/queueWindow';
 	import { pendingQuota, calculateDeleteQuotaCost, QUOTA_COSTS } from '$lib/stores/quota';
 	import type { YouTubeComment } from '$lib/types/comment';
 	import { truncateText } from '$lib/utils/formatting';
 	import ShurikenIcon from './ShurikenIcon.svelte';
+	import { onMount } from 'svelte';
 	
 	// Delete result for each comment
 	type DeleteStatus = 'pending' | 'deleting' | 'success' | 'failed';
@@ -39,6 +41,11 @@
 	// Track when items are added (use non-reactive variable to avoid infinite loop)
 	let prevIds: Set<string> = new Set();
 	
+	// Initialize queue window on mount and when selection changes significantly
+	onMount(() => {
+		initializeQueueWindow();
+	});
+	
 	$effect(() => {
 		const currentIds = new Set($selectedComments.map(c => c.id));
 		const added = [...currentIds].filter(id => !prevIds.has(id));
@@ -52,6 +59,9 @@
 			}, SLIDE_IN_DURATION_MS);
 		}
 		
+		// Update queue window when selection changes
+		updateQueueWindow();
+		
 		prevIds = currentIds;
 	});
 	
@@ -60,15 +70,37 @@
 	let queueSearchQuery = $state('');
 	let queueSearchInput: HTMLInputElement;
 	
-	// Filter selected comments by search query
-	const filteredSelectedComments = $derived(() => {
-		if (!queueSearchQuery.trim()) return $selectedComments;
+	// Filter WINDOWED comments by search query (not all selected comments)
+	const filteredQueueComments = $derived(() => {
+		if (!queueSearchQuery.trim()) return $queueWindowedComments;
 		const query = queueSearchQuery.toLowerCase().trim();
-		return $selectedComments.filter(c => 
+		return $queueWindowedComments.filter(c => 
 			c.textOriginal.toLowerCase().includes(query) ||
 			c.videoTitle?.toLowerCase().includes(query)
 		);
 	});
+	
+	// Track scroll position for lazy loading
+	let queueScrollContainer: HTMLDivElement | undefined;
+	let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
+	
+	function handleQueueScrollEvent(e: Event) {
+		const target = e.target as HTMLDivElement;
+		
+		if (scrollTimeout) {
+			clearTimeout(scrollTimeout);
+		}
+		
+		scrollTimeout = setTimeout(() => {
+			// Calculate scroll index (approximate)
+			const scrollTop = target.scrollTop;
+			const itemHeight = 120; // Approximate height of queue item
+			const scrollIndex = Math.floor(scrollTop / itemHeight);
+			
+			// Only report if changed significantly
+			handleQueueScroll(scrollIndex);
+		}, 16); // ~60fps
+	}
 	
 	// Handle removing a single comment with animation
 	function handleRemoveWithAnimation(commentId: string) {
@@ -209,7 +241,7 @@
 				</button>
 			{/if}
 			{#if queueSearchQuery}
-				<span class="queue-search-count">{filteredSelectedComments().length} found</span>
+				<span class="queue-search-count">{filteredQueueComments().length} found</span>
 			{/if}
 		</div>
 	{/if}
@@ -227,8 +259,12 @@
 					<span class="hint">Or click the circle button on each comment to add them</span>
 				</div>
 			{:else}
-				<div class="selected-list">
-					{#each filteredSelectedComments() as comment (comment.id)}
+				<div 
+					class="selected-list"
+					bind:this={queueScrollContainer}
+					onscroll={handleQueueScrollEvent}
+				>
+					{#each filteredQueueComments() as comment (comment.id)}
 						{@const status = getCommentStatus(comment.id)}
 						{@const hasError = hasDeleteError(comment)}
 						{@const isExpanded = expandedErrorId === comment.id}
