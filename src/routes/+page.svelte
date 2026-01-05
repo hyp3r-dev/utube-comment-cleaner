@@ -269,15 +269,9 @@
 	
 	// Effect to reload sliding window when filters/sort/search change
 	$effect(() => {
-		// Track filters/sort/search changes (dependencies for the effect)
-		const currentFilters = $filters;
-		const currentSortField = $sortField;
-		const currentSortOrder = $sortOrder;
-		const currentSearchQuery = $searchQuery;
-		
 		// Only reload if authenticated (has cached data)
 		if ($isAuthenticated) {
-			reloadSlidingWindow(currentFilters, currentSortField, currentSortOrder, currentSearchQuery);
+			reloadSlidingWindow($filters, $sortField, $sortOrder, $searchQuery);
 		}
 	});
 	
