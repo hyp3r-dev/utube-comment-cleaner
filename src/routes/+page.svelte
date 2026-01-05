@@ -180,14 +180,20 @@
 		const scrollHeight = target.scrollHeight;
 		const clientHeight = target.clientHeight;
 		
+		// Guard against division by zero when content isn't scrollable
+		const scrollableHeight = scrollHeight - clientHeight;
+		if (scrollableHeight <= 0) return;
+		
 		// Calculate approximate scroll percentage
-		const scrollPercentage = scrollTop / (scrollHeight - clientHeight);
+		const scrollPercentage = scrollTop / scrollableHeight;
 		
-		// Calculate approximate current index based on total comments
-		const totalComments = $windowedComments.length;
-		const currentIndex = Math.floor(scrollPercentage * totalComments);
+		// Calculate approximate current index based on windowed comments (local to the current window)
+		const windowLength = $windowedComments.length;
+		if (windowLength === 0) return;
 		
-		// Only trigger loading if we've scrolled significantly (every ~10 items)
+		const currentIndex = Math.floor(scrollPercentage * windowLength);
+		
+		// Only trigger loading if we've scrolled significantly (every ~5 items)
 		if (Math.abs(currentIndex - lastReportedScrollIndex) > 5) {
 			handleScrollPosition(currentIndex);
 			lastReportedScrollIndex = currentIndex;
