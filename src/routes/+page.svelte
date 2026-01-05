@@ -85,6 +85,7 @@
 	// Legal and compliance settings (from server config)
 	let enableLegal = $state(false);
 	let enableCookieConsent = $state(false);
+	let enableImpressum = $state(false);
 	
 
 
@@ -162,6 +163,7 @@
 				googleLoginEnabled = config.googleLoginEnabled;
 				enableLegal = config.enableLegal;
 				enableCookieConsent = config.enableCookieConsent;
+				enableImpressum = config.enableImpressum;
 				
 				// Store data retention config in localStorage for storage service
 				if (config.localDataRetentionDays) {
@@ -176,9 +178,17 @@
 		}
 		isCheckingAuth = false;
 		
-		// Check for OAuth callback success
+		// Check for OAuth callback - handle success or error
 		const params = new URLSearchParams(window.location.search);
-		if (params.get('auth_success') === 'true') {
+		const authSuccess = params.get('auth_success') === 'true';
+		const authError = params.get('auth_error');
+		
+		// Clean up the URL immediately to prevent re-processing
+		if (authSuccess || authError) {
+			window.history.replaceState({}, '', '/');
+		}
+		
+		if (authSuccess) {
 			// Fetch the token securely from the server
 			try {
 				const tokenResponse = await fetch('/api/auth/token');
@@ -187,7 +197,9 @@
 					if (tokenData.success && tokenData.access_token) {
 						inputApiKey = tokenData.access_token;
 						handleConnectToken();
-						toasts.success('Successfully signed in with Google!');
+						// Don't show duplicate success message - handleConnectToken already shows one
+					} else {
+						toasts.error('Failed to retrieve access token.');
 					}
 				} else {
 					toasts.error('Failed to complete sign-in. Please try again.');
@@ -196,13 +208,8 @@
 				console.error('Failed to fetch OAuth token:', e);
 				toasts.error('Failed to complete sign-in. Please try again.');
 			}
-			
-			// Clean up the URL
-			window.history.replaceState({}, '', '/');
-		} else if (params.get('auth_error')) {
-			const authError = params.get('auth_error');
+		} else if (authError) {
 			toasts.error(`Sign-in failed: ${authError}`);
-			window.history.replaceState({}, '', '/');
 		}
 		
 		// Check if we have an existing auth status cookie (Google Login mode)
@@ -1227,6 +1234,10 @@
 						<a href="/legal/privacy">Privacy Policy</a>
 						<span class="footer-separator">•</span>
 						<a href="/legal/terms">Terms of Service</a>
+						{#if enableImpressum}
+							<span class="footer-separator">•</span>
+							<a href="/legal/impressum">Impressum</a>
+						{/if}
 					</div>
 				{/if}
 				<p>CommentSlash — Destroy your YouTube comments with precision ⚔️✨</p>
@@ -1453,6 +1464,8 @@
 		flex-direction: column;
 		/* Prevent layout collapse when content is empty */
 		width: 100%;
+		/* Force grid item to maintain its track width */
+		overflow: hidden;
 	}
 
 	.comments-scroll-wrapper {
@@ -1473,6 +1486,8 @@
 		/* Smooth scrolling for better UX */
 		scroll-behavior: smooth;
 		-webkit-overflow-scrolling: touch;
+		/* Ensure consistent width */
+		width: 100%;
 	}
 
 	.section-header {

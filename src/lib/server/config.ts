@@ -50,6 +50,52 @@ export const legalConfig = {
 };
 
 /**
+ * Impressum (legal notice) configuration
+ * Required in some jurisdictions (e.g., Germany)
+ */
+export const impressumConfig = {
+	get enabled(): boolean {
+		return env.ENABLE_IMPRESSUM === 'true';
+	},
+	
+	get serviceName(): string {
+		return env.IMPRESSUM_SERVICE_NAME || 'CommentSlash';
+	},
+	
+	get representativeName(): string {
+		return env.IMPRESSUM_REPRESENTATIVE_NAME || '';
+	},
+	
+	get addressLine1(): string {
+		return env.IMPRESSUM_ADDRESS_LINE1 || '';
+	},
+	
+	get addressLine2(): string {
+		return env.IMPRESSUM_ADDRESS_LINE2 || '';
+	},
+	
+	get city(): string {
+		return env.IMPRESSUM_CITY || '';
+	},
+	
+	get postalCode(): string {
+		return env.IMPRESSUM_POSTAL_CODE || '';
+	},
+	
+	get country(): string {
+		return env.IMPRESSUM_COUNTRY || '';
+	},
+	
+	get email(): string {
+		return env.IMPRESSUM_EMAIL || '';
+	},
+	
+	get phone(): string {
+		return env.IMPRESSUM_PHONE || '';
+	}
+};
+
+/**
  * Data retention configuration
  * Controls how long local data is stored
  */
