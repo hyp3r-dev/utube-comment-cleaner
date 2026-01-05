@@ -499,7 +499,17 @@
 			if (result.missing.length > 0) {
 				const missingUpdates = new Map<string, Partial<YouTubeComment>>();
 				result.missing.forEach(id => {
-					missingUpdates.set(id, { isUnenrichable: true });
+					// Get the existing labels for this comment
+					const existingComment = $comments.find(c => c.id === id);
+					const existingLabels = existingComment?.labels || [];
+					// Add 'unenrichable' label if not already present
+					const labels = existingLabels.includes('unenrichable') 
+						? existingLabels 
+						: [...existingLabels, 'unenrichable' as const];
+					missingUpdates.set(id, { 
+						isUnenrichable: true,
+						labels
+					});
 				});
 				updateComments(missingUpdates);
 			}
@@ -639,7 +649,12 @@
 			// Mark externally deleted comments
 			const updatedComments = $comments.map(c => {
 				if (!newIds.has(c.id) && !c.isExternallyDeleted) {
-					return { ...c, isExternallyDeleted: true };
+					// Add 'externally_deleted' label
+					const existingLabels = c.labels || [];
+					const labels = existingLabels.includes('externally_deleted')
+						? existingLabels
+						: [...existingLabels, 'externally_deleted' as const];
+					return { ...c, isExternallyDeleted: true, labels };
 				}
 				return c;
 			});
