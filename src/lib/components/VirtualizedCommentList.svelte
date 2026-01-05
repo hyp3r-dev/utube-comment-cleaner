@@ -2,6 +2,7 @@
 	import { onMount, tick } from 'svelte';
 	import type { YouTubeComment } from '$lib/types/comment';
 	import { selectedIds } from '$lib/stores/comments';
+	import { handleScrollPosition } from '$lib/stores/slidingWindow';
 	import CommentCard from './CommentCard.svelte';
 
 	let { 
@@ -24,6 +25,7 @@
 	let scrollTop = $state(0);
 	let containerHeight = $state(600); // Default height
 	let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
+	let lastReportedIndex = -1;
 
 	// Filter out selected comments if hideWhenSelected is true
 	const displayComments = $derived(
@@ -69,6 +71,11 @@
 	// Whether virtualization is active (only for large lists)
 	const isVirtualized = $derived(displayComments.length > MIN_BATCH_SIZE * 2);
 
+	// Current scroll index (middle of visible range)
+	const currentScrollIndex = $derived(
+		Math.floor((visibleRange.start + visibleRange.end) / 2)
+	);
+
 	function handleScroll(e: Event) {
 		const target = e.target as HTMLDivElement;
 		
@@ -79,6 +86,14 @@
 		
 		scrollTimeout = setTimeout(() => {
 			scrollTop = target.scrollTop;
+			
+			// Report scroll position to sliding window store
+			// Only report if index changed significantly to avoid too many calls
+			const currentIndex = currentScrollIndex;
+			if (Math.abs(currentIndex - lastReportedIndex) > 10) {
+				handleScrollPosition(currentIndex);
+				lastReportedIndex = currentIndex;
+			}
 		}, SCROLL_DEBOUNCE_MS);
 	}
 

@@ -28,7 +28,7 @@
 		YouTubeAPIError 
 	} from '$lib/services/youtube';
 	import { parseTakeoutFile, readFileAsText, parseZipFile, parseMultipleFiles } from '$lib/services/takeout';
-	import { saveComments, loadComments, deleteComments as deleteFromStorage, clearAllData, clearCommentsOnly, saveLastTakeoutImport } from '$lib/services/storage';
+	import { saveComments, deleteComments as deleteFromStorage, clearAllData, clearCommentsOnly, saveLastTakeoutImport, getCommentCount } from '$lib/services/storage';
 	import {
 		apiKey,
 		isAuthenticated,
@@ -45,8 +45,20 @@
 		logout,
 		updateComments,
 		setDeleteError,
-		moveToBottomOfQueueBatch
+		moveToBottomOfQueueBatch,
+		filters,
+		sortField,
+		sortOrder,
+		searchQuery
 	} from '$lib/stores/comments';
+	import {
+		windowedComments,
+		totalAvailable,
+		isLoadingWindow,
+		initializeSlidingWindow,
+		reloadSlidingWindow,
+		clearSlidingWindow
+	} from '$lib/stores/slidingWindow';
 	import type { YouTubeComment } from '$lib/types/comment';
 	import JSZip from 'jszip';
 
@@ -93,7 +105,7 @@
 	const groupedComments = $derived(() => {
 		const groups = new Map<string, { videoId: string; videoTitle?: string; comments: YouTubeComment[] }>();
 		
-		for (const comment of $filteredComments) {
+		for (const comment of $windowedComments) {
 			const existing = groups.get(comment.videoId);
 			if (existing) {
 				existing.comments.push(comment);
@@ -130,12 +142,14 @@
 	const enrichedCount = $derived(enrichmentStats().enriched);
 	const unenrichableCount = $derived(enrichmentStats().unenrichable);
 
-	// Count visible comments (excluding those in slash queue when hideSelectedFromList is enabled)
+	// Count visible comments (total available from sliding window or windowedComments length)
 	const visibleCommentsCount = $derived(() => {
+		// Use totalAvailable if we have it, otherwise use windowedComments length
+		const total = $totalAvailable > 0 ? $totalAvailable : $windowedComments.length;
 		if (!hideSelectedFromList) {
-			return $filteredComments.length;
+			return total;
 		}
-		return $filteredComments.filter(c => !$selectedIds.has(c.id)).length;
+		return $windowedComments.filter(c => !$selectedIds.has(c.id)).length;
 	});
 
 	// YouTube connection status for the navbar icon
@@ -147,10 +161,10 @@
 		return 'connected';
 	});
 	
-	// Update comments list when filtered comments change
+	// Update comments list when windowed comments change
 	$effect(() => {
 		// Track dependencies - just re-render when these change
-		$filteredComments.length;
+		$windowedComments.length;
 		$selectedIds.size;
 	});
 
@@ -235,16 +249,25 @@
 			}
 		}
 		
-		// Try to load cached comments
+		// Try to check if we have cached comments
 		try {
-			const cachedComments = await loadComments();
-			if (cachedComments.length > 0) {
-				comments.set(cachedComments);
+			const cachedCount = await getCommentCount();
+			if (cachedCount > 0) {
+				// Initialize sliding window with cached comments
+				await initializeSlidingWindow($filters, $sortField, $sortOrder, $searchQuery);
 				// If we have cached data, mark as authenticated to show the dashboard
 				isAuthenticated.set(true);
 			}
 		} catch (e) {
 			console.error('Failed to load cached comments:', e);
+		}
+	});
+	
+	// Effect to reload sliding window when filters/sort/search change
+	$effect(() => {
+		// Only run if we have data
+		if ($isAuthenticated && $totalAvailable > 0) {
+			reloadSlidingWindow($filters, $sortField, $sortOrder, $searchQuery);
 		}
 	});
 	
@@ -359,10 +382,13 @@
 				return;
 			}
 
-			comments.set(importedComments);
+			// Save to IndexedDB
 			await saveComments(importedComments);
 			await saveLastTakeoutImport();
 			loadingProgress.set({ loaded: 1, total: 1 });
+			
+			// Reinitialize sliding window with new data
+			await initializeSlidingWindow($filters, $sortField, $sortOrder, $searchQuery);
 			
 			isAuthenticated.set(true);
 		} catch (e) {
@@ -1145,7 +1171,7 @@
 							</div>
 
 							<div class="comments-scroll-wrapper">
-								{#if $filteredComments.length === 0}
+								{#if $windowedComments.length === 0 && !$isLoadingWindow}
 									<div class="comments-scroll-container">
 										<div class="empty-state">
 											<div class="empty-icon">🔍</div>
@@ -1180,12 +1206,17 @@
 										</div>
 									</div>
 								{:else}
-									<!-- Use virtualized list for non-grouped view (better performance) -->
+									<!-- Use virtualized list with sliding window for non-grouped view -->
 									<VirtualizedCommentList 
-										comments={$filteredComments}
+										comments={$windowedComments}
 										hideWhenSelected={hideSelectedFromList}
 										onRemoveFromDatabase={handleRemoveFromDatabase}
 									/>
+								{/if}
+								{#if $isLoadingWindow}
+									<div class="loading-indicator">
+										<LoadingSpinner size={20} message="Loading more comments..." />
+									</div>
 								{/if}
 							</div>
 						</div>
@@ -1489,6 +1520,17 @@
 		min-height: 0;
 		display: flex;
 		flex-direction: column;
+	}
+	
+	.loading-indicator {
+		position: sticky;
+		bottom: 0;
+		left: 0;
+		right: 0;
+		padding: 1rem;
+		text-align: center;
+		background: linear-gradient(to top, var(--bg-primary) 50%, transparent);
+		z-index: 10;
 	}
 
 	.comments-scroll-container {
