@@ -21,6 +21,12 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { oauthConfig, privacyLogger } from '$lib/server/config';
 
+// Configuration constants
+const GOOGLE_ISSUER = 'https://accounts.google.com';
+const GOOGLE_CERTS_URL = 'https://www.googleapis.com/oauth2/v3/certs';
+const DEFAULT_CACHE_TTL_SECONDS = 3600; // 1 hour default cache TTL for Google's public keys
+const TOKEN_MAX_AGE_SECONDS = 300; // 5 minutes max age for SET tokens (clock skew allowance)
+
 // JWT header structure for SET tokens
 interface JWTHeader {
 	alg: string;
@@ -66,9 +72,6 @@ const RISC_EVENTS = {
 	SESSIONS_REVOKED: 'https://schemas.openid.net/secevent/risc/event-type/sessions-revoked',
 } as const;
 
-// Google's public keys endpoint for verifying SETs
-const GOOGLE_CERTS_URL = 'https://www.googleapis.com/oauth2/v3/certs';
-
 // Cache for Google's public keys (JWKs)
 interface GoogleJWK {
 	kty: string;
@@ -106,10 +109,10 @@ async function getGooglePublicKeys(): Promise<GoogleJWK[]> {
 		const data = await response.json() as GoogleJWKSResponse;
 		cachedKeys = data.keys;
 		
-		// Cache for 1 hour (Google recommends respecting Cache-Control header)
+		// Cache based on Cache-Control header or use default TTL
 		const cacheControl = response.headers.get('cache-control');
 		const maxAgeMatch = cacheControl?.match(/max-age=(\d+)/);
-		const maxAge = maxAgeMatch ? parseInt(maxAgeMatch[1], 10) : 3600;
+		const maxAge = maxAgeMatch ? parseInt(maxAgeMatch[1], 10) : DEFAULT_CACHE_TTL_SECONDS;
 		cacheExpiry = now + (maxAge * 1000);
 		
 		return cachedKeys;
@@ -318,7 +321,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		}
 
 		// Verify issuer is Google (don't log the actual issuer value for security)
-		if (claims.iss !== 'https://accounts.google.com') {
+		if (claims.iss !== GOOGLE_ISSUER) {
 			privacyLogger.error('Invalid SET issuer - expected accounts.google.com');
 			return json({ error: 'Invalid issuer' }, { status: 400 });
 		}
@@ -329,9 +332,9 @@ export const POST: RequestHandler = async ({ request }) => {
 			return json({ error: 'Invalid audience' }, { status: 400 });
 		}
 
-		// Check token is not too old (allow 5 minutes clock skew)
+		// Check token is not too old (allow clock skew)
 		const now = Math.floor(Date.now() / 1000);
-		if (claims.iat < now - 300) {
+		if (claims.iat < now - TOKEN_MAX_AGE_SECONDS) {
 			privacyLogger.warn('SET token is too old');
 			// Still process it but log the warning
 		}
