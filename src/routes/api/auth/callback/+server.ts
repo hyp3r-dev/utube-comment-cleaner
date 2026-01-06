@@ -50,11 +50,19 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 		return redirect(302, '/?auth_error=invalid_state');
 	}
 	
-	// Clear the state cookie
+	// Get the PKCE code verifier from cookie
+	const codeVerifier = cookies.get('oauth_code_verifier');
+	if (!codeVerifier) {
+		privacyLogger.error('OAuth callback missing code verifier - PKCE validation failed');
+		return redirect(302, '/?auth_error=missing_code_verifier');
+	}
+	
+	// Clear the state and code verifier cookies
 	cookies.delete('oauth_state', { path: '/' });
+	cookies.delete('oauth_code_verifier', { path: '/' });
 	
 	try {
-		// Exchange authorization code for tokens
+		// Exchange authorization code for tokens with PKCE code verifier
 		const tokenResponse = await fetch(GOOGLE_TOKEN_URL, {
 			method: 'POST',
 			headers: {
@@ -65,7 +73,8 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 				client_secret: oauthConfig.clientSecret,
 				code: code,
 				grant_type: 'authorization_code',
-				redirect_uri: oauthConfig.redirectUri
+				redirect_uri: oauthConfig.redirectUri,
+				code_verifier: codeVerifier // PKCE code verifier for validation
 			})
 		});
 		
