@@ -69,6 +69,57 @@ const RISC_EVENTS = {
 // Google's public keys endpoint for verifying SETs
 const GOOGLE_CERTS_URL = 'https://www.googleapis.com/oauth2/v3/certs';
 
+// Cache for Google's public keys (JWKs)
+interface GoogleJWK {
+	kty: string;
+	alg: string;
+	use: string;
+	kid: string;
+	n: string;
+	e: string;
+}
+
+interface GoogleJWKSResponse {
+	keys: GoogleJWK[];
+}
+
+let cachedKeys: GoogleJWK[] = [];
+let cacheExpiry = 0;
+
+/**
+ * Fetch and cache Google's public keys for JWT verification
+ */
+async function getGooglePublicKeys(): Promise<GoogleJWK[]> {
+	const now = Date.now();
+	
+	// Return cached keys if still valid
+	if (cachedKeys.length > 0 && now < cacheExpiry) {
+		return cachedKeys;
+	}
+	
+	try {
+		const response = await fetch(GOOGLE_CERTS_URL);
+		if (!response.ok) {
+			throw new Error(`Failed to fetch Google certs: ${response.status}`);
+		}
+		
+		const data = await response.json() as GoogleJWKSResponse;
+		cachedKeys = data.keys;
+		
+		// Cache for 1 hour (Google recommends respecting Cache-Control header)
+		const cacheControl = response.headers.get('cache-control');
+		const maxAgeMatch = cacheControl?.match(/max-age=(\d+)/);
+		const maxAge = maxAgeMatch ? parseInt(maxAgeMatch[1], 10) : 3600;
+		cacheExpiry = now + (maxAge * 1000);
+		
+		return cachedKeys;
+	} catch (e) {
+		privacyLogger.error(`Failed to fetch Google public keys: ${e instanceof Error ? e.message : 'Unknown error'}`);
+		// Return cached keys even if expired, as a fallback
+		return cachedKeys;
+	}
+}
+
 /**
  * Base64URL decode helper
  */
@@ -83,8 +134,95 @@ function base64UrlDecode(str: string): string {
 }
 
 /**
- * Parse JWT without verification (for initial inspection)
- * Full verification should use Google's public keys
+ * Convert base64url to ArrayBuffer
+ */
+function base64UrlToArrayBuffer(str: string): ArrayBuffer {
+	const binary = base64UrlDecode(str);
+	const bytes = new Uint8Array(binary.length);
+	for (let i = 0; i < binary.length; i++) {
+		bytes[i] = binary.charCodeAt(i);
+	}
+	return bytes.buffer;
+}
+
+/**
+ * Import a JWK as a CryptoKey for verification
+ */
+async function importJWK(jwk: GoogleJWK): Promise<CryptoKey> {
+	return crypto.subtle.importKey(
+		'jwk',
+		{
+			kty: jwk.kty,
+			n: jwk.n,
+			e: jwk.e,
+			alg: jwk.alg,
+			use: jwk.use
+		},
+		{
+			name: 'RSASSA-PKCS1-v1_5',
+			hash: { name: 'SHA-256' }
+		},
+		false,
+		['verify']
+	);
+}
+
+/**
+ * Verify JWT signature using Google's public keys
+ */
+async function verifyJWTSignature(token: string, header: JWTHeader): Promise<boolean> {
+	try {
+		const parts = token.split('.');
+		if (parts.length !== 3) {
+			return false;
+		}
+		
+		const [headerB64, payloadB64, signatureB64] = parts;
+		const signedData = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
+		const signature = base64UrlToArrayBuffer(signatureB64);
+		
+		// Get Google's public keys
+		const keys = await getGooglePublicKeys();
+		
+		// Find the key matching the kid (key ID) from the JWT header
+		const matchingKey = keys.find(k => k.kid === header.kid);
+		
+		if (!matchingKey) {
+			privacyLogger.warn('No matching key found for JWT kid');
+			// Try all keys as fallback (in case kid is missing)
+			for (const key of keys) {
+				try {
+					const cryptoKey = await importJWK(key);
+					const valid = await crypto.subtle.verify(
+						'RSASSA-PKCS1-v1_5',
+						cryptoKey,
+						signature,
+						signedData
+					);
+					if (valid) return true;
+				} catch {
+					// Try next key
+				}
+			}
+			return false;
+		}
+		
+		// Verify with the matching key
+		const cryptoKey = await importJWK(matchingKey);
+		return await crypto.subtle.verify(
+			'RSASSA-PKCS1-v1_5',
+			cryptoKey,
+			signature,
+			signedData
+		);
+	} catch (e) {
+		privacyLogger.error(`JWT signature verification failed: ${e instanceof Error ? e.message : 'Unknown error'}`);
+		return false;
+	}
+}
+
+/**
+ * Parse JWT and extract header and claims
  */
 function parseJWT(token: string): { header: JWTHeader; claims: SETClaims } | null {
 	try {
@@ -160,8 +298,10 @@ export const POST: RequestHandler = async ({ request }) => {
 			return json({ error: 'Empty token' }, { status: 400 });
 		}
 
-		// Parse the JWT (note: in production you should verify the signature using Google's public keys)
-		const parsed = parseJWT(setToken.trim());
+		const trimmedToken = setToken.trim();
+		
+		// Parse the JWT to extract header and claims
+		const parsed = parseJWT(trimmedToken);
 		
 		if (!parsed) {
 			privacyLogger.error('Failed to parse SET token');
@@ -170,9 +310,16 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		const { header, claims } = parsed;
 
-		// Verify issuer is Google
+		// Verify JWT signature using Google's public keys
+		const signatureValid = await verifyJWTSignature(trimmedToken, header);
+		if (!signatureValid) {
+			privacyLogger.error('SET token signature verification failed');
+			return json({ error: 'Invalid signature' }, { status: 401 });
+		}
+
+		// Verify issuer is Google (don't log the actual issuer value for security)
 		if (claims.iss !== 'https://accounts.google.com') {
-			privacyLogger.error(`Invalid SET issuer: ${claims.iss}`);
+			privacyLogger.error('Invalid SET issuer - expected accounts.google.com');
 			return json({ error: 'Invalid issuer' }, { status: 400 });
 		}
 
