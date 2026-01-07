@@ -2,16 +2,21 @@
 	import type { YouTubeComment } from '$lib/types/comment';
 	import { selectedIds } from '$lib/stores/comments';
 	import CommentCard from './CommentCard.svelte';
+	import { truncateText } from '$lib/utils/formatting';
 	
 	let { 
 		videoId,
 		videoTitle,
+		videoChannelId,
+		videoChannelTitle,
 		comments,
 		hideSelectedComments = false,
 		onRemoveFromDatabase
 	}: { 
 		videoId: string;
 		videoTitle?: string;
+		videoChannelId?: string;
+		videoChannelTitle?: string;
 		comments: YouTubeComment[];
 		hideSelectedComments?: boolean;
 		onRemoveFromDatabase?: (commentId: string) => void;
@@ -78,6 +83,27 @@
 			onclick={() => isExpanded = !isExpanded}
 		>
 			<div class="group-info">
+				<!-- Channel name (if available) -->
+				{#if videoChannelTitle}
+					<div class="channel-name">
+						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+							<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clip-rule="evenodd"/>
+						</svg>
+						{#if videoChannelId}
+							<a 
+								href="https://www.youtube.com/channel/{videoChannelId}" 
+								target="_blank" 
+								rel="noopener noreferrer"
+								class="channel-link"
+								onclick={(e) => e.stopPropagation()}
+							>
+								{truncateText(videoChannelTitle, 30)}
+							</a>
+						{:else}
+							<span class="channel-text">{truncateText(videoChannelTitle, 30)}</span>
+						{/if}
+					</div>
+				{/if}
 				<h4 class="video-title">
 					{#if videoTitle}
 						{videoTitle}
@@ -212,6 +238,34 @@
 	.group-info {
 		flex: 1;
 		min-width: 0;
+	}
+
+	.channel-name {
+		display: flex;
+		align-items: center;
+		gap: 0.35rem;
+		font-size: 0.7rem;
+		color: var(--text-secondary);
+		margin-bottom: 0.15rem;
+	}
+
+	.channel-name svg {
+		flex-shrink: 0;
+	}
+
+	.channel-link {
+		color: var(--text-secondary);
+		text-decoration: none;
+		transition: color 0.2s ease;
+	}
+
+	.channel-link:hover {
+		color: var(--accent-tertiary);
+		text-decoration: underline;
+	}
+
+	.channel-text {
+		color: var(--text-secondary);
 	}
 	
 	.video-title {

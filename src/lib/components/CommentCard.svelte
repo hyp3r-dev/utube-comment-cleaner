@@ -175,28 +175,58 @@
 		{/if}
 		
 		{#if !hideVideoInfo}
-			{#if comment.videoTitle}
+			{#if comment.videoTitle || comment.videoChannelTitle}
 				<div class="video-info">
-					<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-						<path d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm0 2h12v8H4V6z"/>
-						<path d="M8 8l4 2-4 2V8z"/>
-					</svg>
-					{#if isExpanded}
-						<a 
-							href="https://www.youtube.com/watch?v={comment.videoId}" 
-							target="_blank" 
-							rel="noopener noreferrer"
-							class="video-link"
-							onclick={(e) => e.stopPropagation()}
-						>
-							{comment.videoTitle}
-							<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" class="external-link-icon">
-								<path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/>
-								<path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/>
+					<!-- Channel info (if available from enrichment) -->
+					{#if comment.videoChannelTitle}
+						<div class="channel-info">
+							<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+								<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clip-rule="evenodd"/>
 							</svg>
-						</a>
-					{:else}
-						<span class="video-title-text">{truncateText(comment.videoTitle, 40)}</span>
+							{#if isExpanded && comment.videoChannelId}
+								<a 
+									href="https://www.youtube.com/channel/{comment.videoChannelId}" 
+									target="_blank" 
+									rel="noopener noreferrer"
+									class="channel-link"
+									onclick={(e) => e.stopPropagation()}
+								>
+									{comment.videoChannelTitle}
+									<svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor" class="external-link-icon">
+										<path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/>
+										<path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/>
+									</svg>
+								</a>
+							{:else}
+								<span class="channel-title-text">{truncateText(comment.videoChannelTitle, 25)}</span>
+							{/if}
+						</div>
+					{/if}
+					<!-- Video info -->
+					{#if comment.videoTitle}
+						<div class="video-title-info">
+							<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+								<path d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm0 2h12v8H4V6z"/>
+								<path d="M8 8l4 2-4 2V8z"/>
+							</svg>
+							{#if isExpanded}
+								<a 
+									href="https://www.youtube.com/watch?v={comment.videoId}" 
+									target="_blank" 
+									rel="noopener noreferrer"
+									class="video-link"
+									onclick={(e) => e.stopPropagation()}
+								>
+									{comment.videoTitle}
+									<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" class="external-link-icon">
+										<path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/>
+										<path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/>
+									</svg>
+								</a>
+							{:else}
+								<span class="video-title-text">{truncateText(comment.videoTitle, 40)}</span>
+							{/if}
+						</div>
 					{/if}
 				</div>
 			{:else if comment.videoId}
@@ -532,16 +562,42 @@
 
 	.video-info {
 		display: flex;
-		align-items: flex-start;
-		gap: 0.5rem;
+		flex-direction: column;
+		gap: 0.35rem;
 		margin-top: 0.5rem;
 		color: var(--text-muted);
 		font-size: 0.8rem;
 	}
 	
-	.video-info svg {
+	.channel-info,
+	.video-title-info {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.5rem;
+	}
+	
+	.channel-info svg,
+	.video-title-info svg {
 		flex-shrink: 0;
 		margin-top: 2px;
+	}
+
+	.channel-link {
+		color: var(--text-secondary);
+		text-decoration: none;
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		transition: color 0.2s ease;
+	}
+
+	.channel-link:hover {
+		color: var(--accent-tertiary);
+		text-decoration: underline;
+	}
+
+	.channel-title-text {
+		color: var(--text-secondary);
 	}
 
 	.video-info-id {

@@ -77,6 +77,8 @@ interface YouTubeVideoResponse {
 		id: string;
 		snippet: {
 			title: string;
+			channelId: string;
+			channelTitle: string;
 		};
 		status: {
 			privacyStatus: string;
@@ -303,14 +305,24 @@ export class YouTubeService {
 	}
 
 	/**
-	 * Fetch video details (title, privacy status) for a batch of video IDs
-	 * Used during enrichment to get video titles for comments
+	 * Fetch video details (title, privacy status, channel info) for a batch of video IDs
+	 * Used during enrichment to get video titles and channel names for comments
 	 * Batches requests in groups of 50 (YouTube API limit)
 	 */
 	private async fetchVideoDetailsBatch(
 		videoIds: string[]
-	): Promise<Record<string, { title: string; privacyStatus: 'public' | 'private' | 'unlisted' | 'unknown' }>> {
-		const result: Record<string, { title: string; privacyStatus: 'public' | 'private' | 'unlisted' | 'unknown' }> = {};
+	): Promise<Record<string, { 
+		title: string; 
+		privacyStatus: 'public' | 'private' | 'unlisted' | 'unknown';
+		channelId?: string;
+		channelTitle?: string;
+	}>> {
+		const result: Record<string, { 
+			title: string; 
+			privacyStatus: 'public' | 'private' | 'unlisted' | 'unknown';
+			channelId?: string;
+			channelTitle?: string;
+		}> = {};
 		
 		// Batch requests in groups of 50 (YouTube API limit)
 		const batchSize = 50;
@@ -335,7 +347,9 @@ export class YouTubeService {
 				for (const video of data.items) {
 					result[video.id] = {
 						title: video.snippet.title,
-						privacyStatus: this.mapPrivacyStatus(video.status.privacyStatus)
+						privacyStatus: this.mapPrivacyStatus(video.status.privacyStatus),
+						channelId: video.snippet.channelId,
+						channelTitle: video.snippet.channelTitle
 					};
 				}
 			}
@@ -576,12 +590,12 @@ export class YouTubeService {
 			await this.delay(this.rateLimitDelay);
 		}
 		
-		// Fetch video titles for comments that don't have them
+		// Fetch video details for comments that don't have them
 		if (videoIdsNeedingTitles.size > 0) {
 			try {
 				const videoDetails = await this.fetchVideoDetailsBatch([...videoIdsNeedingTitles]);
 				
-				// Update enriched comments with video titles and fire batch update
+				// Update enriched comments with video titles, channel info, and fire batch update
 				const videoTitleUpdates = new Map<string, Partial<YouTubeComment>>();
 				
 				for (let i = 0; i < enrichedComments.length; i++) {
@@ -591,13 +605,17 @@ export class YouTubeService {
 						enrichedComments[i] = {
 							...comment,
 							videoTitle: details.title,
-							videoPrivacyStatus: details.privacyStatus
+							videoPrivacyStatus: details.privacyStatus,
+							videoChannelId: details.channelId,
+							videoChannelTitle: details.channelTitle
 						};
 						
 						// Track updates for real-time callback
 						videoTitleUpdates.set(comment.id, {
 							videoTitle: details.title,
-							videoPrivacyStatus: details.privacyStatus
+							videoPrivacyStatus: details.privacyStatus,
+							videoChannelId: details.channelId,
+							videoChannelTitle: details.channelTitle
 						});
 					}
 				}

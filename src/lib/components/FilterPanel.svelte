@@ -3,6 +3,10 @@
 	import SearchBar from './SearchBar.svelte';
 	import type { SortField, CommentLabel } from '$lib/types/comment';
 
+	// Filter default/max values as constants
+	const DEFAULT_MAX_CHARACTERS = 10000;
+	const DEFAULT_MAX_LIKES = 1000000;
+
 	let {
 		groupByVideo = true,
 		hideSelectedFromList = true,
@@ -60,15 +64,64 @@
 	function toggleShowErrors() {
 		filters.update(f => ({ ...f, showOnlyWithErrors: !f.showOnlyWithErrors }));
 	}
+
+	// Clear specific filters
+	function clearMinCharacters() {
+		filters.update(f => ({ ...f, minCharacters: 0 }));
+	}
+
+	function clearMaxCharacters() {
+		filters.update(f => ({ ...f, maxCharacters: DEFAULT_MAX_CHARACTERS }));
+	}
+
+	function clearMinLikes() {
+		filters.update(f => ({ ...f, minLikes: 0 }));
+	}
+
+	function clearMaxLikes() {
+		filters.update(f => ({ ...f, maxLikes: DEFAULT_MAX_LIKES }));
+	}
+
+	function clearShowErrors() {
+		filters.update(f => ({ ...f, showOnlyWithErrors: false }));
+	}
 	
 	// Check if any filters are active
 	const hasActiveFilters = $derived(
 		$filters.minCharacters > 0 ||
-		$filters.maxCharacters < 10000 ||
+		$filters.maxCharacters < DEFAULT_MAX_CHARACTERS ||
 		$filters.minLikes > 0 ||
-		$filters.maxLikes < 1000000 ||
+		$filters.maxLikes < DEFAULT_MAX_LIKES ||
 		($filters.labels && $filters.labels.length > 0) ||
 		$filters.showOnlyWithErrors
+	);
+
+	// Individual active filter checks
+	const hasCharacterFilter = $derived($filters.minCharacters > 0 || $filters.maxCharacters < DEFAULT_MAX_CHARACTERS);
+	const hasLikesFilter = $derived($filters.minLikes > 0 || $filters.maxLikes < DEFAULT_MAX_LIKES);
+	const hasLabelFilter = $derived($filters.labels && $filters.labels.length > 0);
+	const hasErrorFilter = $derived($filters.showOnlyWithErrors);
+
+	// Helper function to format filter range display text
+	function formatRangeDisplay(min: number, max: number, defaultMax: number, prefix: string): string {
+		const hasMin = min > 0;
+		const hasMax = max < defaultMax;
+		if (hasMin && hasMax) {
+			return `${prefix}: ${min}+ - ≤${max}`;
+		} else if (hasMin) {
+			return `${prefix}: ${min}+`;
+		} else if (hasMax) {
+			return `${prefix}: ≤${max}`;
+		}
+		return prefix;
+	}
+
+	// Computed filter display text
+	const characterFilterText = $derived(
+		formatRangeDisplay($filters.minCharacters, $filters.maxCharacters, DEFAULT_MAX_CHARACTERS, 'Chars')
+	);
+	const likesFilterText = $derived(
+		formatRangeDisplay($filters.minLikes, $filters.maxLikes, DEFAULT_MAX_LIKES, 'Likes')
 	);
 </script>
 
@@ -173,6 +226,70 @@
 			</label>
 		</div>
 	</div>
+
+	<!-- Active filter badges (always visible when filters are active) -->
+	{#if hasActiveFilters && !isExpanded}
+		<div class="active-filters-bar">
+			<span class="active-filters-label">Active filters:</span>
+			<div class="active-filter-badges">
+				{#if hasCharacterFilter}
+					<button 
+						class="active-filter-badge" 
+						onclick={() => { clearMinCharacters(); clearMaxCharacters(); }}
+						title="Click to clear character filter"
+					>
+						<span class="badge-text">{characterFilterText}</span>
+						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" class="badge-close">
+							<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+						</svg>
+					</button>
+				{/if}
+				{#if hasLikesFilter}
+					<button 
+						class="active-filter-badge" 
+						onclick={() => { clearMinLikes(); clearMaxLikes(); }}
+						title="Click to clear likes filter"
+					>
+						<span class="badge-text">{likesFilterText}</span>
+						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" class="badge-close">
+							<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+						</svg>
+					</button>
+				{/if}
+				{#if hasLabelFilter}
+					{#each $filters.labels || [] as label}
+						<button 
+							class="active-filter-badge" 
+							onclick={() => toggleLabel(label)}
+							title="Click to remove this label filter"
+						>
+							<span class="badge-text">
+								{#if label === 'api_error'}❌ API Error
+								{:else if label === 'unenrichable'}⚠️ Unenrichable
+								{:else if label === 'externally_deleted'}🗑️ Deleted
+								{/if}
+							</span>
+							<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" class="badge-close">
+								<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+							</svg>
+						</button>
+					{/each}
+				{/if}
+				{#if hasErrorFilter}
+					<button 
+						class="active-filter-badge" 
+						onclick={clearShowErrors}
+						title="Click to clear error filter"
+					>
+						<span class="badge-text">❌ With errors only</span>
+						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" class="badge-close">
+							<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+						</svg>
+					</button>
+				{/if}
+			</div>
+		</div>
+	{/if}
 
 	{#if isExpanded}
 		<div class="filter-content">
@@ -563,6 +680,65 @@
 
 	.sort-direction.asc {
 		transform: rotate(180deg);
+	}
+
+	/* Active filter badges (pinned when panel collapsed) */
+	.active-filters-bar {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		margin-top: 0.75rem;
+		padding-top: 0.75rem;
+		border-top: 1px solid var(--bg-tertiary);
+		flex-wrap: wrap;
+		animation: slideDown 0.2s ease;
+	}
+
+	.active-filters-label {
+		color: var(--text-muted);
+		font-size: 0.75rem;
+		font-weight: 500;
+		white-space: nowrap;
+	}
+
+	.active-filter-badges {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.35rem;
+	}
+
+	.active-filter-badge {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.35rem;
+		padding: 0.3rem 0.6rem;
+		background: rgba(99, 102, 241, 0.15);
+		border: 1px solid rgba(99, 102, 241, 0.3);
+		border-radius: var(--radius-sm);
+		color: var(--accent-tertiary);
+		font-size: 0.75rem;
+		font-weight: 500;
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.active-filter-badge:hover {
+		background: rgba(239, 68, 68, 0.15);
+		border-color: rgba(239, 68, 68, 0.4);
+		color: var(--error);
+	}
+
+	.active-filter-badge .badge-text {
+		line-height: 1;
+	}
+
+	.active-filter-badge .badge-close {
+		opacity: 0.7;
+		transition: opacity 0.2s ease;
+	}
+
+	.active-filter-badge:hover .badge-close {
+		opacity: 1;
 	}
 
 	@media (max-width: 900px) {
