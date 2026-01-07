@@ -307,7 +307,7 @@ export class YouTubeService {
 	 * Used during enrichment to get video titles for comments
 	 * Batches requests in groups of 50 (YouTube API limit)
 	 */
-	async fetchVideoDetailsBatch(
+	private async fetchVideoDetailsBatch(
 		videoIds: string[]
 	): Promise<Record<string, { title: string; privacyStatus: 'public' | 'private' | 'unlisted' | 'unknown' }>> {
 		const result: Record<string, { title: string; privacyStatus: 'public' | 'private' | 'unlisted' | 'unknown' }> = {};
