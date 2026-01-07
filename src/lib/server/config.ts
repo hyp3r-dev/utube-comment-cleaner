@@ -4,6 +4,28 @@
 import { env } from '$env/dynamic/private';
 
 /**
+ * Simulation mode configuration
+ * When enabled, the app simulates Google OAuth and YouTube API
+ * without making real API calls. Useful for testing and development.
+ */
+export const simulationConfig = {
+	get enabled(): boolean {
+		return env.ENABLE_SIMULATION_MODE === 'true';
+	},
+	
+	// Simulated delay to mimic network latency (ms)
+	get networkDelay(): number {
+		const value = parseInt(env.SIMULATION_NETWORK_DELAY || '500', 10);
+		return isNaN(value) ? 500 : value;
+	},
+	
+	// Simulate token exchange failure then success (for testing error recovery)
+	get simulateTokenExchangeError(): boolean {
+		return env.SIMULATION_TOKEN_EXCHANGE_ERROR === 'true';
+	}
+};
+
+/**
  * Developer OAuth configuration
  * When both CLIENT_ID and CLIENT_SECRET are set, the app will use
  * Google Sign-In instead of manual access token entry.
@@ -22,6 +44,8 @@ export const oauthConfig = {
 	},
 	
 	get isConfigured(): boolean {
+		// In simulation mode, OAuth is always "configured"
+		if (simulationConfig.enabled) return true;
 		return !!(this.clientId && this.clientSecret && this.redirectUri);
 	},
 	

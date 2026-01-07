@@ -1,7 +1,8 @@
 // API endpoint to securely retrieve the OAuth token from HTTP-only cookie
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { oauthConfig, privacyLogger } from '$lib/server/config';
+import { oauthConfig, privacyLogger, simulationConfig } from '$lib/server/config';
+import { isSimulatedToken } from '$lib/server/simulation';
 
 export const GET: RequestHandler = async ({ cookies }) => {
 	if (!oauthConfig.isConfigured) {
@@ -20,7 +21,12 @@ export const GET: RequestHandler = async ({ cookies }) => {
 		}, { status: 401 });
 	}
 	
-	privacyLogger.info('Token retrieved via secure endpoint');
+	// Log differently for simulation mode
+	if (simulationConfig.enabled && isSimulatedToken(token)) {
+		privacyLogger.info('[SIMULATION] Simulated token retrieved via secure endpoint');
+	} else {
+		privacyLogger.info('Token retrieved via secure endpoint');
+	}
 	
 	return json({
 		success: true,
@@ -33,7 +39,11 @@ export const DELETE: RequestHandler = async ({ cookies }) => {
 	cookies.delete('youtube_access_token', { path: '/' });
 	cookies.delete('youtube_auth_status', { path: '/' });
 	
-	privacyLogger.info('OAuth token cleared');
+	if (simulationConfig.enabled) {
+		privacyLogger.info('[SIMULATION] Simulated OAuth token cleared');
+	} else {
+		privacyLogger.info('OAuth token cleared');
+	}
 	
 	return json({ success: true });
 };

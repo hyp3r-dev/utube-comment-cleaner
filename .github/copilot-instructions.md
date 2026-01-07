@@ -216,6 +216,23 @@ Server-side (set in Docker/deployment):
 - `ENABLE_LEGAL` - Show legal pages
 - `ENABLE_COOKIE_CONSENT` - Show cookie banner
 
+### Simulation Mode
+
+For testing OAuth and YouTube API without real credentials:
+- `ENABLE_SIMULATION_MODE=true` - Enable simulation mode
+- `SIMULATION_NETWORK_DELAY=500` - Network latency simulation in ms (default: 500)
+
+When simulation mode is enabled:
+- OAuth login redirects directly set a simulated token
+- YouTube API calls return mock data from `demodata/enrichment-data.json`
+- Comment deletion always succeeds
+- Token validation always succeeds with a demo channel
+
+To test with simulation mode:
+```bash
+ENABLE_SIMULATION_MODE=true npm run dev
+```
+
 ## Validation Checklist
 
 Before submitting changes:
@@ -266,11 +283,13 @@ Key variables from `src/lib/styles/global.css`:
 The `demodata/` directory contains sample Google Takeout exports for testing:
 
 - **`Kommentare-example.csv`** - German-language CSV with 30 sample comments in authentic Google Takeout format
+- **`enrichment-data.json`** - Mock YouTube API data for simulation mode (video titles, channel names, like counts)
 
 Use these files to test:
 - File import/parsing functionality
 - Comment display and filtering
 - UI changes related to comment lists
+- Channel filter functionality (with simulation mode enabled)
 - Multi-language CSV header support
 
 To test: Start dev server (`npm run dev`) → Import → Select file from `demodata/`
