@@ -109,6 +109,8 @@
 	});
 </script>
 
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- Container div has mouse events for hover-to-expand functionality; the button inside handles click interaction -->
 <div 
 	class="quota-bar" 
 	class:expanded={isExpanded}
