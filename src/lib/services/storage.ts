@@ -355,6 +355,8 @@ export interface CommentQueryOptions {
 	searchQuery?: string;
 	searchMode?: 'all' | 'comments' | 'videos' | 'channels';
 	showOnlyWithErrors?: boolean;
+	// Channel filter - filter by channel ID
+	channelId?: string;
 	
 	// Sorting
 	sortBy?: 'likeCount' | 'publishedAt' | 'textLength';
@@ -437,6 +439,11 @@ export async function queryComments(options: CommentQueryOptions = {}): Promise<
 			
 			// Show only comments with delete errors
 			if (options.showOnlyWithErrors && !comment.lastDeleteError) return false;
+			
+			// Channel filter - filter by channel ID
+			if (options.channelId) {
+				if (comment.videoChannelId !== options.channelId) return false;
+			}
 			
 			return true;
 		});
@@ -594,6 +601,11 @@ export async function getFilteredCommentIds(options: Omit<CommentQueryOptions, '
 			
 			// Show only comments with delete errors
 			if (options.showOnlyWithErrors && !comment.lastDeleteError) return false;
+			
+			// Channel filter - filter by channel ID
+			if (options.channelId) {
+				if (comment.videoChannelId !== options.channelId) return false;
+			}
 			
 			return true;
 		})
