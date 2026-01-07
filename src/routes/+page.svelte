@@ -49,7 +49,8 @@
 		filters,
 		sortField,
 		sortOrder,
-		searchQuery
+		searchQuery,
+		loadPersistedSlashQueue
 	} from '$lib/stores/comments';
 	import {
 		windowedComments,
@@ -61,6 +62,7 @@
 		clearSlidingWindow,
 		handleScrollPosition
 	} from '$lib/stores/slidingWindow';
+	import { quotaRemaining, quotaStore } from '$lib/stores/quota';
 	import type { YouTubeComment } from '$lib/types/comment';
 	import JSZip from 'jszip';
 
@@ -369,6 +371,8 @@
 				// Load all comments into the store for stats and enrichment
 				const allComments = await loadComments();
 				comments.set(allComments);
+				// Load persisted slash queue after comments are loaded
+				await loadPersistedSlashQueue();
 				// Initialize sliding window with cached comments
 				await initializeSlidingWindow($filters, $sortField, $sortOrder, $searchQuery);
 				// If we have cached data, mark as authenticated to show the dashboard
@@ -1098,7 +1102,25 @@
 		isDeletingInBackground = true;
 		
 		// Get ordered list of comment IDs from the queue
-		const commentsToDelete = [...$selectedComments];
+		let commentsToDelete = [...$selectedComments];
+		
+		// Limit deletions based on remaining quota
+		const maxDeletable = $quotaRemaining.maxDeletableComments;
+		const quotaLimited = commentsToDelete.length > maxDeletable;
+		
+		if (maxDeletable === 0) {
+			// Quota exhausted - don't delete anything
+			toasts.warning('Daily quota exhausted. Please wait until the quota resets at midnight Pacific Time.');
+			isDeletingInBackground = false;
+			return;
+		}
+		
+		if (quotaLimited) {
+			// Only delete as many as quota allows
+			commentsToDelete = commentsToDelete.slice(0, maxDeletable);
+			toasts.info(`Quota allows ${maxDeletable} deletions. Remaining comments will stay in the queue.`);
+		}
+		
 		const totalCount = commentsToDelete.length;
 		
 		// Initialize all statuses as pending
@@ -1557,6 +1579,7 @@
 										statuses: deleteStatuses
 									}}
 									isConnected={!!$apiKey}
+									quotaExhausted={$quotaRemaining.isExhausted}
 								/>
 							</div>
 						</aside>

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { selectedComments, selectedIds, deselectComment, deselectAll, selectComment } from '$lib/stores/comments';
 	import { queueWindowedComments, initializeQueueWindow, handleQueueScroll, updateQueueWindow } from '$lib/stores/queueWindow';
-	import { pendingQuota, calculateDeleteQuotaCost, QUOTA_COSTS } from '$lib/stores/quota';
+	import { pendingQuota, calculateDeleteQuotaCost, QUOTA_COSTS, quotaRemaining, timeUntilReset } from '$lib/stores/quota';
 	import type { YouTubeComment } from '$lib/types/comment';
 	import { truncateText } from '$lib/utils/formatting';
 	import ShurikenIcon from './ShurikenIcon.svelte';
@@ -14,7 +14,8 @@
 		onDeleteRequest,
 		isDeleting = false,
 		deleteProgress,
-		isConnected = true
+		isConnected = true,
+		quotaExhausted = false
 	}: {
 		onDeleteRequest?: () => void;
 		isDeleting?: boolean;
@@ -23,6 +24,7 @@
 			statuses: Map<string, { status: DeleteStatus; error?: string }>;
 		};
 		isConnected?: boolean;
+		quotaExhausted?: boolean;
 	} = $props();
 
 	let isDragOver = $state(false);
@@ -177,6 +179,11 @@
 
 	const totalLikes = $derived($selectedComments.reduce((sum, c) => sum + c.likeCount, 0));
 	const deleteCost = $derived(calculateDeleteQuotaCost($selectedComments.length));
+	
+	// Quota-aware deletion logic
+	const canDeleteCount = $derived(Math.min($selectedComments.length, $quotaRemaining.maxDeletableComments));
+	const willExceedQuota = $derived($selectedComments.length > $quotaRemaining.maxDeletableComments);
+	const isQuotaExhausted = $derived($quotaRemaining.isExhausted || quotaExhausted);
 </script>
 
 <div 
@@ -377,26 +384,63 @@
 		</div>
 
 		{#if $selectedComments.length > 0}
+			<!-- Quota warning banner when quota is exhausted or will be exceeded -->
+			{#if isQuotaExhausted}
+				<div class="quota-warning-banner">
+					<div class="warning-icon">⚠️</div>
+					<div class="warning-content">
+						<span class="warning-title">Daily quota exhausted</span>
+						<span class="warning-timer">Resets in: {$timeUntilReset.formatted}</span>
+					</div>
+				</div>
+			{:else if willExceedQuota && canDeleteCount > 0}
+				<div class="quota-limit-banner">
+					<div class="limit-icon">ℹ️</div>
+					<div class="limit-content">
+						<span class="limit-text">Quota allows {canDeleteCount} of {$selectedComments.length} deletions today</span>
+					</div>
+				</div>
+			{/if}
+
 			<div class="panel-footer">
 				<button class="btn btn-ghost" onclick={handleClearAllWithAnimation} disabled={isDeleting}>
 					Clear All
 				</button>
 				{#if isConnected}
-					<button 
-						class="btn btn-danger delete-btn" 
-						onclick={onDeleteRequest}
-						onmouseenter={handleDeleteHoverStart}
-						onmouseleave={handleDeleteHoverEnd}
-						onfocus={handleDeleteHoverStart}
-						onblur={handleDeleteHoverEnd}
-						disabled={isDeleting}
-					>
-						<ShurikenIcon size={18} className="delete-shuriken" />
-						<span class="btn-text">
-							Slash Selected
-							<span class="quota-cost">({deleteCost} quota)</span>
-						</span>
-					</button>
+					{#if isQuotaExhausted}
+						<!-- Quota exhausted - show disabled warning button -->
+						<button 
+							class="btn btn-warning delete-btn-disabled" 
+							disabled
+							title="Daily quota exhausted. Resets in {$timeUntilReset.formatted}"
+						>
+							<ShurikenIcon size={18} className="delete-shuriken-disabled" />
+							<span class="btn-text">
+								Quota Reached
+								<span class="quota-timer">⏱ {$timeUntilReset.formatted}</span>
+							</span>
+						</button>
+					{:else}
+						<button 
+							class="btn btn-danger delete-btn" 
+							onclick={onDeleteRequest}
+							onmouseenter={handleDeleteHoverStart}
+							onmouseleave={handleDeleteHoverEnd}
+							onfocus={handleDeleteHoverStart}
+							onblur={handleDeleteHoverEnd}
+							disabled={isDeleting}
+						>
+							<ShurikenIcon size={18} className="delete-shuriken" />
+							<span class="btn-text">
+								{#if willExceedQuota}
+									Slash {canDeleteCount}
+								{:else}
+									Slash Selected
+								{/if}
+								<span class="quota-cost">({deleteCost} quota)</span>
+							</span>
+						</button>
+					{/if}
 				{:else}
 					<button 
 						class="btn btn-disabled delete-btn-disabled" 
@@ -1003,6 +1047,77 @@
 
 	:global(.delete-shuriken-disabled) {
 		opacity: 0.5;
+	}
+
+	/* Warning button when quota exhausted */
+	.btn-warning {
+		background: rgba(251, 191, 36, 0.2);
+		border: 1px solid rgba(251, 191, 36, 0.4);
+		color: var(--warning);
+		cursor: not-allowed;
+	}
+
+	.quota-timer {
+		font-size: 0.65rem;
+		opacity: 0.9;
+		font-weight: 500;
+	}
+
+	/* Quota warning banner */
+	.quota-warning-banner {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.75rem 1rem;
+		background: rgba(251, 191, 36, 0.15);
+		border-top: 1px solid rgba(251, 191, 36, 0.3);
+		animation: slideDown 0.3s ease;
+	}
+
+	.warning-icon {
+		font-size: 1.25rem;
+	}
+
+	.warning-content {
+		display: flex;
+		flex-direction: column;
+		gap: 0.15rem;
+	}
+
+	.warning-title {
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--warning);
+	}
+
+	.warning-timer {
+		font-size: 0.75rem;
+		color: var(--text-secondary);
+		font-family: monospace;
+	}
+
+	/* Quota limit banner (can still delete some) */
+	.quota-limit-banner {
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		padding: 0.5rem 1rem;
+		background: rgba(99, 102, 241, 0.1);
+		border-top: 1px solid rgba(99, 102, 241, 0.2);
+		animation: slideDown 0.3s ease;
+	}
+
+	.limit-icon {
+		font-size: 1rem;
+	}
+
+	.limit-content {
+		flex: 1;
+	}
+
+	.limit-text {
+		font-size: 0.8rem;
+		color: var(--text-secondary);
 	}
 
 	@media (max-width: 1024px) {

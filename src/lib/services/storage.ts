@@ -175,8 +175,8 @@ export async function loadMetadata<T>(key: string): Promise<T | null> {
 	
 	if (!result) return null;
 	
-	// Quota should never expire
-	if (key === 'quota') {
+	// Quota and slashQueue should never expire (except when all data is cleaned)
+	if (key === 'quota' || key === 'slashQueue') {
 		return result.value as T;
 	}
 	
@@ -227,6 +227,39 @@ export async function saveLastTakeoutImport(): Promise<void> {
  */
 export async function loadLastTakeoutImport(): Promise<number | null> {
 	return loadMetadata<number>('lastTakeoutImport');
+}
+
+/**
+ * Slash queue persistence interface
+ */
+export interface SlashQueueData {
+	selectedIds: string[];
+	selectionOrder: string[];
+}
+
+/**
+ * Save slash queue to IndexedDB
+ * This persists the queue across page refreshes
+ */
+export async function saveSlashQueue(data: SlashQueueData): Promise<void> {
+	await saveMetadata('slashQueue', data);
+}
+
+/**
+ * Load slash queue from IndexedDB
+ */
+export async function loadSlashQueue(): Promise<SlashQueueData | null> {
+	const saved = await loadMetadata<SlashQueueData>('slashQueue');
+	if (!saved) return null;
+	return saved;
+}
+
+/**
+ * Clear slash queue from IndexedDB
+ */
+export async function clearSlashQueue(): Promise<void> {
+	const database = await getDB();
+	await database.delete('metadata', 'slashQueue');
 }
 
 /**
