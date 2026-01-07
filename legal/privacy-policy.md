@@ -36,7 +36,7 @@ Contact: via GitHub Issues at https://github.com/hyp3r-dev/utube-comment-cleaner
 - **Google Takeout Processing**: Your uploaded files are processed entirely in your browser to extract and display your YouTube comments.
 - **YouTube API Access**: When connected, we use the YouTube Data API v3 to:
   - Validate your access token
-  - Enrich comments with additional metadata (likes, reply counts)
+  - Enrich comments with additional metadata (likes, reply counts, video titles)
   - Delete comments at your request
 - **Local Storage**: Comment data is cached locally to improve performance and allow offline access.
 
@@ -52,14 +52,27 @@ These services are subject to:
 - [YouTube Terms of Service](https://www.youtube.com/t/terms)
 - [Google API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy)
 
-### 5.2 Limited Use Disclosure
+### 5.2 Hetzner Online GmbH (Hosting Provider)
+Our service is hosted on servers provided by Hetzner Online GmbH, a German hosting provider. Key information about their data handling:
+
+- **Location**: Our servers are located in Hetzner data centers within Germany and the European Union
+- **IP Address Logging**: Hetzner anonymizes IP addresses in server logs by default, replacing the last octet with a random value (e.g., `123.123.123.XXX`)
+- **Log Retention**: Server access logs are retained for 7 days by default
+- **GDPR Compliance**: Hetzner is fully GDPR compliant with ISO 27001-certified data centers
+- **No Data Transfer Outside EU**: Your data remains within the European Union
+
+For more information:
+- [Hetzner Privacy Policy](https://www.hetzner.com/legal/privacy-policy/)
+- [Hetzner Data Privacy FAQ](https://docs.hetzner.com/general/general-terms-and-conditions/data-privacy-faq/)
+
+### 5.3 Limited Use Disclosure
 CommentSlash's use and transfer of information received from Google APIs adheres to the [Google API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy), including the Limited Use requirements.
 
 ## 6. Data Retention
 
-- **Browser Storage**: Data stored in IndexedDB automatically expires after 24 hours
+- **Browser Storage**: Data stored in IndexedDB automatically expires after 30 days (configurable)
 - **OAuth Tokens**: Access tokens are stored only for the duration of your session
-- **Server Logs**: Minimal server logs are retained for up to 8 hours and contain no personally identifiable information
+- **Server Logs**: Minimal server logs are retained for up to 7 days and contain only anonymized IP addresses (no personally identifiable information)
 
 ## 7. Your Rights (GDPR)
 
@@ -83,6 +96,7 @@ We implement appropriate security measures:
 - OAuth tokens are transmitted securely via HTTPS
 - No sensitive data is stored on our servers
 - Server logs automatically redact any personally identifiable information
+- Our hosting provider (Hetzner) uses ISO 27001-certified data centers with state-of-the-art encryption
 
 ## 9. Children's Privacy
 
@@ -90,7 +104,7 @@ CommentSlash is not intended for use by children under 13 years of age. We do no
 
 ## 10. International Data Transfers
 
-Since all data processing occurs locally in your browser, no international data transfers take place through our service.
+Since all data processing occurs locally in your browser, no international data transfers take place through our service. Our servers are located within the European Union (Germany) and no data is transferred outside the EU.
 
 ## 11. Changes to This Policy
 
@@ -105,4 +119,4 @@ https://github.com/hyp3r-dev/utube-comment-cleaner/issues
 
 ## Datenschutzerklärung (German Summary)
 
-Diese Anwendung verarbeitet Ihre YouTube-Kommentardaten ausschließlich lokal in Ihrem Browser. Es werden keine personenbezogenen Daten an unsere Server übertragen. Sie können Ihre Daten jederzeit über die integrierte "Daten löschen"-Funktion entfernen oder den Zugriff über Ihre Google-Kontoeinstellungen widerrufen.
+Diese Anwendung verarbeitet Ihre YouTube-Kommentardaten ausschließlich lokal in Ihrem Browser. Es werden keine personenbezogenen Daten an unsere Server übertragen. Unsere Server werden bei Hetzner Online GmbH in Deutschland gehostet, wo IP-Adressen standardmäßig anonymisiert werden. Sie können Ihre Daten jederzeit über die integrierte "Daten löschen"-Funktion entfernen oder den Zugriff über Ihre Google-Kontoeinstellungen widerrufen.

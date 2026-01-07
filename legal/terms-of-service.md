@@ -11,6 +11,7 @@ By accessing or using CommentSlash ("the Service"), you agree to be bound by the
 CommentSlash is a web application that helps users manage and delete their YouTube comments. The Service allows you to:
 - Import your YouTube comment history from Google Takeout exports
 - View, search, and filter your comments
+- Enrich comments with additional data (likes, reply counts, video titles)
 - Delete comments through the YouTube Data API v3
 
 ## 3. User Requirements
@@ -27,6 +28,7 @@ To use the Service, you must:
 When you connect your Google account, you grant the Service permission to:
 - Access your YouTube channel information
 - Read and delete your YouTube comments
+- Fetch video information (titles, privacy status) for your commented videos
 
 ### 4.2 Third-Party Terms
 Your use of Google and YouTube features is subject to:
@@ -34,7 +36,18 @@ Your use of Google and YouTube features is subject to:
 - [YouTube Terms of Service](https://www.youtube.com/t/terms)
 - [YouTube Community Guidelines](https://www.youtube.com/howyoutubeworks/policies/community-guidelines/)
 
-## 5. User Responsibilities
+## 5. Hosting and Infrastructure
+
+### 5.1 Hetzner Online GmbH
+The Service is hosted on infrastructure provided by Hetzner Online GmbH, a German hosting provider. By using the Service, you acknowledge:
+- Servers are located in Hetzner data centers within Germany and the European Union
+- Hetzner's data processing is governed by their [Terms of Service](https://www.hetzner.com/legal/terms-and-conditions/) and [Privacy Policy](https://www.hetzner.com/legal/privacy-policy/)
+- Hetzner maintains ISO 27001-certified data centers with industry-standard security measures
+
+### 5.2 Data Location
+All server-side processing occurs within the European Union. Your comment data is processed locally in your browser and is not stored on our servers.
+
+## 6. User Responsibilities
 
 You agree to:
 - Use the Service only for managing your own comments
@@ -43,20 +56,20 @@ You agree to:
 - Not reverse engineer, decompile, or attempt to extract the source code
 - Not use automated means to access the Service beyond normal usage
 
-## 6. Intellectual Property
+## 7. Intellectual Property
 
 - The Service and its original content are owned by the CommentSlash project
 - The Service is open source under the MIT License
 - Your comments and data remain your property
 
-## 7. API Quotas and Limitations
+## 8. API Quotas and Limitations
 
 - The YouTube Data API v3 has daily quota limits
 - We track quota usage to prevent exceeding limits
 - The Service may be temporarily unavailable if quotas are exceeded
 - We are not responsible for any limitations imposed by Google/YouTube
 
-## 8. Disclaimer of Warranties
+## 9. Disclaimer of Warranties
 
 THE SERVICE IS PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING:
 - Merchantability
@@ -64,47 +77,47 @@ THE SERVICE IS PROVIDED "AS IS" WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLI
 - Non-infringement
 - Accuracy or reliability of results
 
-## 9. Limitation of Liability
+## 10. Limitation of Liability
 
 TO THE MAXIMUM EXTENT PERMITTED BY LAW, WE SHALL NOT BE LIABLE FOR:
 - Any indirect, incidental, special, or consequential damages
 - Loss of data, profits, or business opportunities
 - Damages arising from your use or inability to use the Service
-- Actions taken by Google, YouTube, or other third parties
+- Actions taken by Google, YouTube, Hetzner, or other third parties
 
-## 10. Indemnification
+## 11. Indemnification
 
 You agree to indemnify and hold harmless CommentSlash and its contributors from any claims, damages, or expenses arising from:
 - Your use of the Service
 - Your violation of these Terms
 - Your violation of any third-party rights
 
-## 11. Changes to Service
+## 12. Changes to Service
 
 We reserve the right to:
 - Modify or discontinue the Service at any time
 - Change these Terms of Service
 - Changes will be effective upon posting to the repository
 
-## 12. Termination
+## 13. Termination
 
 - You may stop using the Service at any time
 - We may terminate your access for violation of these Terms
 - Upon termination, your locally stored data will remain until you clear it
 
-## 13. Governing Law
+## 14. Governing Law
 
 These Terms shall be governed by and construed in accordance with the laws of Germany, without regard to conflict of law principles.
 
-## 14. Dispute Resolution
+## 15. Dispute Resolution
 
 For EU residents: You may also seek resolution through the [EU Online Dispute Resolution Platform](https://ec.europa.eu/consumers/odr/).
 
-## 15. Severability
+## 16. Severability
 
 If any provision of these Terms is found to be unenforceable, the remaining provisions will continue in effect.
 
-## 16. Contact
+## 17. Contact
 
 For questions about these Terms, please open an issue at:
 https://github.com/hyp3r-dev/utube-comment-cleaner/issues
@@ -113,4 +126,4 @@ https://github.com/hyp3r-dev/utube-comment-cleaner/issues
 
 ## Nutzungsbedingungen (German Summary)
 
-Durch die Nutzung von CommentSlash stimmen Sie diesen Nutzungsbedingungen zu. Der Dienst wird "wie besehen" ohne Garantien bereitgestellt. Sie sind dafür verantwortlich, nur Ihre eigenen Kommentare zu verwalten und alle geltenden Gesetze sowie die YouTube-Nutzungsbedingungen einzuhalten.
+Durch die Nutzung von CommentSlash stimmen Sie diesen Nutzungsbedingungen zu. Der Dienst wird "wie besehen" ohne Garantien bereitgestellt. Unsere Server werden bei Hetzner Online GmbH in Deutschland gehostet. Sie sind dafür verantwortlich, nur Ihre eigenen Kommentare zu verwalten und alle geltenden Gesetze sowie die YouTube-Nutzungsbedingungen einzuhalten.

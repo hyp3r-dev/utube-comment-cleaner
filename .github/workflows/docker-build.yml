@@ -1,10 +1,15 @@
 name: Build and Deploy Docker Image
 
 on:
+  # Auto-deploy on merge to main branch - builds and pushes :latest tag to Docker Hub
+  push:
+    branches:
+      - main
+  # Manual workflow dispatch for semver releases
   workflow_dispatch:
     inputs:
       version_bump:
-        description: 'Version bump type (leave empty to skip version tagging)'
+        description: 'Version bump type (required for semver release)'
         required: false
         type: choice
         options:
@@ -43,6 +48,23 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Determine build mode
+        id: build_mode
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            # Auto-deploy on push to main - only build :latest tag for Docker Hub
+            echo "is_auto_deploy=true" >> $GITHUB_OUTPUT
+            echo "push_to_dockerhub=true" >> $GITHUB_OUTPUT
+            echo "push_to_ghcr=false" >> $GITHUB_OUTPUT
+            echo "Auto-deploy mode: Building :latest tag for Docker Hub"
+          else
+            # Manual workflow_dispatch
+            echo "is_auto_deploy=false" >> $GITHUB_OUTPUT
+            echo "push_to_dockerhub=${{ inputs.push_to_dockerhub }}" >> $GITHUB_OUTPUT
+            echo "push_to_ghcr=${{ inputs.push_to_ghcr }}" >> $GITHUB_OUTPUT
+            echo "Manual mode: Building with custom options"
+          fi
+
       - name: Read current version
         id: current_version
         run: |
@@ -59,6 +81,7 @@ jobs:
         run: |
           CURRENT="${{ steps.current_version.outputs.version }}"
           BUMP="${{ inputs.version_bump }}"
+          IS_AUTO="${{ steps.build_mode.outputs.is_auto_deploy }}"
           
           # Parse current version
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
@@ -82,8 +105,8 @@ jobs:
           
           NEW_VERSION="${MAJOR}.${MINOR}.${PATCH}"
           
-          # Only output new version if bump was requested
-          if [ -n "$BUMP" ]; then
+          # Only output new version if bump was requested (manual mode only)
+          if [ -n "$BUMP" ] && [ "$IS_AUTO" = "false" ]; then
             echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
             echo "should_tag=true" >> $GITHUB_OUTPUT
             echo "New version: $NEW_VERSION"
@@ -100,7 +123,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GitHub Container Registry
-        if: ${{ inputs.push_to_ghcr }}
+        if: ${{ steps.build_mode.outputs.push_to_ghcr == 'true' }}
         uses: docker/login-action@v3
         with:
           registry: ${{ env.GHCR_REGISTRY }}
@@ -108,7 +131,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Log in to Docker Hub
-        if: ${{ inputs.push_to_dockerhub }}
+        if: ${{ steps.build_mode.outputs.push_to_dockerhub == 'true' }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -118,23 +141,25 @@ jobs:
         id: docker_tags
         run: |
           TAGS=""
+          PUSH_DOCKERHUB="${{ steps.build_mode.outputs.push_to_dockerhub }}"
+          PUSH_GHCR="${{ steps.build_mode.outputs.push_to_ghcr }}"
           
           # Always add 'latest' tag
-          if [ "${{ inputs.push_to_dockerhub }}" = "true" ]; then
+          if [ "$PUSH_DOCKERHUB" = "true" ]; then
             TAGS="${TAGS}${{ env.DOCKERHUB_IMAGE_NAME }}:latest,"
           fi
-          if [ "${{ inputs.push_to_ghcr }}" = "true" ]; then
+          if [ "$PUSH_GHCR" = "true" ]; then
             TAGS="${TAGS}${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE_NAME }}:latest,"
           fi
           
-          # Add version tag if version bump was requested
+          # Add version tag if version bump was requested (manual mode only)
           if [ "${{ steps.new_version.outputs.should_tag }}" = "true" ]; then
             VERSION="${{ steps.new_version.outputs.version }}"
-            if [ "${{ inputs.push_to_dockerhub }}" = "true" ]; then
+            if [ "$PUSH_DOCKERHUB" = "true" ]; then
               TAGS="${TAGS}${{ env.DOCKERHUB_IMAGE_NAME }}:v${VERSION},"
               TAGS="${TAGS}${{ env.DOCKERHUB_IMAGE_NAME }}:${VERSION},"
             fi
-            if [ "${{ inputs.push_to_ghcr }}" = "true" ]; then
+            if [ "$PUSH_GHCR" = "true" ]; then
               TAGS="${TAGS}${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE_NAME }}:v${VERSION},"
               TAGS="${TAGS}${{ env.GHCR_REGISTRY }}/${{ env.GHCR_IMAGE_NAME }}:${VERSION},"
             fi
@@ -151,15 +176,15 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ inputs.push_to_ghcr && format('{0}/{1}', env.GHCR_REGISTRY, env.GHCR_IMAGE_NAME) || '' }}
-            ${{ inputs.push_to_dockerhub && env.DOCKERHUB_IMAGE_NAME || '' }}
+            ${{ steps.build_mode.outputs.push_to_ghcr == 'true' && format('{0}/{1}', env.GHCR_REGISTRY, env.GHCR_IMAGE_NAME) || '' }}
+            ${{ steps.build_mode.outputs.push_to_dockerhub == 'true' && env.DOCKERHUB_IMAGE_NAME || '' }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
           platforms: linux/amd64,linux/arm64,linux/riscv64
-          push: ${{ inputs.push_to_ghcr || inputs.push_to_dockerhub }}
+          push: ${{ steps.build_mode.outputs.push_to_ghcr == 'true' || steps.build_mode.outputs.push_to_dockerhub == 'true' }}
           tags: ${{ steps.docker_tags.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -168,7 +193,7 @@ jobs:
             VERSION=${{ steps.new_version.outputs.version }}
 
       - name: Update VERSION file
-        if: ${{ steps.new_version.outputs.should_tag == 'true' && (inputs.push_to_ghcr || inputs.push_to_dockerhub) }}
+        if: ${{ steps.new_version.outputs.should_tag == 'true' && (steps.build_mode.outputs.push_to_ghcr == 'true' || steps.build_mode.outputs.push_to_dockerhub == 'true') }}
         run: |
           echo "${{ steps.new_version.outputs.version }}" > VERSION
           git config user.name "github-actions[bot]"
@@ -178,16 +203,25 @@ jobs:
           git push
 
       - name: Create Git tag
-        if: ${{ steps.new_version.outputs.should_tag == 'true' && (inputs.push_to_ghcr || inputs.push_to_dockerhub) }}
+        if: ${{ steps.new_version.outputs.should_tag == 'true' && (steps.build_mode.outputs.push_to_ghcr == 'true' || steps.build_mode.outputs.push_to_dockerhub == 'true') }}
         run: |
           git tag "v${{ steps.new_version.outputs.version }}"
           git push origin "v${{ steps.new_version.outputs.version }}"
 
       - name: Generate build summary
         run: |
+          IS_AUTO="${{ steps.build_mode.outputs.is_auto_deploy }}"
+          PUSH_DOCKERHUB="${{ steps.build_mode.outputs.push_to_dockerhub }}"
+          PUSH_GHCR="${{ steps.build_mode.outputs.push_to_ghcr }}"
+          
           echo "## ✦ CommentSlash Docker Build Complete!" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Build Details" >> $GITHUB_STEP_SUMMARY
+          if [ "$IS_AUTO" = "true" ]; then
+            echo "- **Mode:** 🚀 Auto-deploy (push to main)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- **Mode:** 🔧 Manual release" >> $GITHUB_STEP_SUMMARY
+          fi
           echo "- **Current Version:** \`${{ steps.current_version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
           if [ "${{ steps.new_version.outputs.should_tag }}" = "true" ]; then
             echo "- **New Version:** \`${{ steps.new_version.outputs.version }}\`" >> $GITHUB_STEP_SUMMARY
@@ -196,8 +230,8 @@ jobs:
             echo "- **Version Tag:** Not requested (only \`latest\` tag)" >> $GITHUB_STEP_SUMMARY
           fi
           echo "- **Platforms:** linux/amd64, linux/arm64, linux/riscv64" >> $GITHUB_STEP_SUMMARY
-          echo "- **GHCR Push:** ${{ inputs.push_to_ghcr }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Docker Hub Push:** ${{ inputs.push_to_dockerhub }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **GHCR Push:** $PUSH_GHCR" >> $GITHUB_STEP_SUMMARY
+          echo "- **Docker Hub Push:** $PUSH_DOCKERHUB" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Docker Tags" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
@@ -206,7 +240,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Usage" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ inputs.push_to_dockerhub }}" = "true" ]; then
+          if [ "$PUSH_DOCKERHUB" = "true" ]; then
             echo "#### Docker Hub" >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
             echo "# Pull latest" >> $GITHUB_STEP_SUMMARY
@@ -222,7 +256,7 @@ jobs:
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
           fi
-          if [ "${{ inputs.push_to_ghcr }}" = "true" ]; then
+          if [ "$PUSH_GHCR" = "true" ]; then
             echo "#### GitHub Container Registry" >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
             echo "# Pull latest" >> $GITHUB_STEP_SUMMARY
