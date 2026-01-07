@@ -233,6 +233,8 @@ To test with simulation mode:
 ENABLE_SIMULATION_MODE=true npm run dev
 ```
 
+**Tree-shaking:** Simulation code is automatically excluded from production builds through compile-time constants. When `ENABLE_SIMULATION_MODE` is not set (production), Vite's dead code elimination removes all simulation logic and mock data from the client bundle.
+
 ## Validation Checklist
 
 Before submitting changes:
