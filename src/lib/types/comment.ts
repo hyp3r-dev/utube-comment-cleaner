@@ -14,6 +14,9 @@ export interface YouTubeComment {
 	videoId: string;
 	videoTitle?: string;
 	videoPrivacyStatus?: 'public' | 'private' | 'unlisted' | 'unknown';
+	// Video channel information (from enrichment)
+	videoChannelId?: string;
+	videoChannelTitle?: string;
 	moderationStatus?: 'published' | 'heldForReview' | 'likelySpam' | 'rejected' | 'unknown';
 	canRate: boolean;
 	viewerRating: string;

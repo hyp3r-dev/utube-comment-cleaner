@@ -105,7 +105,13 @@
 
 	// Group comments by video ID
 	const groupedComments = $derived(() => {
-		const groups = new Map<string, { videoId: string; videoTitle?: string; comments: YouTubeComment[] }>();
+		const groups = new Map<string, { 
+			videoId: string; 
+			videoTitle?: string; 
+			videoChannelId?: string;
+			videoChannelTitle?: string;
+			comments: YouTubeComment[] 
+		}>();
 		
 		for (const comment of $windowedComments) {
 			const existing = groups.get(comment.videoId);
@@ -115,10 +121,19 @@
 				if (comment.videoTitle && !existing.videoTitle) {
 					existing.videoTitle = comment.videoTitle;
 				}
+				// Use the latest channel info if available
+				if (comment.videoChannelId && !existing.videoChannelId) {
+					existing.videoChannelId = comment.videoChannelId;
+				}
+				if (comment.videoChannelTitle && !existing.videoChannelTitle) {
+					existing.videoChannelTitle = comment.videoChannelTitle;
+				}
 			} else {
 				groups.set(comment.videoId, {
 					videoId: comment.videoId,
 					videoTitle: comment.videoTitle,
+					videoChannelId: comment.videoChannelId,
+					videoChannelTitle: comment.videoChannelTitle,
 					comments: [comment]
 				});
 			}
@@ -1396,6 +1411,8 @@
 													<VideoGroup 
 														videoId={group.videoId}
 														videoTitle={group.videoTitle}
+														videoChannelId={group.videoChannelId}
+														videoChannelTitle={group.videoChannelTitle}
 														comments={group.comments}
 														hideSelectedComments={hideSelectedFromList}
 														onRemoveFromDatabase={handleRemoveFromDatabase}
