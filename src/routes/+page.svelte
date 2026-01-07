@@ -172,6 +172,32 @@
 
 	// Indicates if the empty state is because all comments are queued (vs no matching filters)
 	const allCommentsAreQueued = $derived(hideSelectedFromList && $selectedIds.size > 0 && $totalAvailable > 0);
+	
+	// Delayed display of "all queued" banner to let animations play out
+	let showAllQueuedBanner = $state(false);
+	let allQueuedBannerTimeout: ReturnType<typeof setTimeout> | null = null;
+	const ALL_QUEUED_BANNER_DELAY_MS = 500; // Wait for animations to complete
+	
+	$effect(() => {
+		const shouldShowBanner = visibleCommentsCount() === 0 && !$isLoadingWindow && allCommentsAreQueued;
+		
+		if (shouldShowBanner) {
+			// Delay showing the banner to let animations play
+			if (!allQueuedBannerTimeout) {
+				allQueuedBannerTimeout = setTimeout(() => {
+					showAllQueuedBanner = true;
+					allQueuedBannerTimeout = null;
+				}, ALL_QUEUED_BANNER_DELAY_MS);
+			}
+		} else {
+			// Clear timeout and hide banner immediately when conditions change
+			if (allQueuedBannerTimeout) {
+				clearTimeout(allQueuedBannerTimeout);
+				allQueuedBannerTimeout = null;
+			}
+			showAllQueuedBanner = false;
+		}
+	});
 
 	// YouTube connection status for the navbar icon
 	type ConnectionStatus = 'disconnected' | 'connected' | 'working' | 'error' | 'deleting';
@@ -1143,6 +1169,8 @@
 			if (successIds.length > 0) {
 				removeComments(successIds);
 				await deleteFromStorage(successIds);
+				// Force reload sliding window to refresh the filtered view from database
+				await forceReloadSlidingWindow();
 			}
 			
 			// Mark failed comments with their error messages (keep them in the store)
@@ -1432,11 +1460,23 @@
 							<div class="comments-scroll-wrapper">
 								{#if visibleCommentsCount() === 0 && !$isLoadingWindow}
 									<div class="comments-scroll-container">
-										<div class="empty-state">
-											<div class="empty-icon">{allCommentsAreQueued ? '✅' : '🔍'}</div>
-											<h3>{allCommentsAreQueued ? 'All comments are in the queue' : 'No comments found'}</h3>
-											<p>{allCommentsAreQueued ? 'Uncheck "Hide queued" to see them, or review your slash queue' : 'Try adjusting your filters or search query'}</p>
-										</div>
+										{#if allCommentsAreQueued}
+											<!-- Show "all queued" banner with animation after delay -->
+											{#if showAllQueuedBanner}
+												<div class="empty-state all-queued-state">
+													<div class="empty-icon">✅</div>
+													<h3>All comments are in the queue</h3>
+													<p>Uncheck "Hide queued" to see them, or review your slash queue</p>
+												</div>
+											{/if}
+										{:else}
+											<!-- Show "no comments found" immediately -->
+											<div class="empty-state">
+												<div class="empty-icon">🔍</div>
+												<h3>No comments found</h3>
+												<p>Try adjusting your filters or search query</p>
+											</div>
+										{/if}
 									</div>
 								{:else if groupByVideo}
 									<div class="comments-scroll-container" onscroll={handleGroupedViewScroll}>
@@ -1877,6 +1917,24 @@
 		/* Prevent container collapse when empty - take full width */
 		width: 100%;
 		box-sizing: border-box;
+	}
+
+	/* Animated "all queued" banner with slide-up and fade-in */
+	.empty-state.all-queued-state {
+		animation: allQueuedSlideIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+		background: linear-gradient(135deg, rgba(34, 197, 94, 0.1) 0%, rgba(99, 102, 241, 0.1) 100%);
+		border-color: rgba(34, 197, 94, 0.3);
+	}
+
+	@keyframes allQueuedSlideIn {
+		0% {
+			opacity: 0;
+			transform: translateY(20px) scale(0.95);
+		}
+		100% {
+			opacity: 1;
+			transform: translateY(0) scale(1);
+		}
 	}
 
 	.empty-icon {

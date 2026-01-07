@@ -36,7 +36,7 @@
 	] as const;
 
 	const labelOptions: { value: CommentLabel; label: string; icon: string }[] = [
-		{ value: 'api_error', label: 'API Error', icon: '❌' },
+		{ value: 'api_error', label: 'Delete Error', icon: '❌' },
 		{ value: 'unenrichable', label: 'Unenrichable', icon: '⚠️' },
 		{ value: 'externally_deleted', label: 'Externally Deleted', icon: '🗑️' }
 	];
@@ -61,10 +61,6 @@
 		});
 	}
 
-	function toggleShowErrors() {
-		filters.update(f => ({ ...f, showOnlyWithErrors: !f.showOnlyWithErrors }));
-	}
-
 	// Clear specific filters
 	function clearMinCharacters() {
 		filters.update(f => ({ ...f, minCharacters: 0 }));
@@ -81,10 +77,6 @@
 	function clearMaxLikes() {
 		filters.update(f => ({ ...f, maxLikes: DEFAULT_MAX_LIKES }));
 	}
-
-	function clearShowErrors() {
-		filters.update(f => ({ ...f, showOnlyWithErrors: false }));
-	}
 	
 	// Check if any filters are active
 	const hasActiveFilters = $derived(
@@ -93,7 +85,6 @@
 		$filters.minLikes > 0 ||
 		$filters.maxLikes < DEFAULT_MAX_LIKES ||
 		($filters.labels && $filters.labels.length > 0) ||
-		$filters.showOnlyWithErrors ||
 		$filters.channelFilter !== undefined
 	);
 
@@ -101,7 +92,6 @@
 	const hasCharacterFilter = $derived($filters.minCharacters > 0 || $filters.maxCharacters < DEFAULT_MAX_CHARACTERS);
 	const hasLikesFilter = $derived($filters.minLikes > 0 || $filters.maxLikes < DEFAULT_MAX_LIKES);
 	const hasLabelFilter = $derived($filters.labels && $filters.labels.length > 0);
-	const hasErrorFilter = $derived($filters.showOnlyWithErrors);
 	const hasChannelFilter = $derived($filters.channelFilter !== undefined);
 
 	// Helper function to format filter range display text
@@ -229,8 +219,8 @@
 		</div>
 	</div>
 
-	<!-- Active filter badges (always visible when filters are active) -->
-	{#if hasActiveFilters && !isExpanded}
+	<!-- Active filter badges (always visible when filters are active, even if expanded) -->
+	{#if hasActiveFilters}
 		<div class="active-filters-bar">
 			<span class="active-filters-label">Active filters:</span>
 			<div class="active-filter-badges">
@@ -266,7 +256,7 @@
 							title="Click to remove this label filter"
 						>
 							<span class="badge-text">
-								{#if label === 'api_error'}❌ API Error
+								{#if label === 'api_error'}❌ Delete Error
 								{:else if label === 'unenrichable'}⚠️ Unenrichable
 								{:else if label === 'externally_deleted'}🗑️ Deleted
 								{/if}
@@ -276,18 +266,6 @@
 							</svg>
 						</button>
 					{/each}
-				{/if}
-				{#if hasErrorFilter}
-					<button 
-						class="active-filter-badge" 
-						onclick={clearShowErrors}
-						title="Click to clear error filter"
-					>
-						<span class="badge-text">❌ With errors only</span>
-						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" class="badge-close">
-							<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-						</svg>
-					</button>
 				{/if}
 				{#if hasChannelFilter}
 					<button 
@@ -375,14 +353,6 @@
 						</button>
 					{/each}
 				</div>
-				<label class="error-toggle">
-					<input 
-						type="checkbox" 
-						checked={$filters.showOnlyWithErrors} 
-						onchange={toggleShowErrors}
-					/>
-					<span>Show only comments with delete errors</span>
-				</label>
 			</div>
 
 			<div class="filter-actions">
@@ -638,26 +608,6 @@
 
 	.label-icon {
 		font-size: 0.9rem;
-	}
-
-	.error-toggle {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		font-size: 0.8rem;
-		color: var(--text-secondary);
-		cursor: pointer;
-		padding: 0.25rem 0;
-	}
-
-	.error-toggle input {
-		width: 14px;
-		height: 14px;
-		accent-color: var(--accent-primary);
-	}
-
-	.error-toggle:hover {
-		color: var(--text-primary);
 	}
 
 	.filter-actions {
