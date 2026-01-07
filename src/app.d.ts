@@ -10,4 +10,13 @@ declare global {
 	}
 }
 
+// Extend ImportMeta to include our custom environment variable
+interface ImportMetaEnv {
+	readonly ENABLE_SIMULATION: boolean;
+}
+
+interface ImportMeta {
+	readonly env: ImportMetaEnv;
+}
+
 export {};

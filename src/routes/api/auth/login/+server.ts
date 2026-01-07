@@ -1,7 +1,8 @@
 // OAuth login redirect - redirects user to Google's OAuth consent screen
 import { redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { oauthConfig, privacyLogger } from '$lib/server/config';
+import { oauthConfig, privacyLogger, simulationConfig } from '$lib/server/config';
+import { SIMULATED_ACCESS_TOKEN, simulateNetworkDelay } from '$lib/server/simulation';
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 
@@ -34,10 +35,41 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
 		.replace(/=/g, '');
 }
 
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, cookies }) => {
 	if (!oauthConfig.isConfigured) {
 		privacyLogger.warn('OAuth login attempted but developer mode is not configured');
 		return new Response('Developer OAuth mode is not configured', { status: 400 });
+	}
+	
+	// In simulation mode, skip actual OAuth and directly set the simulated token
+	if (simulationConfig.enabled) {
+		privacyLogger.info('[SIMULATION] Simulating OAuth login flow');
+		
+		// Simulate network delay
+		await simulateNetworkDelay();
+		
+		// Set the simulated token directly
+		const isSecure = url.protocol === 'https:';
+		cookies.set('youtube_access_token', SIMULATED_ACCESS_TOKEN, {
+			path: '/',
+			httpOnly: true,
+			secure: isSecure,
+			sameSite: 'lax',
+			maxAge: 3600
+		});
+		
+		cookies.set('youtube_auth_status', 'connected', {
+			path: '/',
+			httpOnly: false,
+			secure: isSecure,
+			sameSite: 'lax',
+			maxAge: 3600
+		});
+		
+		privacyLogger.info('[SIMULATION] OAuth login simulated successfully');
+		
+		// Redirect to success
+		return redirect(302, '/?auth_success=true');
 	}
 	
 	// Generate a random state token for CSRF protection

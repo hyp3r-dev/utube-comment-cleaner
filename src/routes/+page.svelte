@@ -284,13 +284,37 @@
 				toasts.error('Failed to complete sign-in. Please try again.');
 			}
 		} else if (authError) {
-			// Show auth error (only reached if authSuccess is false)
-			toasts.error(`Sign-in failed: ${authError}`);
+			// There was an auth error, but the token might still have been saved
+			// Try to fetch the token anyway - the server error might have occurred
+			// after the token was already saved to cookies
+			try {
+				const tokenResponse = await fetch('/api/auth/token');
+				if (tokenResponse.ok) {
+					const tokenData = await tokenResponse.json();
+					if (tokenData.success && tokenData.access_token) {
+						// Token was actually saved - use it
+						inputApiKey = tokenData.access_token;
+						await handleConnectToken();
+						connectedViaOAuthCallback = true;
+						// Don't show error - connection actually succeeded
+					} else {
+						// No token available - show the original error
+						toasts.error(`Sign-in failed: ${authError}`);
+					}
+				} else {
+					// Token endpoint failed - show the original error
+					toasts.error(`Sign-in failed: ${authError}`);
+				}
+			} catch (e) {
+				// Network error - show the original error
+				console.error('Failed to check for token after auth error:', e);
+				toasts.error(`Sign-in failed: ${authError}`);
+			}
 		}
 		
 		// Check if we have an existing auth status cookie (Google Login mode)
-		// Skip if we already connected via OAuth callback or there was an auth error
-		if (googleLoginEnabled && !$apiKey && !authError && !connectedViaOAuthCallback) {
+		// Skip if we already connected via OAuth callback
+		if (googleLoginEnabled && !$apiKey && !connectedViaOAuthCallback) {
 			const authStatusCookie = document.cookie
 				.split('; ')
 				.find(row => row.startsWith('youtube_auth_status='));
@@ -445,7 +469,8 @@
 				videoPrivacy: $filters.videoPrivacy,
 				moderationStatus: $filters.moderationStatus,
 				searchQuery: $searchQuery || undefined,
-				showOnlyWithErrors: $filters.showOnlyWithErrors
+				showOnlyWithErrors: $filters.showOnlyWithErrors,
+				channelId: $filters.channelFilter?.channelId
 			};
 			
 			// Get ALL matching IDs from IndexedDB
@@ -1645,6 +1670,7 @@
 		display: flex;
 		flex-direction: column;
 		min-height: 0; /* Allow shrinking */
+		width: 100%; /* Override margin:auto from global .container to ensure full width */
 	}
 
 	.loading-section {
@@ -1735,7 +1761,8 @@
 
 	.dashboard-layout {
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) 350px;
+		/* Use minmax with actual minimum to prevent shrinking below content width */
+		grid-template-columns: minmax(300px, 1fr) 350px;
 		gap: 1.5rem;
 		flex: 1 1 0;
 		min-height: 0;
@@ -1753,8 +1780,6 @@
 		width: 100%;
 		/* Force grid item to maintain its track width */
 		overflow: hidden;
-		/* Ensure section doesn't shrink below a reasonable size */
-		min-width: 300px;
 	}
 
 	.comments-scroll-wrapper {
@@ -1849,6 +1874,9 @@
 		flex-direction: column;
 		justify-content: center;
 		align-items: center;
+		/* Prevent container collapse when empty - take full width */
+		width: 100%;
+		box-sizing: border-box;
 	}
 
 	.empty-icon {

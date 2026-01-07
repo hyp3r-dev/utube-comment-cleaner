@@ -1,5 +1,6 @@
 import type { YouTubeComment } from '$lib/types/comment';
 import { quotaStore, QUOTA_COSTS } from '$lib/stores/quota';
+import { isSimulatedToken, getSimulatedVideoInfo, getSimulatedLikeCount, SIMULATED_USER, simulateDelay } from '$lib/utils/simulation';
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
 
@@ -178,6 +179,18 @@ export class YouTubeService {
 	 * Validate the access token and return detailed information
 	 */
 	async validateToken(): Promise<TokenValidationResult> {
+		// Handle simulation mode
+		if (isSimulatedToken(this.accessToken)) {
+			console.log('[SIMULATION] Validating simulated token');
+			await simulateDelay(300);
+			this.channelId = SIMULATED_USER.channelId;
+			return {
+				valid: true,
+				channelId: SIMULATED_USER.channelId,
+				channelTitle: SIMULATED_USER.channelTitle
+			};
+		}
+		
 		try {
 			const url = new URL(`${YOUTUBE_API_BASE}/channels`);
 			url.searchParams.set('part', 'snippet');
@@ -324,6 +337,26 @@ export class YouTubeService {
 			channelTitle?: string;
 		}> = {};
 		
+		// Handle simulation mode
+		if (isSimulatedToken(this.accessToken)) {
+			console.log('[SIMULATION] Fetching simulated video details for', videoIds.length, 'videos');
+			await simulateDelay(200);
+			
+			for (const videoId of videoIds) {
+				const videoInfo = getSimulatedVideoInfo(videoId);
+				if (videoInfo) {
+					result[videoId] = {
+						title: videoInfo.title,
+						privacyStatus: videoInfo.privacyStatus as 'public' | 'private' | 'unlisted' | 'unknown',
+						channelId: videoInfo.channelId,
+						channelTitle: videoInfo.channelTitle
+					};
+				}
+			}
+			
+			return result;
+		}
+		
 		// Batch requests in groups of 50 (YouTube API limit)
 		const batchSize = 50;
 		for (let i = 0; i < videoIds.length; i += batchSize) {
@@ -412,6 +445,19 @@ export class YouTubeService {
 		const success: string[] = [];
 		const failed: Array<{ id: string; error: string }> = [];
 
+		// Handle simulation mode
+		if (isSimulatedToken(this.accessToken)) {
+			console.log('[SIMULATION] Simulating deletion of', commentIds.length, 'comments');
+			
+			for (let i = 0; i < commentIds.length; i++) {
+				await simulateDelay(100);
+				success.push(commentIds[i]);
+				onProgress?.(i + 1, commentIds.length);
+			}
+			
+			return { success, failed };
+		}
+
 		for (let i = 0; i < commentIds.length; i++) {
 			const commentId = commentIds[i];
 			try {
@@ -480,6 +526,47 @@ export class YouTubeService {
 		const missingIds: string[] = [];
 		const commentIds = comments.map(c => c.id);
 		const commentMap = new Map(comments.map(c => [c.id, c]));
+		
+		// Handle simulation mode
+		if (isSimulatedToken(this.accessToken)) {
+			console.log('[SIMULATION] Simulating enrichment for', comments.length, 'comments');
+			
+			const batchUpdates = new Map<string, Partial<YouTubeComment>>();
+			
+			for (const comment of comments) {
+				await simulateDelay(20); // Small delay per comment
+				
+				const likeCount = getSimulatedLikeCount(comment.id);
+				const videoInfo = comment.videoId ? getSimulatedVideoInfo(comment.videoId) : null;
+				
+				const enrichedData: Partial<YouTubeComment> = {
+					likeCount,
+					isEnriched: true,
+					...(videoInfo && {
+						videoTitle: videoInfo.title,
+						videoPrivacyStatus: videoInfo.privacyStatus as 'public' | 'private' | 'unlisted' | 'unknown',
+						videoChannelId: videoInfo.channelId,
+						videoChannelTitle: videoInfo.channelTitle
+					})
+				};
+				
+				batchUpdates.set(comment.id, enrichedData);
+				
+				enrichedComments.push({
+					...comment,
+					...enrichedData
+				});
+			}
+			
+			// Fire batch update callback
+			if (onBatchComplete && batchUpdates.size > 0) {
+				onBatchComplete(batchUpdates);
+			}
+			
+			onProgress?.(comments.length, comments.length);
+			
+			return { enriched: enrichedComments, missing: missingIds };
+		}
 		
 		const batchSize = 50;
 		let processed = 0;
