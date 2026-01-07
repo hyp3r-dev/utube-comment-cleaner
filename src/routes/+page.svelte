@@ -170,6 +170,9 @@
 		return Math.max(0, total - $selectedIds.size);
 	});
 
+	// Indicates if the empty state is because all comments are queued (vs no matching filters)
+	const allCommentsAreQueued = $derived(hideSelectedFromList && $selectedIds.size > 0 && $totalAvailable > 0);
+
 	// YouTube connection status for the navbar icon
 	type ConnectionStatus = 'disconnected' | 'connected' | 'working' | 'error' | 'deleting';
 	const youtubeConnectionStatus: ConnectionStatus = $derived.by(() => {
@@ -281,7 +284,7 @@
 				toasts.error('Failed to complete sign-in. Please try again.');
 			}
 		} else if (authError) {
-			// Show auth error only if there's no success
+			// Show auth error (only reached if authSuccess is false)
 			toasts.error(`Sign-in failed: ${authError}`);
 		}
 		
@@ -1405,9 +1408,9 @@
 								{#if visibleCommentsCount() === 0 && !$isLoadingWindow}
 									<div class="comments-scroll-container">
 										<div class="empty-state">
-											<div class="empty-icon">{hideSelectedFromList && $selectedIds.size > 0 ? '✅' : '🔍'}</div>
-											<h3>{hideSelectedFromList && $selectedIds.size > 0 ? 'All comments are in the queue' : 'No comments found'}</h3>
-											<p>{hideSelectedFromList && $selectedIds.size > 0 ? 'Uncheck "Hide queued" to see them, or review your slash queue' : 'Try adjusting your filters or search query'}</p>
+											<div class="empty-icon">{allCommentsAreQueued ? '✅' : '🔍'}</div>
+											<h3>{allCommentsAreQueued ? 'All comments are in the queue' : 'No comments found'}</h3>
+											<p>{allCommentsAreQueued ? 'Uncheck "Hide queued" to see them, or review your slash queue' : 'Try adjusting your filters or search query'}</p>
 										</div>
 									</div>
 								{:else if groupByVideo}
