@@ -706,8 +706,6 @@
 			opacity: 1;
 			max-height: 200px;
 			margin-bottom: 0.5rem;
-			padding-top: 0;
-			padding-bottom: 0;
 		}
 		40% {
 			transform: translateX(10px);

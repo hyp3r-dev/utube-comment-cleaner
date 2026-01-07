@@ -282,7 +282,8 @@
 		}
 		
 		// Check if we have an existing auth status cookie (Google Login mode)
-		if (googleLoginEnabled && !$apiKey) {
+		// Skip if there was an auth error - don't restore old cookie state after a failed auth attempt
+		if (googleLoginEnabled && !$apiKey && !authError) {
 			const authStatusCookie = document.cookie
 				.split('; ')
 				.find(row => row.startsWith('youtube_auth_status='));
