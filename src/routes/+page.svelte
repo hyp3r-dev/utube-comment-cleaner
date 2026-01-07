@@ -254,6 +254,8 @@
 			window.history.replaceState({}, '', '/');
 		}
 		
+		// Process auth success first - if both params exist, prioritize success
+		// This prevents showing error message before success message in edge cases
 		if (authSuccess) {
 			// Fetch the token securely from the server
 			try {
@@ -274,7 +276,8 @@
 				console.error('Failed to fetch OAuth token:', e);
 				toasts.error('Failed to complete sign-in. Please try again.');
 			}
-		} else if (authError) {
+		} else if (authError && !authSuccess) {
+			// Only show auth error if there's no success - prevents false error before success
 			toasts.error(`Sign-in failed: ${authError}`);
 		}
 		
@@ -1718,11 +1721,13 @@
 		display: flex;
 		flex-direction: column;
 		min-height: 0;
+		/* Ensure consistent layout width when scrollbar appears/disappears */
+		scrollbar-gutter: stable;
 	}
 
 	.dashboard-layout {
 		display: grid;
-		grid-template-columns: 1fr 350px;
+		grid-template-columns: minmax(0, 1fr) 350px;
 		gap: 1.5rem;
 		flex: 1 1 0;
 		min-height: 0;
@@ -1775,7 +1780,7 @@
 		/* Smooth scrolling for better UX */
 		scroll-behavior: smooth;
 		-webkit-overflow-scrolling: touch;
-		/* Ensure consistent width - reserve space for scrollbar */
+		/* Always reserve scrollbar space to prevent layout shift */
 		width: 100%;
 		scrollbar-gutter: stable;
 	}

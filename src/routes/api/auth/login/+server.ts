@@ -62,11 +62,13 @@ export const GET: RequestHandler = async ({ url }) => {
 	authUrl.searchParams.set('code_challenge_method', 'S256');
 	
 	// Store state and code verifier in secure HTTP-only cookies for verification on callback
+	const isSecure = url.protocol === 'https:';
+	const securePart = isSecure ? ' Secure;' : '';
 	const headers = new Headers();
 	// State cookie for CSRF protection
-	headers.append('Set-Cookie', `oauth_state=${state}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600; Secure`);
+	headers.append('Set-Cookie', `oauth_state=${state}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600;${securePart}`);
 	// Code verifier cookie for PKCE - must be sent back during token exchange
-	headers.append('Set-Cookie', `oauth_code_verifier=${codeVerifier}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600; Secure`);
+	headers.append('Set-Cookie', `oauth_code_verifier=${codeVerifier}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600;${securePart}`);
 	headers.set('Location', authUrl.toString());
 	
 	privacyLogger.info('Initiating OAuth login flow with PKCE');

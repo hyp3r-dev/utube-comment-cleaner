@@ -12,38 +12,41 @@
 
 <div class="loading-container">
 	<div class="spinner" style="--size: {size}px">
-		<div class="katana-wrapper">
-			<svg viewBox="0 0 100 100" class="katana">
-				<!-- Katana blade -->
+		<div class="shuriken-wrapper">
+			<svg viewBox="0 0 100 100" class="shuriken">
+				<!-- Shuriken (ninja star) blades -->
 				<defs>
 					<linearGradient id="spinner-blade" x1="0%" y1="0%" x2="100%" y2="100%">
+						<stop offset="0%" style="stop-color:#a78bfa"/>
+						<stop offset="50%" style="stop-color:#6366f1"/>
+						<stop offset="100%" style="stop-color:#4f46e5"/>
+					</linearGradient>
+					<linearGradient id="spinner-edge" x1="0%" y1="0%" x2="100%" y2="100%">
 						<stop offset="0%" style="stop-color:#e0e7ff"/>
-						<stop offset="50%" style="stop-color:#c7d2fe"/>
-						<stop offset="100%" style="stop-color:#a5b4fc"/>
+						<stop offset="100%" style="stop-color:#c7d2fe"/>
 					</linearGradient>
 				</defs>
-				<path d="M20 80 L75 20 L80 25 L25 85 Z" fill="url(#spinner-blade)" class="blade"/>
-				<!-- Edge highlight -->
-				<line x1="20" y1="80" x2="75" y2="20" stroke="#ffffff" stroke-width="1" opacity="0.6"/>
-				<!-- Handle -->
-				<rect x="12" y="78" width="12" height="6" rx="2" fill="#dc2626" transform="rotate(-45 18 81)"/>
-				<!-- Guard -->
-				<ellipse cx="25" cy="75" rx="4" ry="2" fill="#fbbf24" transform="rotate(-45 25 75)"/>
+				<!-- Four-pointed shuriken blades -->
+				<path d="M50 10 L55 45 L50 50 L45 45 Z" fill="url(#spinner-blade)" class="blade"/>
+				<path d="M90 50 L55 55 L50 50 L55 45 Z" fill="url(#spinner-blade)" class="blade"/>
+				<path d="M50 90 L45 55 L50 50 L55 55 Z" fill="url(#spinner-blade)" class="blade"/>
+				<path d="M10 50 L45 45 L50 50 L45 55 Z" fill="url(#spinner-blade)" class="blade"/>
+				<!-- Edge highlights -->
+				<path d="M50 10 L55 45 L50 50" stroke="url(#spinner-edge)" stroke-width="1" fill="none" opacity="0.8"/>
+				<path d="M90 50 L55 55 L50 50" stroke="url(#spinner-edge)" stroke-width="1" fill="none" opacity="0.8"/>
+				<path d="M50 90 L45 55 L50 50" stroke="url(#spinner-edge)" stroke-width="1" fill="none" opacity="0.8"/>
+				<path d="M10 50 L45 45 L50 50" stroke="url(#spinner-edge)" stroke-width="1" fill="none" opacity="0.8"/>
+				<!-- Center hole -->
+				<circle cx="50" cy="50" r="6" fill="#1a1a2e"/>
+				<circle cx="50" cy="50" r="4" fill="#ef4444"/>
 			</svg>
 		</div>
 		
-		<!-- Slash effects -->
-		<div class="slash-effects">
-			<div class="slash-line s1"></div>
-			<div class="slash-line s2"></div>
-			<div class="slash-line s3"></div>
-		</div>
-		
-		<!-- Impact sparks -->
-		<div class="sparks">
-			<div class="spark sp1">⚡</div>
-			<div class="spark sp2">✦</div>
-			<div class="spark sp3">✦</div>
+		<!-- Motion trail effects -->
+		<div class="motion-trails">
+			<div class="trail t1"></div>
+			<div class="trail t2"></div>
+			<div class="trail t3"></div>
 		</div>
 	</div>
 
@@ -81,124 +84,70 @@
 		margin-bottom: 1.5rem;
 	}
 
-	.katana-wrapper {
+	.shuriken-wrapper {
 		width: 100%;
 		height: 100%;
-		animation: slash 0.8s ease-in-out infinite;
+		animation: shurikenSpin 1.2s linear infinite;
 	}
 
-	.katana {
+	.shuriken {
 		width: 100%;
 		height: 100%;
-		filter: drop-shadow(0 0 8px rgba(99, 102, 241, 0.5));
+		filter: drop-shadow(0 0 12px rgba(99, 102, 241, 0.6));
 	}
 
-	@keyframes slash {
-		0%, 100% {
-			transform: translateX(-5px) translateY(5px) rotate(0deg);
+	@keyframes shurikenSpin {
+		0% {
+			transform: rotate(0deg);
 		}
-		50% {
-			transform: translateX(5px) translateY(-5px) rotate(-10deg);
+		100% {
+			transform: rotate(360deg);
 		}
 	}
 
-	.slash-effects {
+	/* Motion trail effects */
+	.motion-trails {
 		position: absolute;
 		inset: 0;
 		pointer-events: none;
+		animation: shurikenSpin 1.2s linear infinite;
 	}
 
-	.slash-line {
+	.trail {
 		position: absolute;
-		width: 60%;
+		width: 40%;
 		height: 2px;
-		background: linear-gradient(90deg, transparent, #ef4444, transparent);
-		transform: rotate(-45deg);
+		top: 50%;
+		left: 50%;
+		background: linear-gradient(90deg, rgba(99, 102, 241, 0.6), transparent);
+		transform-origin: left center;
 		opacity: 0;
-		animation: slashLine 0.8s ease-in-out infinite;
+		animation: trailFade 0.6s ease-out infinite;
 	}
 
-	.s1 {
-		top: 20%;
-		right: 10%;
+	.t1 {
+		transform: rotate(0deg) translateY(-50%);
 		animation-delay: 0s;
 	}
 
-	.s2 {
-		top: 35%;
-		right: 5%;
-		animation-delay: 0.1s;
-		width: 40%;
+	.t2 {
+		transform: rotate(90deg) translateY(-50%);
+		animation-delay: 0.15s;
 	}
 
-	.s3 {
-		top: 50%;
-		right: 15%;
-		animation-delay: 0.2s;
-		width: 30%;
+	.t3 {
+		transform: rotate(180deg) translateY(-50%);
+		animation-delay: 0.3s;
 	}
 
-	@keyframes slashLine {
-		0%, 40% {
-			opacity: 0;
-			transform: rotate(-45deg) scaleX(0);
-		}
-		50% {
-			opacity: 1;
-			transform: rotate(-45deg) scaleX(1);
-		}
-		60%, 100% {
-			opacity: 0;
-			transform: rotate(-45deg) scaleX(0);
-		}
-	}
-
-	.sparks {
-		position: absolute;
-		inset: 0;
-		pointer-events: none;
-	}
-
-	.spark {
-		position: absolute;
-		font-size: calc(var(--size) * 0.25);
-		opacity: 0;
-		animation: sparkBurst 0.8s ease-out infinite;
-	}
-
-	.sp1 {
-		top: 15%;
-		right: 20%;
-		animation-delay: 0.4s;
-		color: #fbbf24;
-	}
-
-	.sp2 {
-		top: 25%;
-		right: 10%;
-		animation-delay: 0.5s;
-		color: #ef4444;
-	}
-
-	.sp3 {
-		top: 35%;
-		right: 25%;
-		animation-delay: 0.6s;
-		color: #a78bfa;
-	}
-
-	@keyframes sparkBurst {
-		0%, 40% {
-			opacity: 0;
-			transform: scale(0.5) translate(0, 0);
-		}
-		50% {
-			opacity: 1;
-			transform: scale(1.2) translate(-5px, -5px);
+	@keyframes trailFade {
+		0% {
+			opacity: 0.8;
+			width: 50%;
 		}
 		100% {
 			opacity: 0;
-			transform: scale(0.5) translate(-10px, -10px);
+			width: 30%;
 		}
 	}
 
