@@ -3,6 +3,10 @@
 	import SearchBar from './SearchBar.svelte';
 	import type { SortField, CommentLabel } from '$lib/types/comment';
 
+	// Filter default/max values as constants
+	const DEFAULT_MAX_CHARACTERS = 10000;
+	const DEFAULT_MAX_LIKES = 1000000;
+
 	let {
 		groupByVideo = true,
 		hideSelectedFromList = true,
@@ -67,7 +71,7 @@
 	}
 
 	function clearMaxCharacters() {
-		filters.update(f => ({ ...f, maxCharacters: 10000 }));
+		filters.update(f => ({ ...f, maxCharacters: DEFAULT_MAX_CHARACTERS }));
 	}
 
 	function clearMinLikes() {
@@ -75,7 +79,7 @@
 	}
 
 	function clearMaxLikes() {
-		filters.update(f => ({ ...f, maxLikes: 1000000 }));
+		filters.update(f => ({ ...f, maxLikes: DEFAULT_MAX_LIKES }));
 	}
 
 	function clearShowErrors() {
@@ -85,18 +89,40 @@
 	// Check if any filters are active
 	const hasActiveFilters = $derived(
 		$filters.minCharacters > 0 ||
-		$filters.maxCharacters < 10000 ||
+		$filters.maxCharacters < DEFAULT_MAX_CHARACTERS ||
 		$filters.minLikes > 0 ||
-		$filters.maxLikes < 1000000 ||
+		$filters.maxLikes < DEFAULT_MAX_LIKES ||
 		($filters.labels && $filters.labels.length > 0) ||
 		$filters.showOnlyWithErrors
 	);
 
 	// Individual active filter checks
-	const hasCharacterFilter = $derived($filters.minCharacters > 0 || $filters.maxCharacters < 10000);
-	const hasLikesFilter = $derived($filters.minLikes > 0 || $filters.maxLikes < 1000000);
+	const hasCharacterFilter = $derived($filters.minCharacters > 0 || $filters.maxCharacters < DEFAULT_MAX_CHARACTERS);
+	const hasLikesFilter = $derived($filters.minLikes > 0 || $filters.maxLikes < DEFAULT_MAX_LIKES);
 	const hasLabelFilter = $derived($filters.labels && $filters.labels.length > 0);
 	const hasErrorFilter = $derived($filters.showOnlyWithErrors);
+
+	// Helper function to format filter range display text
+	function formatRangeDisplay(min: number, max: number, defaultMax: number, prefix: string): string {
+		const hasMin = min > 0;
+		const hasMax = max < defaultMax;
+		if (hasMin && hasMax) {
+			return `${prefix}: ${min}+ - ≤${max}`;
+		} else if (hasMin) {
+			return `${prefix}: ${min}+`;
+		} else if (hasMax) {
+			return `${prefix}: ≤${max}`;
+		}
+		return prefix;
+	}
+
+	// Computed filter display text
+	const characterFilterText = $derived(
+		formatRangeDisplay($filters.minCharacters, $filters.maxCharacters, DEFAULT_MAX_CHARACTERS, 'Chars')
+	);
+	const likesFilterText = $derived(
+		formatRangeDisplay($filters.minLikes, $filters.maxLikes, DEFAULT_MAX_LIKES, 'Likes')
+	);
 </script>
 
 <div class="filter-panel">
@@ -212,9 +238,7 @@
 						onclick={() => { clearMinCharacters(); clearMaxCharacters(); }}
 						title="Click to clear character filter"
 					>
-						<span class="badge-text">
-							Chars: {$filters.minCharacters > 0 ? `${$filters.minCharacters}+` : ''}{$filters.minCharacters > 0 && $filters.maxCharacters < 10000 ? ' - ' : ''}{$filters.maxCharacters < 10000 ? `≤${$filters.maxCharacters}` : ''}
-						</span>
+						<span class="badge-text">{characterFilterText}</span>
 						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" class="badge-close">
 							<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
 						</svg>
@@ -226,9 +250,7 @@
 						onclick={() => { clearMinLikes(); clearMaxLikes(); }}
 						title="Click to clear likes filter"
 					>
-						<span class="badge-text">
-							Likes: {$filters.minLikes > 0 ? `${$filters.minLikes}+` : ''}{$filters.minLikes > 0 && $filters.maxLikes < 1000000 ? ' - ' : ''}{$filters.maxLikes < 1000000 ? `≤${$filters.maxLikes}` : ''}
-						</span>
+						<span class="badge-text">{likesFilterText}</span>
 						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" class="badge-close">
 							<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
 						</svg>
