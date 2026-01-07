@@ -247,6 +247,16 @@ export async function reloadSlidingWindow(
 }
 
 /**
+ * Force reload the sliding window without checking if filters changed
+ * Use this when underlying data has changed (e.g., comments deleted)
+ */
+export async function forceReloadSlidingWindow(): Promise<void> {
+	if (currentFilters) {
+		await initializeSlidingWindow(currentFilters, currentSortField, currentSortOrder, currentSearchQuery);
+	}
+}
+
+/**
  * Clear sliding window
  */
 export function clearSlidingWindow(): void {

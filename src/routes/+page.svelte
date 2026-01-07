@@ -57,6 +57,7 @@
 		isLoadingWindow,
 		initializeSlidingWindow,
 		reloadSlidingWindow,
+		forceReloadSlidingWindow,
 		clearSlidingWindow,
 		handleScrollPosition
 	} from '$lib/stores/slidingWindow';
@@ -967,6 +968,10 @@
 			}
 			
 			await saveComments($comments);
+			
+			// Force reload sliding window to update totalAvailable count in navbar
+			await forceReloadSlidingWindow();
+			
 			toasts.success(`Removed ${unenrichableComments.length} unenrichable comment(s) from your collection.`);
 		} catch (e) {
 			error.set(getErrorMessage(e));
@@ -986,6 +991,9 @@
 		await deleteFromStorage(ids);
 		await saveComments($comments);
 		
+		// Force reload sliding window to update totalAvailable count in navbar
+		await forceReloadSlidingWindow();
+		
 		toasts.success(`Removed ${ids.length} unenrichable comment(s) from your collection.`);
 	}
 
@@ -994,6 +1002,10 @@
 		removeComments([commentId]);
 		await deleteFromStorage([commentId]);
 		await saveComments($comments);
+		
+		// Force reload sliding window to update totalAvailable count in navbar
+		await forceReloadSlidingWindow();
+		
 		toasts.info('Comment removed from your local database.');
 	}
 
@@ -1698,6 +1710,8 @@
 		flex: 1 1 0;
 		min-height: 0;
 		position: relative;
+		/* Prevent layout from shrinking when content is empty */
+		width: 100%;
 	}
 
 	.comments-section {
@@ -1709,6 +1723,8 @@
 		width: 100%;
 		/* Force grid item to maintain its track width */
 		overflow: hidden;
+		/* Ensure section doesn't shrink below a reasonable size */
+		min-width: 300px;
 	}
 
 	.comments-scroll-wrapper {
@@ -1717,6 +1733,8 @@
 		min-height: 0;
 		display: flex;
 		flex-direction: column;
+		/* Ensure wrapper maintains full width even when content is empty */
+		width: 100%;
 	}
 	
 	.loading-indicator {
