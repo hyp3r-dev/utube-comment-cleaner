@@ -302,182 +302,12 @@ export class YouTubeService {
 		return this.channelId as string;
 	}
 
-	async fetchAllComments(
-		onProgress?: (loaded: number, total?: number) => void
-	): Promise<YouTubeComment[]> {
-		// First, get the user's channel ID
-		const channelId = await this.fetchMyChannelId();
-
-		const comments: YouTubeComment[] = [];
-		let pageToken: string | undefined;
-		let totalLoaded = 0;
-
-		do {
-			const url = new URL(`${YOUTUBE_API_BASE}/commentThreads`);
-			url.searchParams.set('part', 'snippet');
-			url.searchParams.set('allThreadsRelatedToChannelId', channelId);
-			url.searchParams.set('maxResults', '100'); // Maximum batch size
-			url.searchParams.set('moderationStatus', 'published');
-			if (pageToken) {
-				url.searchParams.set('pageToken', pageToken);
-			}
-
-			const response = await fetch(url.toString(), {
-				headers: {
-					'Authorization': `Bearer ${this.accessToken}`
-				}
-			});
-
-			// Track quota usage for commentThreads list
-			quotaStore.addUsage(QUOTA_COSTS.commentThreadsList);
-
-			if (!response.ok) {
-				const errorData = await response.json() as YouTubeErrorResponse;
-				
-				// Try alternative endpoint for user's own comments on 403/400
-				if (errorData.error?.code === 403 || errorData.error?.code === 400) {
-					return this.fetchMyComments(onProgress);
-				}
-				
-				this.parseAndThrowError(errorData);
-			}
-
-			const data: YouTubeCommentListResponse = await response.json();
-			
-			const newComments = data.items.map(item => this.mapCommentThread(item));
-			comments.push(...newComments);
-			totalLoaded += newComments.length;
-			
-			onProgress?.(totalLoaded, data.pageInfo.totalResults);
-			
-			pageToken = data.nextPageToken;
-			
-			// Small delay to respect rate limits
-			await this.delay(this.rateLimitDelay);
-		} while (pageToken);
-
-		// Batch fetch video details for all unique videos
-		const videoIds = [...new Set(comments.map(c => c.videoId))];
-		const videoDetails = await this.fetchVideoDetailsBatch(videoIds);
-		
-		// Merge video details into comments
-		return comments.map(comment => ({
-			...comment,
-			videoTitle: videoDetails[comment.videoId]?.title,
-			videoPrivacyStatus: videoDetails[comment.videoId]?.privacyStatus || 'unknown'
-		}));
-	}
-
-	private async fetchMyComments(
-		onProgress?: (loaded: number, total?: number) => void
-	): Promise<YouTubeComment[]> {
-		// Get the user's channel ID
-		const channelId = await this.fetchMyChannelId();
-		const comments: YouTubeComment[] = [];
-		let pageToken: string | undefined;
-		let totalLoaded = 0;
-
-		// Fetch user's comment activity via activities endpoint
-		do {
-			// Use activities to find videos the user commented on, then get those comments
-			const activitiesUrl = new URL(`${YOUTUBE_API_BASE}/activities`);
-			activitiesUrl.searchParams.set('part', 'snippet,contentDetails');
-			activitiesUrl.searchParams.set('channelId', channelId);
-			activitiesUrl.searchParams.set('maxResults', '50');
-			if (pageToken) {
-				activitiesUrl.searchParams.set('pageToken', pageToken);
-			}
-
-			const response = await fetch(activitiesUrl.toString(), {
-				headers: {
-					'Authorization': `Bearer ${this.accessToken}`
-				}
-			});
-
-			// Track quota usage for activities list
-			quotaStore.addUsage(QUOTA_COSTS.activitiesList);
-
-			if (!response.ok) {
-				// If activities doesn't work, just return what we have
-				break;
-			}
-
-			const data = await response.json();
-			
-			// Extract video IDs from activities that might have comments
-			const videoIds = data.items
-				?.filter((item: { snippet?: { type?: string } }) => item.snippet?.type === 'comment')
-				?.map((item: { contentDetails?: { comment?: { videoId?: string } } }) => item.contentDetails?.comment?.videoId)
-				?.filter(Boolean) || [];
-
-			if (videoIds.length > 0) {
-				// Fetch comments for these videos
-				for (const videoId of videoIds) {
-					const videoComments = await this.fetchCommentsForVideo(videoId, channelId);
-					comments.push(...videoComments);
-					totalLoaded += videoComments.length;
-					onProgress?.(totalLoaded);
-				}
-			}
-
-			pageToken = data.nextPageToken;
-			await this.delay(this.rateLimitDelay);
-		} while (pageToken);
-
-		// Batch fetch video details
-		const videoIds = [...new Set(comments.map(c => c.videoId))];
-		const videoDetails = await this.fetchVideoDetailsBatch(videoIds);
-		
-		return comments.map(comment => ({
-			...comment,
-			videoTitle: videoDetails[comment.videoId]?.title,
-			videoPrivacyStatus: videoDetails[comment.videoId]?.privacyStatus || 'unknown'
-		}));
-	}
-
-	private async fetchCommentsForVideo(videoId: string, authorChannelId: string): Promise<YouTubeComment[]> {
-		const comments: YouTubeComment[] = [];
-		let pageToken: string | undefined;
-
-		do {
-			const url = new URL(`${YOUTUBE_API_BASE}/commentThreads`);
-			url.searchParams.set('part', 'snippet');
-			url.searchParams.set('videoId', videoId);
-			url.searchParams.set('maxResults', '100');
-			if (pageToken) {
-				url.searchParams.set('pageToken', pageToken);
-			}
-
-			const response = await fetch(url.toString(), {
-				headers: {
-					'Authorization': `Bearer ${this.accessToken}`
-				}
-			});
-
-			// Track quota usage for commentThreads list
-			quotaStore.addUsage(QUOTA_COSTS.commentThreadsList);
-
-			if (!response.ok) break;
-
-			const data: YouTubeCommentListResponse = await response.json();
-			
-			// Filter to only include comments from the authorized user
-			const userComments = data.items
-				.filter(item => {
-					const authorUrl = item.snippet.topLevelComment.snippet.authorChannelUrl;
-					return authorUrl?.includes(authorChannelId);
-				})
-				.map(item => this.mapCommentThread(item));
-
-			comments.push(...userComments);
-			pageToken = data.nextPageToken;
-			await this.delay(this.rateLimitDelay);
-		} while (pageToken);
-
-		return comments;
-	}
-
-	private async fetchVideoDetailsBatch(
+	/**
+	 * Fetch video details (title, privacy status) for a batch of video IDs
+	 * Used during enrichment to get video titles for comments
+	 * Batches requests in groups of 50 (YouTube API limit)
+	 */
+	async fetchVideoDetailsBatch(
 		videoIds: string[]
 	): Promise<Record<string, { title: string; privacyStatus: 'public' | 'private' | 'unlisted' | 'unknown' }>> {
 		const result: Record<string, { title: string; privacyStatus: 'public' | 'private' | 'unlisted' | 'unknown' }> = {};
@@ -625,6 +455,7 @@ export class YouTubeService {
 	 * Batches requests in groups of 50 (API limit)
 	 * Returns enriched comments and list of missing comment IDs (deleted/unavailable)
 	 * Now supports real-time updates via onBatchComplete callback
+	 * Also fetches video titles for comments that don't have them yet
 	 */
 	async enrichComments(
 		comments: YouTubeComment[],
@@ -638,6 +469,9 @@ export class YouTubeService {
 		
 		const batchSize = 50;
 		let processed = 0;
+		
+		// Collect video IDs that need title fetching (no videoTitle yet)
+		const videoIdsNeedingTitles = new Set<string>();
 		
 		for (let i = 0; i < commentIds.length; i += batchSize) {
 			const batch = commentIds.slice(i, i + batchSize);
@@ -687,6 +521,11 @@ export class YouTubeService {
 							isEnriched: true
 						};
 						
+						// Track video IDs that need titles
+						if (!original.videoTitle && original.videoId) {
+							videoIdsNeedingTitles.add(original.videoId);
+						}
+						
 						// Add to batch updates for real-time callback
 						batchUpdates.set(id, enrichedData);
 						
@@ -735,6 +574,42 @@ export class YouTubeService {
 			
 			// Rate limit between batches
 			await this.delay(this.rateLimitDelay);
+		}
+		
+		// Fetch video titles for comments that don't have them
+		if (videoIdsNeedingTitles.size > 0) {
+			try {
+				const videoDetails = await this.fetchVideoDetailsBatch([...videoIdsNeedingTitles]);
+				
+				// Update enriched comments with video titles and fire batch update
+				const videoTitleUpdates = new Map<string, Partial<YouTubeComment>>();
+				
+				for (let i = 0; i < enrichedComments.length; i++) {
+					const comment = enrichedComments[i];
+					if (comment.videoId && videoDetails[comment.videoId]) {
+						const details = videoDetails[comment.videoId];
+						enrichedComments[i] = {
+							...comment,
+							videoTitle: details.title,
+							videoPrivacyStatus: details.privacyStatus
+						};
+						
+						// Track updates for real-time callback
+						videoTitleUpdates.set(comment.id, {
+							videoTitle: details.title,
+							videoPrivacyStatus: details.privacyStatus
+						});
+					}
+				}
+				
+				// Fire callback with video title updates
+				if (onBatchComplete && videoTitleUpdates.size > 0) {
+					onBatchComplete(videoTitleUpdates);
+				}
+			} catch (e) {
+				// Video title fetching is best-effort, don't fail enrichment
+				console.warn('Failed to fetch video titles during enrichment:', e);
+			}
 		}
 		
 		return { enriched: enrichedComments, missing: missingIds };
