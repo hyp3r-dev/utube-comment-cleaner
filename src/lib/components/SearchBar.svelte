@@ -5,6 +5,7 @@
 	let isFocused = $state(false);
 	let localQuery = $state('');
 	let isSearching = $state(false);
+	let showSettingsPopup = $state(false);
 	
 	// Sync from store
 	$effect(() => {
@@ -38,7 +39,9 @@
 			e.preventDefault();
 			executeSearch();
 		} else if (e.key === 'Escape') {
-			if (localQuery) {
+			if (showSettingsPopup) {
+				showSettingsPopup = false;
+			} else if (localQuery) {
 				handleClear();
 			} else {
 				inputElement?.blur();
@@ -58,6 +61,28 @@
 		}
 	}
 	
+	function toggleSettingsPopup(e: MouseEvent) {
+		e.stopPropagation();
+		showSettingsPopup = !showSettingsPopup;
+	}
+	
+	// Close popup when clicking outside
+	function handleDocumentClick(e: MouseEvent) {
+		if (showSettingsPopup) {
+			showSettingsPopup = false;
+		}
+	}
+	
+	// Add document click listener only when popup is open
+	$effect(() => {
+		if (showSettingsPopup && typeof document !== 'undefined') {
+			document.addEventListener('click', handleDocumentClick);
+			return () => {
+				document.removeEventListener('click', handleDocumentClick);
+			};
+		}
+	});
+	
 	const resultCount = $derived($filteredComments.length);
 	const totalCount = $derived($comments.length);
 	const hasQuery = $derived($searchQuery.length > 0);
@@ -65,11 +90,14 @@
 
 	// Search mode options
 	const searchModes: { value: SearchMode; label: string; icon: string; title: string }[] = [
-		{ value: 'all', label: 'All', icon: '🔍', title: 'Search in comments, video titles, and channel names' },
+		{ value: 'all', label: 'All Fields', icon: '🔍', title: 'Search in comments, video titles, and channel names' },
 		{ value: 'comments', label: 'Comments', icon: '💬', title: 'Search in comment text only' },
-		{ value: 'videos', label: 'Videos', icon: '📹', title: 'Search in video titles only' },
-		{ value: 'channels', label: 'Channels', icon: '👤', title: 'Search in channel names only' }
+		{ value: 'videos', label: 'Video Titles', icon: '📹', title: 'Search in video titles only' },
+		{ value: 'channels', label: 'Channel Names', icon: '👤', title: 'Search in channel names only' }
 	];
+	
+	// Get current mode label
+	const currentModeLabel = $derived(searchModes.find(m => m.value === $searchMode)?.label || 'All Fields');
 </script>
 
 <div class="search-container" class:focused={isFocused}>
@@ -124,6 +152,50 @@
 				</button>
 			{/if}
 			
+			<!-- Settings cog button for search mode -->
+			<div class="settings-container">
+				<button 
+					class="settings-btn" 
+					class:active={showSettingsPopup || $searchMode !== 'all'}
+					onclick={toggleSettingsPopup}
+					aria-label="Search settings"
+					type="button"
+					title={`Search mode: ${currentModeLabel}`}
+				>
+					<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+						<path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+					</svg>
+				</button>
+				
+				<!-- Settings popup -->
+				{#if showSettingsPopup}
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div class="settings-popup" onclick={(e) => e.stopPropagation()}>
+						<div class="popup-header">Search in:</div>
+						<div class="search-modes">
+							{#each searchModes as mode}
+								<button
+									class="mode-btn"
+									class:active={$searchMode === mode.value}
+									onclick={() => setSearchMode(mode.value)}
+									title={mode.title}
+									type="button"
+								>
+									<span class="mode-icon">{mode.icon}</span>
+									<span class="mode-label">{mode.label}</span>
+									{#if $searchMode === mode.value}
+										<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" class="check-icon">
+											<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+										</svg>
+									{/if}
+								</button>
+							{/each}
+						</div>
+					</div>
+				{/if}
+			</div>
+			
 			<button 
 				class="search-btn" 
 				class:highlight={localQuery !== $searchQuery && hasLocalQuery}
@@ -138,24 +210,6 @@
 			</button>
 		</div>
 	</div>
-
-	<!-- Search mode toggles (shown when focused and input is empty or when there's an active search) -->
-	{#if isFocused || hasQuery}
-		<div class="search-modes">
-			{#each searchModes as mode}
-				<button
-					class="mode-btn"
-					class:active={$searchMode === mode.value}
-					onclick={() => setSearchMode(mode.value)}
-					title={mode.title}
-					type="button"
-				>
-					<span class="mode-icon">{mode.icon}</span>
-					<span class="mode-label">{mode.label}</span>
-				</button>
-			{/each}
-		</div>
-	{/if}
 </div>
 
 <style>
@@ -277,7 +331,8 @@
 	}
 
 	.clear-btn,
-	.search-btn {
+	.search-btn,
+	.settings-btn {
 		display: flex;
 		align-items: center;
 		justify-content: center;
@@ -316,19 +371,40 @@
 		50% { opacity: 0.7; }
 	}
 
-	/* Search mode toggles */
-	.search-modes {
-		display: flex;
-		gap: 0.25rem;
-		margin-top: 0.5rem;
-		padding: 0 0.25rem;
-		animation: slideDown 0.2s ease;
+	/* Settings button and popup container */
+	.settings-container {
+		position: relative;
 	}
 
-	@keyframes slideDown {
+	.settings-btn:hover {
+		background: var(--bg-hover);
+		color: var(--text-primary);
+	}
+
+	.settings-btn.active {
+		background: rgba(99, 102, 241, 0.2);
+		color: var(--accent-primary);
+	}
+
+	/* Settings popup */
+	.settings-popup {
+		position: absolute;
+		top: 100%;
+		right: 0;
+		margin-top: 8px;
+		background: var(--bg-card);
+		border: 1px solid var(--bg-tertiary);
+		border-radius: var(--radius-md);
+		box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+		z-index: 100;
+		min-width: 180px;
+		animation: popupSlideIn 0.2s ease;
+	}
+
+	@keyframes popupSlideIn {
 		from {
 			opacity: 0;
-			transform: translateY(-4px);
+			transform: translateY(-8px);
 		}
 		to {
 			opacity: 1;
@@ -336,39 +412,62 @@
 		}
 	}
 
+	.popup-header {
+		padding: 0.5rem 0.75rem;
+		font-size: 0.7rem;
+		font-weight: 600;
+		color: var(--text-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		border-bottom: 1px solid var(--bg-tertiary);
+	}
+
+	/* Search mode options in popup */
+	.search-modes {
+		display: flex;
+		flex-direction: column;
+		padding: 0.25rem;
+	}
+
 	.mode-btn {
 		display: flex;
 		align-items: center;
-		gap: 0.25rem;
-		padding: 0.25rem 0.5rem;
-		background: var(--bg-tertiary);
-		border: 1px solid transparent;
+		gap: 0.5rem;
+		padding: 0.5rem 0.75rem;
+		background: transparent;
+		border: none;
 		border-radius: var(--radius-sm);
 		color: var(--text-secondary);
-		font-size: 0.7rem;
+		font-size: 0.85rem;
 		font-weight: 500;
 		cursor: pointer;
 		transition: all 0.15s ease;
+		text-align: left;
+		width: 100%;
 	}
 
 	.mode-btn:hover {
-		background: var(--bg-hover);
+		background: var(--bg-tertiary);
 		color: var(--text-primary);
 	}
 
 	.mode-btn.active {
 		background: rgba(99, 102, 241, 0.15);
-		border-color: rgba(99, 102, 241, 0.3);
 		color: var(--accent-primary);
 	}
 
 	.mode-icon {
-		font-size: 0.75rem;
+		font-size: 0.9rem;
 		line-height: 1;
 	}
 
 	.mode-label {
+		flex: 1;
 		line-height: 1;
+	}
+
+	.check-icon {
+		color: var(--accent-primary);
 	}
 
 	@media (max-width: 640px) {
@@ -386,20 +485,8 @@
 			padding-right: 6px;
 		}
 
-		.search-modes {
-			flex-wrap: wrap;
-		}
-
-		.mode-label {
-			display: none;
-		}
-
-		.mode-btn {
-			padding: 0.3rem;
-		}
-
-		.mode-icon {
-			font-size: 0.9rem;
+		.settings-popup {
+			right: -40px;
 		}
 	}
 </style>

@@ -595,7 +595,7 @@
 	.selected-list {
 		display: flex;
 		flex-direction: column;
-		gap: 0.5rem;
+		/* Use margin on items instead of gap to prevent space issues during deletion */
 		/* Overflow auto for proper scroll updates during deletion */
 		overflow-y: auto;
 		overflow-x: hidden;
@@ -606,11 +606,18 @@
 		flex-direction: column;
 		background: var(--bg-tertiary);
 		border-radius: var(--radius-md);
-		transition: all 0.4s ease;
+		transition: background 0.2s ease, border-color 0.2s ease;
 		position: relative;
 		overflow: hidden;
 		/* Prevent items from collapsing before animation */
 		flex-shrink: 0;
+		/* Use margin instead of gap for spacing - this collapses properly */
+		margin-bottom: 0.5rem;
+	}
+	
+	/* Remove bottom margin from last item */
+	.selected-item:last-child {
+		margin-bottom: 0;
 	}
 
 	.item-main {
@@ -697,19 +704,19 @@
 		0% {
 			transform: translateX(0);
 			opacity: 1;
-			max-height: 150px;
+			max-height: 200px;
 			margin-bottom: 0.5rem;
 		}
-		50% {
+		40% {
 			transform: translateX(10px);
 			opacity: 1;
-			max-height: 150px;
+			max-height: 200px;
 			margin-bottom: 0.5rem;
 		}
-		80% {
+		70% {
 			transform: translateX(100%);
 			opacity: 0;
-			max-height: 150px;
+			max-height: 200px;
 			margin-bottom: 0.5rem;
 		}
 		100% {
@@ -719,7 +726,6 @@
 			margin-bottom: 0;
 			padding: 0;
 			border-width: 0;
-			overflow: hidden;
 		}
 	}
 

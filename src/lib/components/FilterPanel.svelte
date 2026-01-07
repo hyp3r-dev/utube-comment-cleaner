@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { filters, sortField, sortOrder, resetFilters } from '$lib/stores/comments';
+	import { filters, sortField, sortOrder, resetFilters, clearChannelFilter } from '$lib/stores/comments';
 	import SearchBar from './SearchBar.svelte';
 	import type { SortField, CommentLabel } from '$lib/types/comment';
 
@@ -93,7 +93,8 @@
 		$filters.minLikes > 0 ||
 		$filters.maxLikes < DEFAULT_MAX_LIKES ||
 		($filters.labels && $filters.labels.length > 0) ||
-		$filters.showOnlyWithErrors
+		$filters.showOnlyWithErrors ||
+		$filters.channelFilter !== undefined
 	);
 
 	// Individual active filter checks
@@ -101,6 +102,7 @@
 	const hasLikesFilter = $derived($filters.minLikes > 0 || $filters.maxLikes < DEFAULT_MAX_LIKES);
 	const hasLabelFilter = $derived($filters.labels && $filters.labels.length > 0);
 	const hasErrorFilter = $derived($filters.showOnlyWithErrors);
+	const hasChannelFilter = $derived($filters.channelFilter !== undefined);
 
 	// Helper function to format filter range display text
 	function formatRangeDisplay(min: number, max: number, defaultMax: number, prefix: string): string {
@@ -287,6 +289,21 @@
 						</svg>
 					</button>
 				{/if}
+				{#if hasChannelFilter}
+					<button 
+						class="active-filter-badge channel-filter-badge" 
+						onclick={clearChannelFilter}
+						title="Click to clear channel filter"
+					>
+						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" class="badge-icon">
+							<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clip-rule="evenodd"/>
+						</svg>
+						<span class="badge-text">{$filters.channelFilter?.channelTitle}</span>
+						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" class="badge-close">
+							<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+						</svg>
+					</button>
+				{/if}
 			</div>
 		</div>
 	{/if}
@@ -384,6 +401,8 @@
 		border: 1px solid var(--bg-tertiary);
 		padding: 1rem;
 		margin-bottom: 1.5rem;
+		/* Prevent layout shift when scrollbar appears/disappears in comments section */
+		box-sizing: border-box;
 	}
 
 	.search-row {
@@ -732,6 +751,10 @@
 		line-height: 1;
 	}
 
+	.active-filter-badge .badge-icon {
+		flex-shrink: 0;
+	}
+
 	.active-filter-badge .badge-close {
 		opacity: 0.7;
 		transition: opacity 0.2s ease;
@@ -739,6 +762,12 @@
 
 	.active-filter-badge:hover .badge-close {
 		opacity: 1;
+	}
+
+	/* Channel filter badge - special styling */
+	.channel-filter-badge {
+		background: rgba(167, 139, 250, 0.15);
+		border-color: rgba(167, 139, 250, 0.3);
 	}
 
 	@media (max-width: 900px) {

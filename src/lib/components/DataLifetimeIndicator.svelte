@@ -107,6 +107,8 @@
 		<span class="days-remaining">{lifetimeInfo.daysRemaining}d</span>
 
 		{#if showTooltip}
+			<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+			<!-- onclick only stops propagation to prevent tooltip from closing when clicking inside -->
 			<div class="lifetime-tooltip" onclick={(e) => e.stopPropagation()}>
 				<div class="tooltip-header">
 					<strong>Data Retention</strong>

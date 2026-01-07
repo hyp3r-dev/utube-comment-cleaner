@@ -25,7 +25,8 @@ export const filters = writable<CommentFilters>({
 	minLikes: 0,
 	maxLikes: 1000000,
 	labels: undefined,
-	showOnlyWithErrors: false
+	showOnlyWithErrors: false,
+	channelFilter: undefined
 });
 
 // Sorting
@@ -68,6 +69,11 @@ export const filteredComments = derived(
 
 			// Show only comments with delete errors
 			if ($filters.showOnlyWithErrors && !comment.lastDeleteError) return false;
+
+			// Channel filter - filter by channel ID
+			if ($filters.channelFilter) {
+				if (comment.videoChannelId !== $filters.channelFilter.channelId) return false;
+			}
 
 			// Search query filter with mode support
 			if ($searchQuery) {
@@ -328,10 +334,21 @@ export function resetFilters(): void {
 		minLikes: 0,
 		maxLikes: 1000000,
 		labels: undefined,
-		showOnlyWithErrors: false
+		showOnlyWithErrors: false,
+		channelFilter: undefined
 	});
 	searchQuery.set('');
 	searchMode.set('all');
+}
+
+// Set channel filter
+export function setChannelFilter(channelId: string, channelTitle: string): void {
+	filters.update(f => ({ ...f, channelFilter: { channelId, channelTitle } }));
+}
+
+// Clear channel filter
+export function clearChannelFilter(): void {
+	filters.update(f => ({ ...f, channelFilter: undefined }));
 }
 
 export function logout(): void {

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { YouTubeComment } from '$lib/types/comment';
-	import { selectedIds, selectComment } from '$lib/stores/comments';
+	import { selectedIds, selectComment, setChannelFilter } from '$lib/stores/comments';
 	import { formatDate, escapeHtml, truncateText } from '$lib/utils/formatting';
 	
 	let { 
@@ -72,6 +72,13 @@
 	function handleSelectClick(e: MouseEvent) {
 		e.stopPropagation();
 		selectComment(comment.id);
+	}
+	
+	function handleFilterByChannel(e: MouseEvent) {
+		e.stopPropagation();
+		if (comment.videoChannelId && comment.videoChannelTitle) {
+			setChannelFilter(comment.videoChannelId, comment.videoChannelTitle);
+		}
 	}
 	
 	function handleDragStartWrapper(e: DragEvent) {
@@ -197,6 +204,16 @@
 										<path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/>
 									</svg>
 								</a>
+								<!-- Filter by channel button -->
+								<button
+									class="filter-channel-btn"
+									onclick={handleFilterByChannel}
+									title="Filter comments by this channel"
+								>
+									<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
+										<path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" />
+									</svg>
+								</button>
 							{:else}
 								<span class="channel-title-text">{truncateText(comment.videoChannelTitle, 25)}</span>
 							{/if}
@@ -594,6 +611,27 @@
 	.channel-link:hover {
 		color: var(--accent-tertiary);
 		text-decoration: underline;
+	}
+
+	/* Filter by channel button */
+	.filter-channel-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		padding: 0.2rem;
+		margin-left: 0.35rem;
+		background: var(--bg-tertiary);
+		border: 1px solid transparent;
+		border-radius: var(--radius-sm);
+		color: var(--text-muted);
+		cursor: pointer;
+		transition: all 0.15s ease;
+	}
+
+	.filter-channel-btn:hover {
+		background: rgba(99, 102, 241, 0.2);
+		border-color: var(--accent-primary);
+		color: var(--accent-primary);
 	}
 
 	.channel-title-text {

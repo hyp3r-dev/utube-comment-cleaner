@@ -46,6 +46,8 @@ export interface CommentFilters {
 	// Label-based filters
 	labels?: CommentLabel[];
 	showOnlyWithErrors?: boolean;
+	// Channel filter - filter by channel ID (channelId, channelTitle for display)
+	channelFilter?: { channelId: string; channelTitle: string };
 }
 
 export type SortField = 'likeCount' | 'publishedAt' | 'textLength';
