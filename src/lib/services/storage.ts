@@ -353,6 +353,7 @@ export interface CommentQueryOptions {
 	videoPrivacy?: ('public' | 'private' | 'unlisted' | 'unknown')[];
 	moderationStatus?: ('published' | 'heldForReview' | 'likelySpam' | 'rejected' | 'unknown')[];
 	searchQuery?: string;
+	searchMode?: 'all' | 'comments' | 'videos' | 'channels';
 	showOnlyWithErrors?: boolean;
 	
 	// Sorting
@@ -409,12 +410,29 @@ export async function queryComments(options: CommentQueryOptions = {}): Promise<
 				if (!options.moderationStatus.includes(modStatus)) return false;
 			}
 			
-			// Search query filter
+			// Search query filter with mode support
 			if (options.searchQuery) {
 				const query = options.searchQuery.toLowerCase();
-				const matchesText = comment.textOriginal.toLowerCase().includes(query);
-				const matchesVideo = comment.videoTitle?.toLowerCase().includes(query);
-				if (!matchesText && !matchesVideo) return false;
+				const mode = options.searchMode || 'all';
+				
+				switch (mode) {
+					case 'comments':
+						if (!comment.textOriginal.toLowerCase().includes(query)) return false;
+						break;
+					case 'videos':
+						if (!comment.videoTitle?.toLowerCase().includes(query)) return false;
+						break;
+					case 'channels':
+						if (!comment.videoChannelTitle?.toLowerCase().includes(query)) return false;
+						break;
+					case 'all':
+					default:
+						const matchesText = comment.textOriginal.toLowerCase().includes(query);
+						const matchesVideo = comment.videoTitle?.toLowerCase().includes(query);
+						const matchesChannel = comment.videoChannelTitle?.toLowerCase().includes(query);
+						if (!matchesText && !matchesVideo && !matchesChannel) return false;
+						break;
+				}
 			}
 			
 			// Show only comments with delete errors
@@ -549,12 +567,29 @@ export async function getFilteredCommentIds(options: Omit<CommentQueryOptions, '
 				if (!options.moderationStatus.includes(modStatus)) return false;
 			}
 			
-			// Search query filter
+			// Search query filter with mode support
 			if (options.searchQuery) {
 				const query = options.searchQuery.toLowerCase();
-				const matchesText = comment.textOriginal.toLowerCase().includes(query);
-				const matchesVideo = comment.videoTitle?.toLowerCase().includes(query);
-				if (!matchesText && !matchesVideo) return false;
+				const mode = options.searchMode || 'all';
+				
+				switch (mode) {
+					case 'comments':
+						if (!comment.textOriginal.toLowerCase().includes(query)) return false;
+						break;
+					case 'videos':
+						if (!comment.videoTitle?.toLowerCase().includes(query)) return false;
+						break;
+					case 'channels':
+						if (!comment.videoChannelTitle?.toLowerCase().includes(query)) return false;
+						break;
+					case 'all':
+					default:
+						const matchesText = comment.textOriginal.toLowerCase().includes(query);
+						const matchesVideo = comment.videoTitle?.toLowerCase().includes(query);
+						const matchesChannel = comment.videoChannelTitle?.toLowerCase().includes(query);
+						if (!matchesText && !matchesVideo && !matchesChannel) return false;
+						break;
+				}
 			}
 			
 			// Show only comments with delete errors

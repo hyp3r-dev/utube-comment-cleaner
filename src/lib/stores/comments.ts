@@ -35,10 +35,14 @@ export const sortOrder = writable<SortOrder>('desc');
 // Search
 export const searchQuery = writable<string>('');
 
+// Search mode: 'all' | 'comments' | 'videos' | 'channels'
+export type SearchMode = 'all' | 'comments' | 'videos' | 'channels';
+export const searchMode = writable<SearchMode>('all');
+
 // Filtered and sorted comments
 export const filteredComments = derived(
-	[comments, filters, sortField, sortOrder, searchQuery],
-	([$comments, $filters, $sortField, $sortOrder, $searchQuery]) => {
+	[comments, filters, sortField, sortOrder, searchQuery, searchMode],
+	([$comments, $filters, $sortField, $sortOrder, $searchQuery, $searchMode]) => {
 		let result = $comments.filter(comment => {
 			// Video privacy filter
 			const privacyStatus = comment.videoPrivacyStatus || 'unknown';
@@ -65,12 +69,32 @@ export const filteredComments = derived(
 			// Show only comments with delete errors
 			if ($filters.showOnlyWithErrors && !comment.lastDeleteError) return false;
 
-			// Search query filter
+			// Search query filter with mode support
 			if ($searchQuery) {
 				const query = $searchQuery.toLowerCase();
-				const matchesText = comment.textOriginal.toLowerCase().includes(query);
-				const matchesVideo = comment.videoTitle?.toLowerCase().includes(query);
-				if (!matchesText && !matchesVideo) return false;
+				
+				switch ($searchMode) {
+					case 'comments':
+						// Only search in comment text
+						if (!comment.textOriginal.toLowerCase().includes(query)) return false;
+						break;
+					case 'videos':
+						// Only search in video titles
+						if (!comment.videoTitle?.toLowerCase().includes(query)) return false;
+						break;
+					case 'channels':
+						// Only search in channel names
+						if (!comment.videoChannelTitle?.toLowerCase().includes(query)) return false;
+						break;
+					case 'all':
+					default:
+						// Search in all fields
+						const matchesText = comment.textOriginal.toLowerCase().includes(query);
+						const matchesVideo = comment.videoTitle?.toLowerCase().includes(query);
+						const matchesChannel = comment.videoChannelTitle?.toLowerCase().includes(query);
+						if (!matchesText && !matchesVideo && !matchesChannel) return false;
+						break;
+				}
 			}
 
 			return true;
@@ -307,6 +331,7 @@ export function resetFilters(): void {
 		showOnlyWithErrors: false
 	});
 	searchQuery.set('');
+	searchMode.set('all');
 }
 
 export function logout(): void {

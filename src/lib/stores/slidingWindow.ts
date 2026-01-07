@@ -6,6 +6,7 @@
 import { writable, derived, get } from 'svelte/store';
 import type { YouTubeComment, CommentFilters, SortField, SortOrder } from '$lib/types/comment';
 import { queryComments, type CommentQueryOptions, getCommentCount } from '$lib/services/storage';
+import { searchMode, type SearchMode } from './comments';
 
 // Sliding window configuration
 const WINDOW_SIZE = 200; // Keep 200 comments in memory
@@ -27,6 +28,7 @@ let currentFilters: CommentFilters | null = null;
 let currentSortField: SortField = 'likeCount';
 let currentSortOrder: SortOrder = 'desc';
 let currentSearchQuery = '';
+let currentSearchMode: SearchMode = 'all';
 
 /**
  * Initialize sliding window with first batch of comments
@@ -44,6 +46,7 @@ export async function initializeSlidingWindow(
 	currentSortField = sortField;
 	currentSortOrder = sortOrder;
 	currentSearchQuery = searchQuery;
+	currentSearchMode = get(searchMode);
 	
 	try {
 		const options: CommentQueryOptions = {
@@ -57,6 +60,7 @@ export async function initializeSlidingWindow(
 			videoPrivacy: filters.videoPrivacy,
 			moderationStatus: filters.moderationStatus,
 			searchQuery: searchQuery || undefined,
+			searchMode: currentSearchMode,
 			showOnlyWithErrors: filters.showOnlyWithErrors,
 			sortBy: sortField,
 			sortOrder: sortOrder
@@ -108,6 +112,7 @@ async function loadForward(): Promise<void> {
 			videoPrivacy: currentFilters.videoPrivacy,
 			moderationStatus: currentFilters.moderationStatus,
 			searchQuery: currentSearchQuery || undefined,
+			searchMode: currentSearchMode,
 			showOnlyWithErrors: currentFilters.showOnlyWithErrors,
 			sortBy: currentSortField,
 			sortOrder: currentSortOrder
@@ -168,6 +173,7 @@ async function loadBackward(): Promise<void> {
 			videoPrivacy: currentFilters.videoPrivacy,
 			moderationStatus: currentFilters.moderationStatus,
 			searchQuery: currentSearchQuery || undefined,
+			searchMode: currentSearchMode,
 			showOnlyWithErrors: currentFilters.showOnlyWithErrors,
 			sortBy: currentSortField,
 			sortOrder: currentSortOrder
@@ -240,8 +246,9 @@ export async function reloadSlidingWindow(
 	const filtersChanged = JSON.stringify(currentFilters) !== JSON.stringify(filters);
 	const sortChanged = currentSortField !== sortField || currentSortOrder !== sortOrder;
 	const searchChanged = currentSearchQuery !== searchQuery;
+	const searchModeChanged = currentSearchMode !== get(searchMode);
 	
-	if (filtersChanged || sortChanged || searchChanged) {
+	if (filtersChanged || sortChanged || searchChanged || searchModeChanged) {
 		await initializeSlidingWindow(filters, sortField, sortOrder, searchQuery);
 	}
 }
