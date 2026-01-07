@@ -36,9 +36,9 @@
 				<path d="M90 50 L55 55 L50 50" stroke="url(#spinner-edge)" stroke-width="1" fill="none" opacity="0.8"/>
 				<path d="M50 90 L45 55 L50 50" stroke="url(#spinner-edge)" stroke-width="1" fill="none" opacity="0.8"/>
 				<path d="M10 50 L45 45 L50 50" stroke="url(#spinner-edge)" stroke-width="1" fill="none" opacity="0.8"/>
-				<!-- Center hole -->
-				<circle cx="50" cy="50" r="6" fill="#1a1a2e"/>
-				<circle cx="50" cy="50" r="4" fill="#ef4444"/>
+				<!-- Center hole - uses design system colors: bg-card and error -->
+				<circle cx="50" cy="50" r="6" fill="var(--bg-card, #1a1a2e)"/>
+				<circle cx="50" cy="50" r="4" fill="var(--error, #ef4444)"/>
 			</svg>
 		</div>
 		

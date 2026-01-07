@@ -73,9 +73,9 @@
 		}
 	}
 	
-	// Add document click listener
+	// Add document click listener only when popup is open
 	$effect(() => {
-		if (typeof document !== 'undefined') {
+		if (showSettingsPopup && typeof document !== 'undefined') {
 			document.addEventListener('click', handleDocumentClick);
 			return () => {
 				document.removeEventListener('click', handleDocumentClick);
