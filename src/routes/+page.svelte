@@ -254,6 +254,9 @@
 			window.history.replaceState({}, '', '/');
 		}
 		
+		// Track if we successfully connected via OAuth callback
+		let connectedViaOAuthCallback = false;
+		
 		// Process auth success first - if both params exist, prioritize success
 		// This prevents showing error message before success message in edge cases
 		if (authSuccess) {
@@ -264,7 +267,8 @@
 					const tokenData = await tokenResponse.json();
 					if (tokenData.success && tokenData.access_token) {
 						inputApiKey = tokenData.access_token;
-						handleConnectToken();
+						await handleConnectToken();
+						connectedViaOAuthCallback = true;
 						// Don't show duplicate success message - handleConnectToken already shows one
 					} else {
 						toasts.error('Failed to retrieve access token.');
@@ -276,14 +280,14 @@
 				console.error('Failed to fetch OAuth token:', e);
 				toasts.error('Failed to complete sign-in. Please try again.');
 			}
-		} else if (authError && !authSuccess) {
-			// Only show auth error if there's no success - prevents false error before success
+		} else if (authError) {
+			// Show auth error only if there's no success
 			toasts.error(`Sign-in failed: ${authError}`);
 		}
 		
 		// Check if we have an existing auth status cookie (Google Login mode)
-		// Skip if there was an auth error - don't restore old cookie state after a failed auth attempt
-		if (googleLoginEnabled && !$apiKey && !authError) {
+		// Skip if we already connected via OAuth callback or there was an auth error
+		if (googleLoginEnabled && !$apiKey && !authError && !connectedViaOAuthCallback) {
 			const authStatusCookie = document.cookie
 				.split('; ')
 				.find(row => row.startsWith('youtube_auth_status='));
@@ -296,7 +300,7 @@
 						const tokenData = await tokenResponse.json();
 						if (tokenData.success && tokenData.access_token) {
 							inputApiKey = tokenData.access_token;
-							handleConnectToken();
+							await handleConnectToken();
 						}
 					}
 				} catch (e) {
@@ -1398,12 +1402,12 @@
 							</div>
 
 							<div class="comments-scroll-wrapper">
-								{#if $windowedComments.length === 0 && !$isLoadingWindow}
+								{#if visibleCommentsCount() === 0 && !$isLoadingWindow}
 									<div class="comments-scroll-container">
 										<div class="empty-state">
-											<div class="empty-icon">🔍</div>
-											<h3>No comments found</h3>
-											<p>Try adjusting your filters or search query</p>
+											<div class="empty-icon">{hideSelectedFromList && $selectedIds.size > 0 ? '✅' : '🔍'}</div>
+											<h3>{hideSelectedFromList && $selectedIds.size > 0 ? 'All comments are in the queue' : 'No comments found'}</h3>
+											<p>{hideSelectedFromList && $selectedIds.size > 0 ? 'Uncheck "Hide queued" to see them, or review your slash queue' : 'Try adjusting your filters or search query'}</p>
 										</div>
 									</div>
 								{:else if groupByVideo}

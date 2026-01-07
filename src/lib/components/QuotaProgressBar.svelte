@@ -195,7 +195,7 @@
 			<div class="quota-info">
 				<p>
 					<strong>Quota costs:</strong><br>
-					• Fetch comments: ~1 unit/page<br>
+					• Enrich: ~2 units / 50 comments<br>
 					• Delete comment: 50 units each
 				</p>
 			</div>
