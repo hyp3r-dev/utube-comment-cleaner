@@ -511,6 +511,145 @@ export class YouTubeService {
 	}
 
 	/**
+	 * Delete a single comment and return result
+	 * Used for parallel deletion batches
+	 */
+	async deleteComment(commentId: string): Promise<{ 
+		success: boolean; 
+		error?: string;
+		quotaExceeded?: boolean;
+	}> {
+		// Handle simulation mode
+		if (isSimulatedToken(this.accessToken)) {
+			console.log('[SIMULATION] Simulating deletion of comment', commentId);
+			await simulateDelay(100);
+			return { success: true };
+		}
+
+		try {
+			const url = new URL(`${YOUTUBE_API_BASE}/comments`);
+			url.searchParams.set('id', commentId);
+
+			const response = await fetch(url.toString(), {
+				method: 'DELETE',
+				headers: {
+					'Authorization': `Bearer ${this.accessToken}`
+				}
+			});
+
+			if (response.ok || response.status === 204) {
+				return { success: true };
+			}
+
+			// Parse error response
+			let errorMessage = `HTTP ${response.status}`;
+			let quotaExceeded = false;
+			
+			try {
+				const errorData = await response.json() as YouTubeErrorResponse;
+				const reason = errorData.error?.errors?.[0]?.reason;
+				if (reason === 'quotaExceeded' || reason === 'dailyLimitExceeded') {
+					errorMessage = 'Quota exceeded - try again tomorrow';
+					quotaExceeded = true;
+				} else if (reason === 'commentNotFound' || response.status === 404) {
+					errorMessage = 'Comment not found (may already be deleted)';
+				} else if (reason === 'forbidden' || response.status === 403) {
+					errorMessage = 'Permission denied - cannot delete this comment';
+				} else if (response.status === 401) {
+					errorMessage = 'Token expired - please reconnect';
+				} else {
+					errorMessage = errorData.error?.message || errorMessage;
+				}
+			} catch {
+				// Ignore JSON parse errors
+			}
+			
+			return { success: false, error: errorMessage, quotaExceeded };
+		} catch (e) {
+			const errorMessage = e instanceof Error ? e.message : 'Network error';
+			return { success: false, error: errorMessage };
+		}
+	}
+
+	/**
+	 * Delete comments in parallel batches
+	 * Provides better throughput for large delete operations
+	 * 
+	 * @param commentIds - Array of comment IDs to delete
+	 * @param parallelCount - Number of parallel API calls (default: 5)
+	 * @param onProgress - Callback for progress updates with individual results
+	 */
+	async deleteCommentsParallel(
+		commentIds: string[],
+		parallelCount: number = 5,
+		onProgress?: (result: { id: string; success: boolean; error?: string }, processed: number, total: number) => void
+	): Promise<{ 
+		success: string[]; 
+		failed: Array<{ id: string; error: string }>;
+		quotaExceeded: boolean;
+	}> {
+		const success: string[] = [];
+		const failed: Array<{ id: string; error: string }> = [];
+		let quotaExceeded = false;
+
+		// Handle simulation mode
+		if (isSimulatedToken(this.accessToken)) {
+			console.log('[SIMULATION] Simulating parallel deletion of', commentIds.length, 'comments');
+			
+			for (let i = 0; i < commentIds.length; i += parallelCount) {
+				const batch = commentIds.slice(i, i + parallelCount);
+				
+				// Simulate parallel processing
+				await Promise.all(batch.map(async (id, idx) => {
+					await simulateDelay(50 + Math.random() * 100);
+					success.push(id);
+					onProgress?.({ id, success: true }, i + idx + 1, commentIds.length);
+				}));
+			}
+			
+			return { success, failed, quotaExceeded: false };
+		}
+
+		// Process in parallel batches
+		for (let i = 0; i < commentIds.length && !quotaExceeded; i += parallelCount) {
+			const batch = commentIds.slice(i, i + parallelCount);
+			
+			const results = await Promise.all(batch.map(async (id, batchIdx) => {
+				const result = await this.deleteComment(id);
+				const processed = i + batchIdx + 1;
+				
+				// Report progress immediately when each delete completes
+				onProgress?.({
+					id,
+					success: result.success,
+					error: result.error
+				}, processed, commentIds.length);
+				
+				return { id, ...result };
+			}));
+			
+			// Process results
+			for (const result of results) {
+				if (result.success) {
+					success.push(result.id);
+				} else {
+					failed.push({ id: result.id, error: result.error || 'Delete failed' });
+					if (result.quotaExceeded) {
+						quotaExceeded = true;
+					}
+				}
+			}
+			
+			// Small delay between batches to avoid hitting rate limits
+			if (i + parallelCount < commentIds.length && !quotaExceeded) {
+				await this.delay(this.rateLimitDelay);
+			}
+		}
+
+		return { success, failed, quotaExceeded };
+	}
+
+	/**
 	 * Enrich comments with data from YouTube API using comments.list
 	 * Batches requests in groups of 50 (API limit)
 	 * Returns enriched comments and list of missing comment IDs (deleted/unavailable)

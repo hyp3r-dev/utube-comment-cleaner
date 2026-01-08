@@ -119,6 +119,20 @@ volumes:
 | `DETAILED_LOGGING` | Enable verbose server logs | `false` |
 | `DATA_DIR` | Directory for persistent data | `/app/data` |
 
+### YouTube API Quota Configuration
+
+These settings allow you to customize quota management when running CommentSlash with Google Login mode enabled (OAuth configured). The quota is shared across all users in multi-user deployments.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `YOUTUBE_DAILY_QUOTA_LIMIT` | Daily quota limit (YouTube API default is 10,000) | `10000` |
+| `YOUTUBE_PER_MINUTE_QUOTA_LIMIT` | Per-minute quota limit (usually very high) | `1800000` |
+| `YOUTUBE_PER_USER_MINUTE_LIMIT` | Per-user per-minute limit | `180000` |
+| `QUOTA_RESERVATION_CHUNK_SIZE` | Quota units reserved at a time during deletions | `1000` |
+| `MAX_PARALLEL_DELETIONS` | Maximum parallel API calls per user (1-10) | `5` |
+
+**Note:** If you have higher quota limits granted by Google, update `YOUTUBE_DAILY_QUOTA_LIMIT` to match. The quota reservation system ensures fair usage across multiple users while maximizing throughput.
+
 ## Getting Your OAuth Access Token
 
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
