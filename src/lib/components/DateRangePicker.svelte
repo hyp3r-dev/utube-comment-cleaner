@@ -242,7 +242,6 @@
 		border-radius: var(--radius-sm);
 		color: var(--text-primary);
 		font-size: 0.85rem;
-		color-scheme: dark;
 	}
 
 	.date-field input:focus {

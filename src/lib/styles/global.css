@@ -98,6 +98,8 @@ html {
 	/* Prevent layout shift when scrollbar appears/disappears */
 	scrollbar-gutter: stable;
 	overflow-y: scroll;
+	/* Dark theme - ensures native inputs render with dark theme */
+	color-scheme: dark;
 }
 
 body {
