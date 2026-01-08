@@ -1208,9 +1208,13 @@
 			
 			if (failedCount > 0) {
 				toasts.warning(`Deleted ${successCount} comment(s). ${failedCount} failed and remain in queue with error details. Click on them to see the error.`);
+			} else if (quotaLimited) {
+				// Some comments weren't attempted due to quota - they stay in queue
+				const remainingCount = $selectedComments.length;
+				toasts.success(`Deleted ${successCount} comment(s)! ${remainingCount} remain in queue for when quota resets.`);
 			} else {
 				toasts.success(`Successfully deleted ${successCount} comment(s)!`);
-				// Only deselect all if everything succeeded
+				// Only deselect all if everything was processed and succeeded
 				deselectAll();
 			}
 		} catch (e) {
