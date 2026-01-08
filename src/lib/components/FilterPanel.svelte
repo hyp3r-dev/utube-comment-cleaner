@@ -1,7 +1,10 @@
 <script lang="ts">
-	import { filters, sortField, sortOrder, resetFilters, clearChannelFilter } from '$lib/stores/comments';
+	import { filters, sortField, sortOrder, resetFilters, clearChannelFilter, setDateRange, clearDateRange } from '$lib/stores/comments';
 	import SearchBar from './SearchBar.svelte';
+	import DateRangePicker from './DateRangePicker.svelte';
 	import type { SortField, CommentLabel } from '$lib/types/comment';
+	import { onMount } from 'svelte';
+	import { getCommentDateBounds } from '$lib/services/storage';
 
 	// Filter default/max values as constants
 	const DEFAULT_MAX_CHARACTERS = 10000;
@@ -28,6 +31,17 @@
 	} = $props();
 
 	let isExpanded = $state(false);
+	
+	// Date bounds from IndexedDB
+	let oldestDate = $state<string | null>(null);
+	let newestDate = $state<string | null>(null);
+	
+	// Load date bounds on mount
+	onMount(async () => {
+		const bounds = await getCommentDateBounds();
+		oldestDate = bounds.oldest;
+		newestDate = bounds.newest;
+	});
 
 	const sortOptions = [
 		{ value: 'likeCount', label: 'Likes' },
@@ -85,7 +99,8 @@
 		$filters.minLikes > 0 ||
 		$filters.maxLikes < DEFAULT_MAX_LIKES ||
 		($filters.labels && $filters.labels.length > 0) ||
-		$filters.channelFilter !== undefined
+		$filters.channelFilter !== undefined ||
+		$filters.dateRange !== undefined
 	);
 
 	// Individual active filter checks
@@ -93,6 +108,7 @@
 	const hasLikesFilter = $derived($filters.minLikes > 0 || $filters.maxLikes < DEFAULT_MAX_LIKES);
 	const hasLabelFilter = $derived($filters.labels && $filters.labels.length > 0);
 	const hasChannelFilter = $derived($filters.channelFilter !== undefined);
+	const hasDateFilter = $derived($filters.dateRange !== undefined);
 
 	// Helper function to format filter range display text
 	function formatRangeDisplay(min: number, max: number, defaultMax: number, prefix: string): string {
@@ -107,6 +123,22 @@
 		}
 		return prefix;
 	}
+	
+	// Format date for display
+	function formatDateShort(dateStr: string): string {
+		if (!dateStr) return '';
+		const date = new Date(dateStr + 'T00:00:00');
+		return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+	}
+	
+	// Date filter display text
+	const dateFilterText = $derived(() => {
+		if (!$filters.dateRange) return '';
+		const { startDate, endDate } = $filters.dateRange;
+		if (startDate && endDate) return `${formatDateShort(startDate)} - ${formatDateShort(endDate)}`;
+		if (startDate) return `From ${formatDateShort(startDate)}`;
+		return `Until ${formatDateShort(endDate)}`;
+	});
 
 	// Computed filter display text
 	const characterFilterText = $derived(
@@ -115,6 +147,21 @@
 	const likesFilterText = $derived(
 		formatRangeDisplay($filters.minLikes, $filters.maxLikes, DEFAULT_MAX_LIKES, 'Likes')
 	);
+	
+	// Date range handlers
+	function handleStartDateChange(date: string) {
+		setDateRange(date, $filters.dateRange?.endDate);
+	}
+	
+	function handleEndDateChange(date: string) {
+		setDateRange($filters.dateRange?.startDate, date);
+	}
+	
+	function handleSetOldest() {
+		if (oldestDate) {
+			setDateRange(oldestDate, $filters.dateRange?.endDate);
+		}
+	}
 </script>
 
 <div class="filter-panel">
@@ -267,6 +314,21 @@
 						</button>
 					{/each}
 				{/if}
+				{#if hasDateFilter}
+					<button 
+						class="active-filter-badge date-filter-badge" 
+						onclick={clearDateRange}
+						title="Click to clear date filter"
+					>
+						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" class="badge-icon">
+							<path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
+						</svg>
+						<span class="badge-text">{dateFilterText()}</span>
+						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" class="badge-close">
+							<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+						</svg>
+					</button>
+				{/if}
 				{#if hasChannelFilter}
 					<button 
 						class="active-filter-badge channel-filter-badge" 
@@ -353,6 +415,19 @@
 						</button>
 					{/each}
 				</div>
+			</div>
+
+			<div class="filter-section">
+				<h4>Date Range</h4>
+				<DateRangePicker 
+					startDate={$filters.dateRange?.startDate || ''}
+					endDate={$filters.dateRange?.endDate || ''}
+					minDate={oldestDate || ''}
+					maxDate={newestDate || ''}
+					onStartChange={handleStartDateChange}
+					onEndChange={handleEndDateChange}
+					onSetOldest={handleSetOldest}
+				/>
 			</div>
 
 			<div class="filter-actions">
@@ -718,6 +793,19 @@
 	.channel-filter-badge {
 		background: rgba(167, 139, 250, 0.15);
 		border-color: rgba(167, 139, 250, 0.3);
+	}
+
+	/* Date filter badge - special styling */
+	.date-filter-badge {
+		background: rgba(34, 197, 94, 0.15);
+		border-color: rgba(34, 197, 94, 0.3);
+		color: rgb(34, 197, 94);
+	}
+
+	.date-filter-badge:hover {
+		background: rgba(239, 68, 68, 0.15);
+		border-color: rgba(239, 68, 68, 0.4);
+		color: var(--error);
 	}
 
 	@media (max-width: 900px) {

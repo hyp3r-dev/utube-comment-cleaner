@@ -63,6 +63,7 @@ export async function initializeSlidingWindow(
 			searchMode: currentSearchMode,
 			showOnlyWithErrors: filters.showOnlyWithErrors,
 			channelId: filters.channelFilter?.channelId,
+			dateRange: filters.dateRange,
 			sortBy: sortField,
 			sortOrder: sortOrder
 		};
@@ -116,6 +117,7 @@ async function loadForward(): Promise<void> {
 			searchMode: currentSearchMode,
 			showOnlyWithErrors: currentFilters.showOnlyWithErrors,
 			channelId: currentFilters.channelFilter?.channelId,
+			dateRange: currentFilters.dateRange,
 			sortBy: currentSortField,
 			sortOrder: currentSortOrder
 		};
@@ -178,6 +180,7 @@ async function loadBackward(): Promise<void> {
 			searchMode: currentSearchMode,
 			showOnlyWithErrors: currentFilters.showOnlyWithErrors,
 			channelId: currentFilters.channelFilter?.channelId,
+			dateRange: currentFilters.dateRange,
 			sortBy: currentSortField,
 			sortOrder: currentSortOrder
 		};

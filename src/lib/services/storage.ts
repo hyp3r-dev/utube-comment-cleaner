@@ -390,6 +390,8 @@ export interface CommentQueryOptions {
 	showOnlyWithErrors?: boolean;
 	// Channel filter - filter by channel ID
 	channelId?: string;
+	// Date range filter
+	dateRange?: { startDate: string; endDate: string };
 	
 	// Sorting
 	sortBy?: 'likeCount' | 'publishedAt' | 'textLength';
@@ -476,6 +478,13 @@ export async function queryComments(options: CommentQueryOptions = {}): Promise<
 			// Channel filter - filter by channel ID
 			if (options.channelId) {
 				if (comment.videoChannelId !== options.channelId) return false;
+			}
+			
+			// Date range filter
+			if (options.dateRange) {
+				const commentDate = new Date(comment.publishedAt).toISOString().split('T')[0];
+				if (options.dateRange.startDate && commentDate < options.dateRange.startDate) return false;
+				if (options.dateRange.endDate && commentDate > options.dateRange.endDate) return false;
 			}
 			
 			return true;
@@ -640,11 +649,52 @@ export async function getFilteredCommentIds(options: Omit<CommentQueryOptions, '
 				if (comment.videoChannelId !== options.channelId) return false;
 			}
 			
+			// Date range filter
+			if (options.dateRange) {
+				const commentDate = new Date(comment.publishedAt).toISOString().split('T')[0];
+				if (options.dateRange.startDate && commentDate < options.dateRange.startDate) return false;
+				if (options.dateRange.endDate && commentDate > options.dateRange.endDate) return false;
+			}
+			
 			return true;
 		})
 		.map(comment => comment.id);
 	
 	return matchingIds;
+}
+
+/**
+ * Get the date bounds of all comments in the database
+ * Returns the oldest and newest comment dates
+ */
+export async function getCommentDateBounds(): Promise<{ oldest: string | null; newest: string | null }> {
+	const database = await getDB();
+	const now = Date.now();
+	const cutoff = now - getTTL_MS();
+	
+	const all = await database.getAll('comments');
+	const validComments = all
+		.filter(item => item.timestamp >= cutoff)
+		.map(item => item.data);
+	
+	if (validComments.length === 0) {
+		return { oldest: null, newest: null };
+	}
+	
+	// Find oldest and newest dates
+	let oldest = validComments[0].publishedAt;
+	let newest = validComments[0].publishedAt;
+	
+	for (const comment of validComments) {
+		if (comment.publishedAt < oldest) oldest = comment.publishedAt;
+		if (comment.publishedAt > newest) newest = comment.publishedAt;
+	}
+	
+	// Convert to YYYY-MM-DD format
+	const oldestDate = new Date(oldest).toISOString().split('T')[0];
+	const newestDate = new Date(newest).toISOString().split('T')[0];
+	
+	return { oldest: oldestDate, newest: newestDate };
 }
 
 // Run cleanup on import

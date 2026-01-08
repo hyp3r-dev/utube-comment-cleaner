@@ -80,7 +80,8 @@ export const filters = writable<CommentFilters>({
 	maxLikes: 1000000,
 	labels: undefined,
 	showOnlyWithErrors: false,
-	channelFilter: undefined
+	channelFilter: undefined,
+	dateRange: undefined
 });
 
 // Sorting
@@ -127,6 +128,13 @@ export const filteredComments = derived(
 			// Channel filter - filter by channel ID
 			if ($filters.channelFilter) {
 				if (comment.videoChannelId !== $filters.channelFilter.channelId) return false;
+			}
+
+			// Date range filter
+			if ($filters.dateRange) {
+				const commentDate = new Date(comment.publishedAt).toISOString().split('T')[0];
+				if ($filters.dateRange.startDate && commentDate < $filters.dateRange.startDate) return false;
+				if ($filters.dateRange.endDate && commentDate > $filters.dateRange.endDate) return false;
 			}
 
 			// Search query filter with mode support
@@ -397,7 +405,8 @@ export function resetFilters(): void {
 		maxLikes: 1000000,
 		labels: undefined,
 		showOnlyWithErrors: false,
-		channelFilter: undefined
+		channelFilter: undefined,
+		dateRange: undefined
 	});
 	searchQuery.set('');
 	searchMode.set('all');
@@ -411,6 +420,26 @@ export function setChannelFilter(channelId: string, channelTitle: string): void 
 // Clear channel filter
 export function clearChannelFilter(): void {
 	filters.update(f => ({ ...f, channelFilter: undefined }));
+}
+
+// Set date range filter
+export function setDateRange(startDate: string | undefined, endDate: string | undefined): void {
+	if (!startDate && !endDate) {
+		filters.update(f => ({ ...f, dateRange: undefined }));
+	} else {
+		filters.update(f => ({ 
+			...f, 
+			dateRange: { 
+				startDate: startDate || '', 
+				endDate: endDate || '' 
+			} 
+		}));
+	}
+}
+
+// Clear date range filter
+export function clearDateRange(): void {
+	filters.update(f => ({ ...f, dateRange: undefined }));
 }
 
 export function logout(): void {
