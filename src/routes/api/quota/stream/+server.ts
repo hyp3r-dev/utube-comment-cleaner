@@ -24,6 +24,10 @@ export const GET: RequestHandler = async ({ cookies }) => {
 	// Register user
 	registerUser(sessionId);
 	
+	// Track cleanup resources
+	let unsubscribe: (() => void) | null = null;
+	let pingInterval: ReturnType<typeof setInterval> | null = null;
+	
 	// Create a readable stream for SSE
 	const stream = new ReadableStream({
 		start(controller) {
@@ -33,34 +37,34 @@ export const GET: RequestHandler = async ({ cookies }) => {
 			controller.enqueue(new TextEncoder().encode(data));
 			
 			// Subscribe to quota updates
-			const unsubscribe = subscribeToQuotaUpdates((update: QuotaStatusUpdate) => {
+			unsubscribe = subscribeToQuotaUpdates((update: QuotaStatusUpdate) => {
 				try {
 					const eventData = `data: ${JSON.stringify(update)}\n\n`;
 					controller.enqueue(new TextEncoder().encode(eventData));
 				} catch {
-					// Stream closed, cleanup
-					unsubscribe();
+					// Stream closed, cleanup handled by cancel()
 				}
 			});
 			
 			// Send keep-alive ping every 30 seconds
-			const pingInterval = setInterval(() => {
+			pingInterval = setInterval(() => {
 				try {
 					controller.enqueue(new TextEncoder().encode(': ping\n\n'));
 				} catch {
-					clearInterval(pingInterval);
-					unsubscribe();
+					// Stream closed, cleanup handled by cancel()
 				}
 			}, 30000);
-			
-			// Cleanup on close
-			return () => {
-				clearInterval(pingInterval);
-				unsubscribe();
-			};
 		},
 		cancel() {
-			// Stream cancelled by client
+			// Stream cancelled by client - clean up resources
+			if (pingInterval) {
+				clearInterval(pingInterval);
+				pingInterval = null;
+			}
+			if (unsubscribe) {
+				unsubscribe();
+				unsubscribe = null;
+			}
 		}
 	});
 	

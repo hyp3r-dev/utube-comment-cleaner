@@ -445,7 +445,9 @@ if (typeof window !== 'undefined') {
 	// Clean up on page unload
 	window.addEventListener('beforeunload', () => {
 		quotaStore.disconnectSSE();
-		// Try to release any reservations
-		navigator.sendBeacon('/api/quota', JSON.stringify({ action: 'release' }));
+		// Try to release any reservations using sendBeacon with proper content type
+		// Note: sendBeacon doesn't support custom headers, so we use Blob with JSON content type
+		const blob = new Blob([JSON.stringify({ action: 'release' })], { type: 'application/json' });
+		navigator.sendBeacon('/api/quota', blob);
 	});
 }

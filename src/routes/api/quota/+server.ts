@@ -51,8 +51,7 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 			reservationChunkSize: quotaConfig.reservationChunkSize,
 			maxParallelDeletions: calculateParallelDeletions(sessionId),
 			deleteCost: QUOTA_COSTS.commentsDelete
-		},
-		sessionId: sessionId.slice(0, 8) // Return partial ID for client debugging
+		}
 	});
 };
 
