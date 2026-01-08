@@ -88,24 +88,43 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 		
 		privacyLogger.info('OAuth token exchange successful');
 		
-		// Store the token in an HTTP-only cookie for security
+		const isSecure = url.protocol === 'https:';
+		
+		// Store the access token in an HTTP-only cookie for security
 		// The client will use this cookie when making API requests
 		// This prevents XSS attacks from accessing the token
 		cookies.set('youtube_access_token', tokens.access_token, {
 			path: '/',
 			httpOnly: true,
-			secure: url.protocol === 'https:',
+			secure: isSecure,
 			sameSite: 'lax',
 			maxAge: tokens.expires_in // Expire with the token
 		});
 		
+		// Store the refresh token if provided (longer-lived, used for silent re-auth)
+		// Google only provides refresh_token on first authorization or when prompt=consent
+		if (tokens.refresh_token) {
+			// Store refresh token with a longer expiry (30 days)
+			// This allows users to stay logged in even after access token expires
+			cookies.set('youtube_refresh_token', tokens.refresh_token, {
+				path: '/',
+				httpOnly: true,
+				secure: isSecure,
+				sameSite: 'lax',
+				maxAge: 30 * 24 * 60 * 60 // 30 days
+			});
+			privacyLogger.info('Refresh token stored for automatic re-authentication');
+		}
+		
 		// Set a non-sensitive flag cookie that client can read to know auth succeeded
+		// Use a longer expiry tied to refresh token availability
+		const authStatusExpiry = tokens.refresh_token ? 30 * 24 * 60 * 60 : tokens.expires_in;
 		cookies.set('youtube_auth_status', 'connected', {
 			path: '/',
 			httpOnly: false,
-			secure: url.protocol === 'https:',
+			secure: isSecure,
 			sameSite: 'lax',
-			maxAge: tokens.expires_in
+			maxAge: authStatusExpiry
 		});
 		
 		return redirect(302, '/?auth_success=true');

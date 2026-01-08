@@ -9,6 +9,7 @@
 	import SelectedCommentsPanel from '$lib/components/SelectedCommentsPanel.svelte';
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import DeleteConfirmModal from '$lib/components/DeleteConfirmModal.svelte';
+	import LogoutConfirmModal from '$lib/components/LogoutConfirmModal.svelte';
 	import NavbarStats from '$lib/components/NavbarStats.svelte';
 	import YouTubeStatusIcon from '$lib/components/YouTubeStatusIcon.svelte';
 	import QuotaProgressBar from '$lib/components/QuotaProgressBar.svelte';
@@ -68,6 +69,7 @@
 
 	let inputApiKey = $state('');
 	let showDeleteModal = $state(false);
+	let showLogoutModal = $state(false);
 	let isDeleting = $state(false);
 	let deleteProgress = $state<{ deleted: number; total: number } | undefined>();
 	let youtubeService: YouTubeService | null = null;
@@ -97,6 +99,7 @@
 	let googleLoginEnabled = $state(false);
 	let isCheckingAuth = $state(true);
 	let oauthLoading = $state(false);
+	let hasRefreshToken = $state(false);
 	
 	// Legal and compliance settings (from server config)
 	let enableLegal = $state(false);
@@ -298,6 +301,7 @@
 					const tokenData = await tokenResponse.json();
 					if (tokenData.success && tokenData.access_token) {
 						inputApiKey = tokenData.access_token;
+						hasRefreshToken = tokenData.hasRefreshToken || false;
 						await handleConnectToken();
 						connectedViaOAuthCallback = true;
 						// Don't show duplicate success message - handleConnectToken already shows one
@@ -322,6 +326,7 @@
 					if (tokenData.success && tokenData.access_token) {
 						// Token was actually saved - use it
 						inputApiKey = tokenData.access_token;
+						hasRefreshToken = tokenData.hasRefreshToken || false;
 						await handleConnectToken();
 						connectedViaOAuthCallback = true;
 						// Don't show error - connection actually succeeded
@@ -355,7 +360,25 @@
 						const tokenData = await tokenResponse.json();
 						if (tokenData.success && tokenData.access_token) {
 							inputApiKey = tokenData.access_token;
+							hasRefreshToken = tokenData.hasRefreshToken || false;
 							await handleConnectToken();
+						} else if (tokenData.canRefresh) {
+							// Access token expired but we can refresh
+							console.debug('Access token expired, attempting refresh...');
+							const refreshed = await attemptTokenRefresh();
+							if (refreshed) {
+								toasts.info('Session restored automatically.');
+							}
+						}
+					} else if (tokenResponse.status === 401) {
+						// Check if we can refresh
+						const tokenData = await tokenResponse.json();
+						if (tokenData.canRefresh) {
+							console.debug('Access token expired, attempting refresh...');
+							const refreshed = await attemptTokenRefresh();
+							if (refreshed) {
+								toasts.info('Session restored automatically.');
+							}
 						}
 					}
 				} catch (e) {
@@ -701,6 +724,13 @@
 	}
 
 	async function handleLogout() {
+		// Show confirmation modal instead of immediately logging out
+		showLogoutModal = true;
+	}
+	
+	async function handleLogoutConfirm(mode: 'full' | 'soft') {
+		showLogoutModal = false;
+		
 		// Clear only the OAuth token, keep the comments data
 		apiKey.set('');
 		inputApiKey = '';
@@ -709,8 +739,12 @@
 		// Clear the OAuth cookie if using Google Login mode
 		if (googleLoginEnabled) {
 			try {
-				// Call the server to clear the auth cookie
-				await fetch('/api/auth/logout', { method: 'POST' });
+				// Call the server to clear the auth cookie with the specified mode
+				await fetch('/api/auth/logout', { 
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ mode })
+				});
 			} catch (e) {
 				console.debug('Logout API call failed:', e);
 			}
@@ -718,7 +752,45 @@
 			document.cookie = 'youtube_auth_status=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
 		}
 		
-		toasts.success('Logged out of YouTube. Your comment data is still saved.');
+		if (mode === 'soft') {
+			hasRefreshToken = true; // Keep track that we still have refresh token
+			toasts.success('Session ended. Click "Sign in with Google" to quickly reconnect.');
+		} else {
+			hasRefreshToken = false;
+			toasts.success('Fully signed out of YouTube. Your comment data is still saved.');
+		}
+	}
+	
+	/**
+	 * Attempt to refresh the access token using the stored refresh token
+	 * Returns true if successful, false otherwise
+	 */
+	async function attemptTokenRefresh(): Promise<boolean> {
+		try {
+			const response = await fetch('/api/auth/refresh', { method: 'POST' });
+			const data = await response.json();
+			
+			if (data.success) {
+				// Token refreshed, get the new token
+				const tokenResponse = await fetch('/api/auth/token');
+				if (tokenResponse.ok) {
+					const tokenData = await tokenResponse.json();
+					if (tokenData.success && tokenData.access_token) {
+						inputApiKey = tokenData.access_token;
+						await handleConnectToken();
+						return true;
+					}
+				}
+			} else if (data.requiresReauth) {
+				// Refresh token is invalid, user needs to re-authenticate
+				hasRefreshToken = false;
+			}
+			
+			return false;
+		} catch (e) {
+			console.error('Token refresh failed:', e);
+			return false;
+		}
 	}
 
 	async function handleEnrichComments() {
@@ -1717,6 +1789,14 @@
 		onConfirm={handleDeleteConfirm}
 		onCancel={() => showDeleteModal = false}
 		isConnected={!!$apiKey}
+	/>
+{/if}
+
+{#if showLogoutModal}
+	<LogoutConfirmModal
+		{hasRefreshToken}
+		onConfirm={handleLogoutConfirm}
+		onCancel={() => showLogoutModal = false}
 	/>
 {/if}
 

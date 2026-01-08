@@ -13,11 +13,22 @@ export const GET: RequestHandler = async ({ cookies }) => {
 	}
 	
 	const token = cookies.get('youtube_access_token');
+	const hasRefreshToken = !!cookies.get('youtube_refresh_token') || simulationConfig.enabled;
 	
 	if (!token) {
+		// No access token, but check if we have a refresh token
+		if (hasRefreshToken) {
+			return json({
+				success: false,
+				message: 'Access token expired',
+				canRefresh: true
+			}, { status: 401 });
+		}
+		
 		return json({
 			success: false,
-			message: 'No token available'
+			message: 'No token available',
+			canRefresh: false
 		}, { status: 401 });
 	}
 	
@@ -30,11 +41,12 @@ export const GET: RequestHandler = async ({ cookies }) => {
 	
 	return json({
 		success: true,
-		access_token: token
+		access_token: token,
+		hasRefreshToken
 	});
 };
 
-// POST endpoint to clear the token (logout)
+// DELETE endpoint to clear the token (logout)
 export const DELETE: RequestHandler = async ({ cookies }) => {
 	cookies.delete('youtube_access_token', { path: '/' });
 	cookies.delete('youtube_auth_status', { path: '/' });

@@ -58,12 +58,21 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 			maxAge: 3600
 		});
 		
+		// Set a simulated refresh token (for testing logout options)
+		cookies.set('youtube_refresh_token', 'sim_refresh_token_for_testing', {
+			path: '/',
+			httpOnly: true,
+			secure: isSecure,
+			sameSite: 'lax',
+			maxAge: 30 * 24 * 60 * 60 // 30 days
+		});
+		
 		cookies.set('youtube_auth_status', 'connected', {
 			path: '/',
 			httpOnly: false,
 			secure: isSecure,
 			sameSite: 'lax',
-			maxAge: 3600
+			maxAge: 30 * 24 * 60 * 60 // 30 days (tied to refresh token)
 		});
 		
 		privacyLogger.info('[SIMULATION] OAuth login simulated successfully');
