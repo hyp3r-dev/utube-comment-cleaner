@@ -740,23 +740,32 @@
 		if (googleLoginEnabled) {
 			try {
 				// Call the server to clear the auth cookie with the specified mode
-				await fetch('/api/auth/logout', { 
+				const response = await fetch('/api/auth/logout', { 
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ mode })
 				});
+				const data = await response.json();
+				
+				// Update hasRefreshToken based on the logout mode
+				// For soft logout, the server keeps the refresh token
+				if (data.mode === 'soft') {
+					hasRefreshToken = true;
+				} else {
+					hasRefreshToken = false;
+				}
 			} catch (e) {
 				console.debug('Logout API call failed:', e);
+				// In case of error, assume full logout behavior
+				hasRefreshToken = mode === 'soft';
 			}
 			// Also clear the local auth status cookie
 			document.cookie = 'youtube_auth_status=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
 		}
 		
 		if (mode === 'soft') {
-			hasRefreshToken = true; // Keep track that we still have refresh token
 			toasts.success('Session ended. Click "Sign in with Google" to quickly reconnect.');
 		} else {
-			hasRefreshToken = false;
 			toasts.success('Fully signed out of YouTube. Your comment data is still saved.');
 		}
 	}
@@ -770,17 +779,12 @@
 			const response = await fetch('/api/auth/refresh', { method: 'POST' });
 			const data = await response.json();
 			
-			if (data.success) {
-				// Token refreshed, get the new token
-				const tokenResponse = await fetch('/api/auth/token');
-				if (tokenResponse.ok) {
-					const tokenData = await tokenResponse.json();
-					if (tokenData.success && tokenData.access_token) {
-						inputApiKey = tokenData.access_token;
-						await handleConnectToken();
-						return true;
-					}
-				}
+			if (data.success && data.access_token) {
+				// Token refreshed, use the access token directly from the response
+				inputApiKey = data.access_token;
+				hasRefreshToken = true;
+				await handleConnectToken();
+				return true;
 			} else if (data.requiresReauth) {
 				// Refresh token is invalid, user needs to re-authenticate
 				hasRefreshToken = false;

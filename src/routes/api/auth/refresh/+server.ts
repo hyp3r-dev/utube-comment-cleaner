@@ -6,6 +6,9 @@ import { SIMULATED_ACCESS_TOKEN } from '$lib/server/simulation';
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
+// Refresh token expiry in seconds (30 days)
+const REFRESH_TOKEN_EXPIRY_SECONDS = 30 * 24 * 60 * 60;
+
 interface TokenResponse {
 	access_token: string;
 	expires_in: number;
@@ -45,12 +48,14 @@ export const POST: RequestHandler = async ({ cookies, url }) => {
 			httpOnly: false,
 			secure: isSecure,
 			sameSite: 'lax',
-			maxAge: 30 * 24 * 60 * 60
+			maxAge: REFRESH_TOKEN_EXPIRY_SECONDS
 		});
 		
 		return json({
 			success: true,
-			message: 'Token refreshed successfully'
+			message: 'Token refreshed successfully',
+			access_token: SIMULATED_ACCESS_TOKEN,
+			expiresIn: 3600
 		});
 	}
 	
@@ -125,12 +130,14 @@ export const POST: RequestHandler = async ({ cookies, url }) => {
 			httpOnly: false,
 			secure: isSecure,
 			sameSite: 'lax',
-			maxAge: 30 * 24 * 60 * 60 // 30 days (tied to refresh token)
+			maxAge: REFRESH_TOKEN_EXPIRY_SECONDS
 		});
 		
+		// Return the access token directly to avoid a second API call
 		return json({
 			success: true,
 			message: 'Token refreshed successfully',
+			access_token: tokens.access_token,
 			expiresIn: tokens.expires_in
 		});
 	} catch (e) {

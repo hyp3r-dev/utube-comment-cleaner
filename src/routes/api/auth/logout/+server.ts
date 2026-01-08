@@ -3,18 +3,21 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { privacyLogger } from '$lib/server/config';
 
-interface LogoutRequest {
-	mode?: 'full' | 'soft';
+type LogoutMode = 'full' | 'soft';
+
+function isValidLogoutMode(value: unknown): value is LogoutMode {
+	return value === 'full' || value === 'soft';
 }
 
 export const POST: RequestHandler = async ({ cookies, request }) => {
 	// Parse the request body for logout mode
-	let logoutMode: 'full' | 'soft' = 'full';
+	let logoutMode: LogoutMode = 'full';
 	
 	try {
-		const body = await request.json() as LogoutRequest;
-		if (body.mode === 'soft') {
-			logoutMode = 'soft';
+		const body = await request.json();
+		// Validate the mode value before using it
+		if (body && typeof body === 'object' && 'mode' in body && isValidLogoutMode(body.mode)) {
+			logoutMode = body.mode;
 		}
 	} catch {
 		// No body or invalid JSON - default to full logout
@@ -61,4 +64,3 @@ export const POST: RequestHandler = async ({ cookies, request }) => {
 		});
 	}
 };
-
