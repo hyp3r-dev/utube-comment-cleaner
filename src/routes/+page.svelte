@@ -62,7 +62,7 @@
 		clearSlidingWindow,
 		handleScrollPosition
 	} from '$lib/stores/slidingWindow';
-	import { quotaRemaining, quotaStore } from '$lib/stores/quota';
+	import { quotaRemaining, quotaStore, QUOTA_COSTS } from '$lib/stores/quota';
 	import type { YouTubeComment } from '$lib/types/comment';
 	import JSZip from 'jszip';
 
@@ -1093,8 +1093,10 @@
 	// Animation timing constants for delete queue
 	const ANIMATION_DELAY_MS = 400;
 	const CLEANUP_DELAY_MS = 600;
+	const PARALLEL_ANIMATION_DELAY_MS = 100; // Shorter delay for parallel deletions
 
 	// Background delete for selected comments with animated progress
+	// Supports both sequential and parallel deletion modes
 	async function handleBackgroundDelete() {
 		if (!youtubeService || $selectedComments.length === 0) return;
 		
@@ -1122,6 +1124,7 @@
 		}
 		
 		const totalCount = commentsToDelete.length;
+		const totalQuotaNeeded = totalCount * QUOTA_COSTS.commentsDelete;
 		
 		// Initialize all statuses as pending
 		deleteStatuses = new Map();
@@ -1135,54 +1138,134 @@
 		let failedCount = 0;
 		const successIds: string[] = [];
 		const failedItems: { id: string; error: string }[] = [];
+		let quotaExceeded = false;
 		
 		try {
-			// Process comments one by one in order (top to bottom in queue)
-			for (const comment of commentsToDelete) {
-				currentDeletingId = comment.id;
+			// Try to reserve quota if server-managed
+			const reservation = await quotaStore.reserve(totalQuotaNeeded);
+			
+			// Get the allowed parallel count from server or use default
+			const maxParallel = reservation.maxParallelDeletions || $quotaRemaining.maxParallelDeletions || 5;
+			const useParallel = maxParallel > 1 && totalCount > 1;
+			
+			if (useParallel) {
+				// Parallel deletion mode - faster but UI shows multiple items being deleted at once
+				const commentIds = commentsToDelete.map(c => c.id);
 				
-				// Update status to deleting
-				deleteStatuses = new Map(deleteStatuses);
-				deleteStatuses.set(comment.id, { status: 'deleting' });
+				// Mark first batch as deleting
+				const firstBatch = commentIds.slice(0, maxParallel);
+				for (const id of firstBatch) {
+					deleteStatuses = new Map(deleteStatuses);
+					deleteStatuses.set(id, { status: 'deleting' });
+				}
 				
-				try {
-					// Delete single comment
-					const result = await youtubeService.deleteComments([comment.id]);
-					
-					if (result.success.includes(comment.id)) {
-						// Success - animate right
+				// Use parallel deletion with progress callback
+				const result = await youtubeService.deleteCommentsParallel(
+					commentIds,
+					maxParallel,
+					(progress, processed, total) => {
+						// Update individual comment status
 						deleteStatuses = new Map(deleteStatuses);
-						deleteStatuses.set(comment.id, { status: 'success' });
-						successIds.push(comment.id);
-						successCount++;
-					} else if (result.failed.length > 0) {
-						// Failed - animate left, then move to bottom of queue
-						const failedInfo = result.failed.find(f => f.id === comment.id);
-						const errorMsg = failedInfo?.error || 'Delete failed';
+						if (progress.success) {
+							deleteStatuses.set(progress.id, { status: 'success' });
+							successIds.push(progress.id);
+							successCount++;
+						} else {
+							deleteStatuses.set(progress.id, { status: 'failed', error: progress.error });
+							failedItems.push({ id: progress.id, error: progress.error || 'Delete failed' });
+							failedCount++;
+						}
+						
+						// Mark next items in queue as deleting
+						const nextIndex = processed;
+						const nextBatchEnd = Math.min(nextIndex + maxParallel, total);
+						for (let i = nextIndex; i < nextBatchEnd; i++) {
+							const nextId = commentIds[i];
+							if (nextId && deleteStatuses.get(nextId)?.status === 'pending') {
+								deleteStatuses = new Map(deleteStatuses);
+								deleteStatuses.set(nextId, { status: 'deleting' });
+							}
+						}
+						
+						// Update progress
+						backgroundDeleteProgress = { 
+							deleted: successCount, 
+							total: totalCount, 
+							failed: failedCount 
+						};
+					}
+				);
+				
+				quotaExceeded = result.quotaExceeded;
+				
+				// Confirm quota usage on server
+				const actualUsed = successCount * QUOTA_COSTS.commentsDelete;
+				await quotaStore.confirmUsage(actualUsed);
+			} else {
+				// Sequential deletion mode - one at a time with animations
+				for (const comment of commentsToDelete) {
+					if (quotaExceeded) break;
+					
+					currentDeletingId = comment.id;
+					
+					// Update status to deleting
+					deleteStatuses = new Map(deleteStatuses);
+					deleteStatuses.set(comment.id, { status: 'deleting' });
+					
+					try {
+						// Delete single comment
+						const result = await youtubeService.deleteComments([comment.id]);
+						
+						if (result.success.includes(comment.id)) {
+							// Success - animate right
+							deleteStatuses = new Map(deleteStatuses);
+							deleteStatuses.set(comment.id, { status: 'success' });
+							successIds.push(comment.id);
+							successCount++;
+							
+							// Confirm this deletion's quota
+							await quotaStore.confirmUsage(QUOTA_COSTS.commentsDelete);
+						} else if (result.failed.length > 0) {
+							// Failed - animate left, then move to bottom of queue
+							const failedInfo = result.failed.find(f => f.id === comment.id);
+							const errorMsg = failedInfo?.error || 'Delete failed';
+							deleteStatuses = new Map(deleteStatuses);
+							deleteStatuses.set(comment.id, { status: 'failed', error: errorMsg });
+							failedItems.push({ id: comment.id, error: errorMsg });
+							failedCount++;
+							
+							// Check if quota exceeded
+							if (errorMsg.toLowerCase().includes('quota')) {
+								quotaExceeded = true;
+							}
+						}
+					} catch (e) {
+						// Error - animate left
+						const errorMsg = e instanceof Error ? e.message : 'Delete failed';
 						deleteStatuses = new Map(deleteStatuses);
 						deleteStatuses.set(comment.id, { status: 'failed', error: errorMsg });
 						failedItems.push({ id: comment.id, error: errorMsg });
 						failedCount++;
+						
+						if (errorMsg.toLowerCase().includes('quota')) {
+							quotaExceeded = true;
+						}
 					}
-				} catch (e) {
-					// Error - animate left
-					const errorMsg = e instanceof Error ? e.message : 'Delete failed';
-					deleteStatuses = new Map(deleteStatuses);
-					deleteStatuses.set(comment.id, { status: 'failed', error: errorMsg });
-					failedItems.push({ id: comment.id, error: errorMsg });
-					failedCount++;
+					
+					// Update progress
+					backgroundDeleteProgress = { 
+						deleted: successCount, 
+						total: totalCount, 
+						failed: failedCount 
+					};
+					
+					// Small delay to let animation play
+					await new Promise(resolve => setTimeout(resolve, ANIMATION_DELAY_MS));
 				}
-				
-				// Update progress
-				backgroundDeleteProgress = { 
-					deleted: successCount, 
-					total: totalCount, 
-					failed: failedCount 
-				};
-				
-				// Small delay to let animation play
-				await new Promise(resolve => setTimeout(resolve, ANIMATION_DELAY_MS));
 			}
+			
+			// Release any unused reservation
+			await quotaStore.releaseReservation();
 			
 			// After all deletions, clean up after a short delay
 			await new Promise(resolve => setTimeout(resolve, CLEANUP_DELAY_MS));
@@ -1206,7 +1289,10 @@
 				moveToBottomOfQueueBatch(failedItems.map(f => f.id));
 			}
 			
-			if (failedCount > 0) {
+			if (quotaExceeded) {
+				const remainingCount = $selectedComments.length;
+				toasts.warning(`Quota exhausted after ${successCount} deletion(s). ${remainingCount} remain in queue for when quota resets.`);
+			} else if (failedCount > 0) {
 				toasts.warning(`Deleted ${successCount} comment(s). ${failedCount} failed and remain in queue with error details. Click on them to see the error.`);
 			} else if (quotaLimited) {
 				// Some comments weren't attempted due to quota - they stay in queue
@@ -1219,6 +1305,8 @@
 			}
 		} catch (e) {
 			error.set(getErrorMessage(e));
+			// Release reservation on error
+			await quotaStore.releaseReservation();
 		} finally {
 			isDeletingInBackground = false;
 			backgroundDeleteProgress = undefined;

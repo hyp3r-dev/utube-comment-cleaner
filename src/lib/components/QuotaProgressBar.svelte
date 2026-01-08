@@ -92,10 +92,16 @@
 	}
 
 	const usedUnits = $derived($quotaStore.used);
+	const reservedUnits = $derived($quotaStore.reserved);
 	const pendingUnits = $derived($pendingQuota);
 	const dailyLimit = $derived($quotaStore.dailyLimit);
+	const connectedUsers = $derived($quotaStore.connectedUsers);
+	const deletingUsers = $derived($quotaStore.deletingUsers);
+	const isServerManaged = $derived($quotaStore.isServerManaged);
 	const usedPercent = $derived($quotaPercentage.used);
+	const reservedPercent = $derived($quotaPercentage.reserved);
 	const pendingPercent = $derived($quotaPercentage.pending);
+	const totalPercent = $derived(usedPercent + reservedPercent);
 	
 	// Trigger bolt animation when quota changes
 	$effect(() => {
@@ -133,17 +139,29 @@
 		<div class="quota-mini-progress">
 			<div 
 				class="progress-used" 
-				style="width: {usedPercent}%; background: {getStatusColor(usedPercent)}"
+				style="width: {usedPercent}%; background: {getStatusColor(totalPercent)}"
 			></div>
+			{#if reservedPercent > 0}
+				<div 
+					class="progress-reserved" 
+					style="left: {usedPercent}%; width: {reservedPercent}%"
+				></div>
+			{/if}
 			{#if pendingPercent > 0}
 				<div 
 					class="progress-pending" 
-					style="left: {usedPercent}%; width: {pendingPercent}%"
+					style="left: {usedPercent + reservedPercent}%; width: {pendingPercent}%"
 				></div>
 			{/if}
 		</div>
 		
-		<span class="quota-mini-text">{Math.round(usedPercent)}%</span>
+		<span class="quota-mini-text">{Math.round(totalPercent)}%</span>
+		
+		{#if isServerManaged && connectedUsers > 1}
+			<span class="users-badge" title="{connectedUsers} users connected">
+				👥{connectedUsers}
+			</span>
+		{/if}
 	</button>
 
 	{#if isExpanded}
@@ -159,10 +177,16 @@
 						class="progress-fill used" 
 						style="width: {usedPercent}%"
 					></div>
+					{#if reservedPercent > 0}
+						<div 
+							class="progress-fill reserved" 
+							style="left: {usedPercent}%; width: {reservedPercent}%"
+						></div>
+					{/if}
 					{#if pendingPercent > 0}
 						<div 
 							class="progress-fill pending" 
-							style="left: {usedPercent}%; width: {pendingPercent}%"
+							style="left: {usedPercent + reservedPercent}%; width: {pendingPercent}%"
 						></div>
 					{/if}
 				</div>
@@ -172,6 +196,12 @@
 						<span class="dot used"></span>
 						Used: {usedUnits.toLocaleString()}
 					</span>
+					{#if reservedUnits > 0}
+						<span class="reserved-label">
+							<span class="dot reserved"></span>
+							Reserved: {reservedUnits.toLocaleString()}
+						</span>
+					{/if}
 					{#if pendingUnits > 0}
 						<span class="pending-label">
 							<span class="dot pending"></span>
@@ -188,8 +218,20 @@
 				</div>
 				<div class="stat-row">
 					<span>Remaining</span>
-					<span class="stat-value remaining">{Math.max(0, dailyLimit - usedUnits - pendingUnits).toLocaleString()} units</span>
+					<span class="stat-value remaining">{Math.max(0, dailyLimit - usedUnits - reservedUnits - pendingUnits).toLocaleString()} units</span>
 				</div>
+				{#if isServerManaged}
+					<div class="stat-row">
+						<span>Connected Users</span>
+						<span class="stat-value users">{connectedUsers}</span>
+					</div>
+					{#if deletingUsers > 0}
+						<div class="stat-row">
+							<span>Currently Deleting</span>
+							<span class="stat-value deleting">{deletingUsers} user{deletingUsers !== 1 ? 's' : ''}</span>
+						</div>
+					{/if}
+				{/if}
 			</div>
 			
 			<div class="quota-info">
@@ -198,6 +240,11 @@
 					• Enrich: ~2 units / 50 comments<br>
 					• Delete comment: 50 units each
 				</p>
+				{#if isServerManaged && connectedUsers > 1}
+					<p class="shared-info">
+						⚡ Quota is shared across all users. When others delete comments, the remaining quota decreases.
+					</p>
+				{/if}
 			</div>
 		</div>
 	{/if}
@@ -285,6 +332,15 @@
 		transition: width 0.5s ease;
 	}
 
+	.quota-mini-progress .progress-reserved {
+		position: absolute;
+		height: 100%;
+		background: var(--accent-tertiary);
+		border-radius: 3px;
+		opacity: 0.7;
+		animation: pulse 1.5s ease-in-out infinite;
+	}
+
 	.quota-mini-progress .progress-pending {
 		position: absolute;
 		height: 100%;
@@ -301,12 +357,20 @@
 		text-align: right;
 	}
 
+	.users-badge {
+		font-size: 0.7rem;
+		background: rgba(99, 102, 241, 0.2);
+		padding: 0.15rem 0.4rem;
+		border-radius: var(--radius-sm);
+		color: var(--accent-primary);
+	}
+
 	.quota-dropdown {
 		position: absolute;
 		top: 100%;
 		right: 0;
 		margin-top: 0.5rem;
-		width: 280px;
+		width: 300px;
 		background: var(--bg-card);
 		border: 1px solid var(--bg-tertiary);
 		border-radius: var(--radius-lg);
@@ -382,9 +446,23 @@
 		background: linear-gradient(90deg, var(--success), var(--accent-primary));
 	}
 
+	.progress-fill.reserved {
+		background: var(--accent-tertiary);
+		animation: reservedPulse 2s ease-in-out infinite;
+	}
+
 	.progress-fill.pending {
 		background: var(--warning);
 		animation: pendingPulse 1.5s ease-in-out infinite;
+	}
+
+	@keyframes reservedPulse {
+		0%, 100% {
+			opacity: 0.6;
+		}
+		50% {
+			opacity: 0.9;
+		}
 	}
 
 	@keyframes pendingPulse {
@@ -398,11 +476,12 @@
 
 	.quota-labels {
 		display: flex;
-		gap: 1rem;
+		gap: 0.75rem;
 		font-size: 0.75rem;
+		flex-wrap: wrap;
 	}
 
-	.used-label, .pending-label {
+	.used-label, .reserved-label, .pending-label {
 		display: flex;
 		align-items: center;
 		gap: 0.35rem;
@@ -417,6 +496,10 @@
 
 	.dot.used {
 		background: var(--accent-primary);
+	}
+
+	.dot.reserved {
+		background: var(--accent-tertiary);
 	}
 
 	.dot.pending {
@@ -450,6 +533,14 @@
 		color: var(--success);
 	}
 
+	.stat-value.users {
+		color: var(--accent-primary);
+	}
+
+	.stat-value.deleting {
+		color: var(--warning);
+	}
+
 	.quota-info {
 		font-size: 0.7rem;
 		color: var(--text-muted);
@@ -457,6 +548,14 @@
 	}
 
 	.quota-info strong {
+		color: var(--text-secondary);
+	}
+
+	.shared-info {
+		margin-top: 0.5rem;
+		padding: 0.5rem;
+		background: rgba(99, 102, 241, 0.1);
+		border-radius: var(--radius-sm);
 		color: var(--text-secondary);
 	}
 </style>
