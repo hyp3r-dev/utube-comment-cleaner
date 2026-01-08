@@ -165,6 +165,27 @@ export function calculateDeleteQuotaCost(commentCount: number): number {
 	return commentCount * QUOTA_COSTS.commentsDelete;
 }
 
+// Helper to calculate how many comments can be deleted with remaining quota
+export function calculateMaxDeletableComments(quotaState: QuotaState): number {
+	const remainingQuota = Math.max(0, quotaState.dailyLimit - quotaState.used);
+	return Math.floor(remainingQuota / QUOTA_COSTS.commentsDelete);
+}
+
+// Derived store for quota remaining
+export const quotaRemaining = derived(
+	quotaStore,
+	($quota) => {
+		const remaining = Math.max(0, $quota.dailyLimit - $quota.used);
+		const maxDeletable = Math.floor(remaining / QUOTA_COSTS.commentsDelete);
+		const isExhausted = remaining < QUOTA_COSTS.commentsDelete;
+		return {
+			units: remaining,
+			maxDeletableComments: maxDeletable,
+			isExhausted
+		};
+	}
+);
+
 // Initialize quota store on module load
 if (typeof window !== 'undefined') {
 	quotaStore.load().catch(console.error);

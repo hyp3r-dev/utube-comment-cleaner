@@ -48,6 +48,8 @@ export interface CommentFilters {
 	showOnlyWithErrors?: boolean;
 	// Channel filter - filter by channel ID (channelId, channelTitle for display)
 	channelFilter?: { channelId: string; channelTitle: string };
+	// Date range filter - filter comments by publish date
+	dateRange?: { startDate: string; endDate: string }; // ISO date strings (YYYY-MM-DD)
 }
 
 export type SortField = 'likeCount' | 'publishedAt' | 'textLength';

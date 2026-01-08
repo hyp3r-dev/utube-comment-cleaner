@@ -337,6 +337,8 @@
 		position: relative;
 		/* GPU-accelerated transitions for smooth performance - only transition properties that change */
 		transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+		/* Prevent any visual artifacts from overflow during animations */
+		overflow: hidden;
 	}
 
 	/* Performant hover effect using only box-shadow and border-color (no pseudo-element animations) */
@@ -396,6 +398,13 @@
 		overflow: hidden;
 		border-radius: var(--radius-lg);
 		z-index: 10;
+		/* Ensure overlay is hidden during slide animation */
+		contain: paint;
+	}
+
+	/* Hide slash overlay when card is animating to queue */
+	.comment-card.animating-to-queue .slash-overlay {
+		display: none;
 	}
 
 	.slash-line {
@@ -417,10 +426,7 @@
 		/* Diagonal rotation - contained within card */
 		transform-origin: center;
 		animation: slashDiagonal 0.4s ease-out forwards;
-		/* Subtle glow without excessive blur that bleeds outside */
-		box-shadow: 
-			0 0 8px rgba(239, 68, 68, 0.6),
-			0 0 16px rgba(239, 68, 68, 0.3);
+		/* Remove box-shadow to prevent visual artifacts during animations */
 	}
 
 	@keyframes slashDiagonal {

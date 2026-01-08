@@ -1,5 +1,6 @@
 import { writable, derived, get } from 'svelte/store';
 import type { YouTubeComment, CommentFilters, SortField, SortOrder, CommentLabel } from '$lib/types/comment';
+import { saveSlashQueue, loadSlashQueue, clearSlashQueue, type SlashQueueData } from '$lib/services/storage';
 
 // Authentication store
 export const apiKey = writable<string>('');
@@ -10,6 +11,59 @@ export const comments = writable<YouTubeComment[]>([]);
 export const selectedIds = writable<Set<string>>(new Set());
 // Track selection order (most recently added first)
 export const selectionOrder = writable<string[]>([]);
+
+// Flag to track if queue has been loaded from storage
+let queueLoadedFromStorage = false;
+
+// Debounce timer for saving slash queue
+let saveQueueTimeout: ReturnType<typeof setTimeout> | null = null;
+const SAVE_QUEUE_DEBOUNCE_MS = 500;
+
+// Save slash queue to storage with debounce
+function persistSlashQueue(): void {
+	if (saveQueueTimeout) {
+		clearTimeout(saveQueueTimeout);
+	}
+	
+	saveQueueTimeout = setTimeout(async () => {
+		const ids = get(selectedIds);
+		const order = get(selectionOrder);
+		
+		if (ids.size === 0) {
+			// Clear queue from storage if empty
+			await clearSlashQueue();
+		} else {
+			// Save current queue state
+			await saveSlashQueue({
+				selectedIds: Array.from(ids),
+				selectionOrder: order
+			});
+		}
+	}, SAVE_QUEUE_DEBOUNCE_MS);
+}
+
+// Load slash queue from storage (call after comments are loaded)
+export async function loadPersistedSlashQueue(): Promise<void> {
+	if (queueLoadedFromStorage) return; // Only load once
+	
+	const saved = await loadSlashQueue();
+	if (!saved) return;
+	
+	// Get current comments to validate persisted IDs still exist
+	const currentComments = get(comments);
+	const validIds = new Set(currentComments.map(c => c.id));
+	
+	// Filter out any IDs that no longer exist in the comments
+	const validSelectedIds = saved.selectedIds.filter(id => validIds.has(id));
+	const validSelectionOrder = saved.selectionOrder.filter(id => validIds.has(id));
+	
+	if (validSelectedIds.length > 0) {
+		selectedIds.set(new Set(validSelectedIds));
+		selectionOrder.set(validSelectionOrder);
+	}
+	
+	queueLoadedFromStorage = true;
+}
 
 // Loading state
 export const isLoading = writable<boolean>(false);
@@ -26,7 +80,8 @@ export const filters = writable<CommentFilters>({
 	maxLikes: 1000000,
 	labels: undefined,
 	showOnlyWithErrors: false,
-	channelFilter: undefined
+	channelFilter: undefined,
+	dateRange: undefined
 });
 
 // Sorting
@@ -73,6 +128,13 @@ export const filteredComments = derived(
 			// Channel filter - filter by channel ID
 			if ($filters.channelFilter) {
 				if (comment.videoChannelId !== $filters.channelFilter.channelId) return false;
+			}
+
+			// Date range filter
+			if ($filters.dateRange) {
+				const commentDate = new Date(comment.publishedAt).toISOString().split('T')[0];
+				if ($filters.dateRange.startDate && commentDate < $filters.dateRange.startDate) return false;
+				if ($filters.dateRange.endDate && commentDate > $filters.dateRange.endDate) return false;
 			}
 
 			// Search query filter with mode support
@@ -168,6 +230,7 @@ export function selectComment(id: string): void {
 		newIds.add(id);
 		return newIds;
 	});
+	persistSlashQueue();
 }
 
 export function deselectComment(id: string): void {
@@ -177,6 +240,7 @@ export function deselectComment(id: string): void {
 		newIds.delete(id);
 		return newIds;
 	});
+	persistSlashQueue();
 }
 
 export function toggleComment(id: string): void {
@@ -192,6 +256,7 @@ export function toggleComment(id: string): void {
 		}
 		return newIds;
 	});
+	persistSlashQueue();
 }
 
 export function selectAllFiltered(): void {
@@ -211,11 +276,13 @@ export function selectAllFiltered(): void {
 		filtered.forEach(c => updated.add(c.id));
 		return updated;
 	});
+	persistSlashQueue();
 }
 
 export function deselectAll(): void {
 	selectedIds.set(new Set());
 	selectionOrder.set([]);
+	persistSlashQueue();
 }
 
 export function removeComments(ids: string[]): void {
@@ -226,6 +293,7 @@ export function removeComments(ids: string[]): void {
 		ids.forEach(id => newIds.delete(id));
 		return newIds;
 	});
+	persistSlashQueue();
 }
 
 // Update a single comment in place (for real-time enrichment)
@@ -311,6 +379,7 @@ export function moveToBottomOfQueue(id: string): void {
 		// Add it to the end (bottom of queue)
 		return [...filtered, id];
 	});
+	persistSlashQueue();
 }
 
 // Move multiple comments to the bottom of the selection queue
@@ -323,6 +392,7 @@ export function moveToBottomOfQueueBatch(ids: string[]): void {
 		const toMove = order.filter(i => idsSet.has(i));
 		return [...filtered, ...toMove];
 	});
+	persistSlashQueue();
 }
 
 export function resetFilters(): void {
@@ -335,7 +405,8 @@ export function resetFilters(): void {
 		maxLikes: 1000000,
 		labels: undefined,
 		showOnlyWithErrors: false,
-		channelFilter: undefined
+		channelFilter: undefined,
+		dateRange: undefined
 	});
 	searchQuery.set('');
 	searchMode.set('all');
@@ -349,6 +420,26 @@ export function setChannelFilter(channelId: string, channelTitle: string): void 
 // Clear channel filter
 export function clearChannelFilter(): void {
 	filters.update(f => ({ ...f, channelFilter: undefined }));
+}
+
+// Set date range filter
+export function setDateRange(startDate: string | undefined, endDate: string | undefined): void {
+	if (!startDate && !endDate) {
+		filters.update(f => ({ ...f, dateRange: undefined }));
+	} else {
+		filters.update(f => ({ 
+			...f, 
+			dateRange: { 
+				startDate: startDate || '', 
+				endDate: endDate || '' 
+			} 
+		}));
+	}
+}
+
+// Clear date range filter
+export function clearDateRange(): void {
+	filters.update(f => ({ ...f, dateRange: undefined }));
 }
 
 export function logout(): void {
