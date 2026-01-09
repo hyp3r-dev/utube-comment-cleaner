@@ -12,6 +12,10 @@ import {
 	unregisterUser,
 	updateUserActivity,
 	calculateParallelDeletions,
+	startDeletionSession,
+	reportBatchComplete,
+	endDeletionSession,
+	getDeletionSessionStatus,
 	quotaConfig,
 	QUOTA_COSTS
 } from '$lib/server/quota';
@@ -50,12 +54,13 @@ export const GET: RequestHandler = async ({ url, cookies }) => {
 		config: {
 			reservationChunkSize: quotaConfig.reservationChunkSize,
 			maxParallelDeletions: calculateParallelDeletions(sessionId),
-			deleteCost: QUOTA_COSTS.commentsDelete
+			deleteCost: QUOTA_COSTS.commentsDelete,
+			smallOperationReservePercent: quotaConfig.smallOperationReservePercent
 		}
 	});
 };
 
-// POST - Record quota usage or manage reservations
+// POST - Record quota usage or manage reservations/deletion sessions
 export const POST: RequestHandler = async ({ request, cookies }) => {
 	if (!oauthConfig.isConfigured) {
 		return json({ 
@@ -75,9 +80,76 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 	
 	try {
 		const body = await request.json();
-		const action = body.action || 'usage'; // 'usage', 'reserve', 'confirm', 'release'
+		const action = body.action || 'usage';
 		
 		switch (action) {
+			// New batch-based deletion workflow
+			case 'start_deletion': {
+				// Start a new deletion session
+				const totalPlanned = typeof body.totalPlanned === 'number' ? body.totalPlanned : 0;
+				
+				if (totalPlanned <= 0) {
+					return json({ success: false, message: 'Invalid totalPlanned' }, { status: 400 });
+				}
+				
+				const result = startDeletionSession(sessionId, totalPlanned);
+				
+				if (!result.success) {
+					return json({ 
+						success: false, 
+						message: result.message || 'Cannot start deletion session',
+						quota: getQuotaStatus()
+					}, { status: 429 });
+				}
+				
+				return json({
+					success: true,
+					batchSize: result.batchSize,
+					maxParallelDeletions: result.maxParallelDeletions,
+					quota: getQuotaStatus()
+				});
+			}
+			
+			case 'report_batch': {
+				// Report batch completion and request next batch
+				const successCount = typeof body.successCount === 'number' ? body.successCount : 0;
+				const failedCount = typeof body.failedCount === 'number' ? body.failedCount : 0;
+				
+				const result = reportBatchComplete(sessionId, successCount, failedCount);
+				
+				return json({
+					success: result.success,
+					quotaUsed: result.quotaUsed,
+					nextBatchSize: result.nextBatchSize,
+					maxParallelDeletions: result.maxParallelDeletions,
+					shouldContinue: result.shouldContinue,
+					message: result.message,
+					quota: getQuotaStatus()
+				});
+			}
+			
+			case 'end_deletion': {
+				// End deletion session (cancel or complete)
+				endDeletionSession(sessionId);
+				
+				return json({
+					success: true,
+					quota: getQuotaStatus()
+				});
+			}
+			
+			case 'get_deletion_status': {
+				// Get current deletion session status
+				const status = getDeletionSessionStatus(sessionId);
+				
+				return json({
+					success: true,
+					session: status,
+					quota: getQuotaStatus()
+				});
+			}
+			
+			// Legacy reservation flow (kept for backward compatibility)
 			case 'reserve': {
 				// Reserve quota for a planned operation
 				const totalPlanned = typeof body.totalPlanned === 'number' ? body.totalPlanned : 0;
@@ -121,6 +193,8 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			case 'release': {
 				// Release any remaining reservation
 				releaseReservation(sessionId);
+				// Also end any deletion session
+				endDeletionSession(sessionId);
 				
 				return json({
 					success: true,
@@ -131,21 +205,21 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			case 'usage':
 			default: {
 				// Direct quota usage for read operations only (small costs like list operations)
-				// Delete operations MUST go through the reserve/confirm flow
+				// Delete operations MUST go through the deletion session flow
 				const cost = typeof body.cost === 'number' ? body.cost : 0;
 				
 				if (cost <= 0) {
 					return json({ success: false, message: 'Invalid cost' }, { status: 400 });
 				}
 				
-				// Reject large costs - these must go through reservation flow
-				// Delete operations cost 50 units each, so anything >= 50 requires reservation
+				// Reject large costs - these must go through deletion session flow
+				// Delete operations cost 50 units each, so anything >= 50 requires a session
 				const MAX_DIRECT_COST = 10; // Allow batched list operations
 				if (cost > MAX_DIRECT_COST) {
 					privacyLogger.warn(`Direct quota usage rejected: ${cost} exceeds max direct cost of ${MAX_DIRECT_COST}`);
 					return json({ 
 						success: false, 
-						message: 'Large operations must use the reservation flow',
+						message: 'Large operations must use the deletion session flow',
 						quota: getQuotaStatus()
 					}, { status: 400 });
 				}
@@ -179,6 +253,8 @@ export const DELETE: RequestHandler = async ({ cookies }) => {
 	const sessionId = cookies.get('quota_session');
 	
 	if (sessionId) {
+		// End any active deletion session
+		endDeletionSession(sessionId);
 		unregisterUser(sessionId);
 	}
 	

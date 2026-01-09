@@ -47,6 +47,11 @@ export const quotaConfig = {
 	get maxParallelDeletions(): number {
 		const value = parseInt(env.MAX_PARALLEL_DELETIONS || '5', 10);
 		return isNaN(value) ? 5 : Math.min(value, 10); // Cap at 10 for safety
+	},
+	/** Percentage of quota reserved for small operations (login, enrichment) */
+	get smallOperationReservePercent(): number {
+		const value = parseInt(env.SMALL_OPERATION_RESERVE_PERCENT || '5', 10);
+		return isNaN(value) || value < 0 || value > 50 ? 5 : value;
 	}
 };
 
@@ -58,7 +63,28 @@ const DATA_DIR = process.env.DATA_DIR || './data';
 const QUOTA_FILE = join(DATA_DIR, 'quota.json');
 
 /**
+ * Deletion session tracking - manages batch-based deletion workflow
+ * Each session tracks:
+ * - Total quota the user wants to use
+ * - How much has been reserved in the current batch
+ * - How much has been confirmed used
+ * - Whether the session is waiting for batch completion
+ */
+interface DeletionSession {
+	sessionId: string;
+	totalPlanned: number;      // Total quota the user wants to use
+	totalConfirmed: number;    // Total quota actually confirmed used
+	currentBatchSize: number;  // Size of current batch being processed
+	currentBatchUsed: number;  // How much of current batch has been used
+	maxParallelDeletions: number; // Max parallel deletions for this session
+	isWaitingForBatch: boolean; // True while client is processing a batch
+	createdAt: number;         // Session creation time
+	lastActivity: number;      // Last activity time (for cleanup)
+}
+
+/**
  * Reservation tracking - maps session/user ID to their reserved quota
+ * @deprecated Use DeletionSession for delete operations
  */
 interface QuotaReservation {
 	sessionId: string;
@@ -99,6 +125,7 @@ interface QuotaUsage {
 // In-memory state
 let quotaUsage: QuotaUsage = loadQuotaFromDisk();
 const reservations = new Map<string, QuotaReservation>();
+const deletionSessions = new Map<string, DeletionSession>();
 const connectedUsers = new Map<string, ConnectedUser>();
 let currentMinuteUsage: MinuteUsage = { minute: getCurrentMinute(), used: 0, usersActive: 0 };
 
@@ -120,6 +147,8 @@ export interface QuotaStatusUpdate {
 	deletingUsers: number;
 	maxParallelDeletions: number;
 	percentUsed: number;
+	smallOperationReserve: number; // Quota reserved for small operations (login, enrichment)
+	availableForDeletion: number;  // Quota available for deletion operations
 	date: string;
 	timestamp: number;
 }
@@ -491,18 +520,28 @@ export function getQuotaStatus(): QuotaStatusUpdate {
 	checkDayReset();
 	checkMinuteReset();
 	cleanupInactiveUsers();
+	cleanupStaleDeletionSessions();
 	
 	const dailyLimit = quotaConfig.dailyLimit;
 	const perMinuteLimit = quotaConfig.perMinuteLimit;
+	const smallOpReservePercent = quotaConfig.smallOperationReservePercent;
 	
-	const effectiveUsed = quotaUsage.totalUsed + quotaUsage.totalReserved;
+	// Calculate the small operation reserve (5% by default)
+	const smallOperationReserve = Math.floor(dailyLimit * (smallOpReservePercent / 100));
+	
+	// Calculate effective used including reservations from deletion sessions
+	const sessionReserved = calculateTotalSessionReserved();
+	const effectiveUsed = quotaUsage.totalUsed + quotaUsage.totalReserved + sessionReserved;
 	const remaining = Math.max(0, dailyLimit - effectiveUsed);
+	
+	// Available for deletion is remaining minus the small operation reserve
+	const availableForDeletion = Math.max(0, remaining - smallOperationReserve);
 	
 	const deletingUsers = [...connectedUsers.values()].filter(u => u.isDeleting).length;
 	
 	return {
 		used: quotaUsage.totalUsed,
-		reserved: quotaUsage.totalReserved,
+		reserved: quotaUsage.totalReserved + sessionReserved,
 		remaining,
 		dailyLimit,
 		perMinuteUsed: currentMinuteUsage.used,
@@ -511,9 +550,49 @@ export function getQuotaStatus(): QuotaStatusUpdate {
 		deletingUsers,
 		maxParallelDeletions: quotaConfig.maxParallelDeletions,
 		percentUsed: Math.round((effectiveUsed / dailyLimit) * 100),
+		smallOperationReserve,
+		availableForDeletion,
 		date: quotaUsage.date,
 		timestamp: Date.now()
 	};
+}
+
+/**
+ * Calculate total quota reserved by all active deletion sessions
+ */
+function calculateTotalSessionReserved(): number {
+	let total = 0;
+	for (const session of deletionSessions.values()) {
+		// For each session, the reserved amount is the current batch size minus what's been used
+		const batchRemaining = session.currentBatchSize - session.currentBatchUsed;
+		total += Math.max(0, batchRemaining);
+	}
+	return total;
+}
+
+/**
+ * Clean up stale deletion sessions (older than 5 minutes without activity)
+ */
+function cleanupStaleDeletionSessions(): void {
+	const now = Date.now();
+	const maxAge = 5 * 60 * 1000; // 5 minutes
+	
+	for (const [sessionId, session] of deletionSessions) {
+		if (now - session.lastActivity > maxAge) {
+			// Release the session
+			const unused = session.currentBatchSize - session.currentBatchUsed;
+			if (unused > 0) {
+				privacyLogger.info(`Cleaned up stale deletion session for ${sessionId.slice(0, 8)}...: released ${unused} units`);
+			}
+			deletionSessions.delete(sessionId);
+			
+			// Also mark user as not deleting
+			const user = connectedUsers.get(sessionId);
+			if (user) {
+				user.isDeleting = false;
+			}
+		}
+	}
 }
 
 /**
@@ -568,8 +647,243 @@ export function estimateBatchCost(
 	}
 }
 
+/**
+ * Start a new deletion session
+ * Returns the first batch size and max parallel deletions allowed
+ */
+export function startDeletionSession(sessionId: string, totalPlanned: number): {
+	success: boolean;
+	batchSize: number;
+	maxParallelDeletions: number;
+	message?: string;
+} {
+	checkDayReset();
+	cleanupStaleDeletionSessions();
+	
+	// Check if user already has an active session
+	if (deletionSessions.has(sessionId)) {
+		// Clean up old session first
+		endDeletionSession(sessionId);
+	}
+	
+	const dailyLimit = quotaConfig.dailyLimit;
+	const chunkSize = quotaConfig.reservationChunkSize;
+	const smallOpReserve = Math.floor(dailyLimit * (quotaConfig.smallOperationReservePercent / 100));
+	
+	// Calculate available quota for deletion (accounting for the 5% reserve for small ops)
+	const sessionReserved = calculateTotalSessionReserved();
+	const effectiveUsed = quotaUsage.totalUsed + quotaUsage.totalReserved + sessionReserved;
+	const availableForDeletion = Math.max(0, dailyLimit - effectiveUsed - smallOpReserve);
+	
+	if (availableForDeletion <= 0) {
+		return {
+			success: false,
+			batchSize: 0,
+			maxParallelDeletions: 0,
+			message: 'Daily quota exhausted (reserve maintained for small operations)'
+		};
+	}
+	
+	// Calculate the first batch size - limited by chunkSize and available quota
+	const firstBatchSize = Math.min(chunkSize, availableForDeletion, totalPlanned);
+	
+	if (firstBatchSize <= 0) {
+		return {
+			success: false,
+			batchSize: 0,
+			maxParallelDeletions: 0,
+			message: 'Not enough quota available'
+		};
+	}
+	
+	// Calculate parallel deletions based on current load
+	const maxParallel = calculateParallelDeletions(sessionId);
+	
+	// Create the session
+	const session: DeletionSession = {
+		sessionId,
+		totalPlanned,
+		totalConfirmed: 0,
+		currentBatchSize: firstBatchSize,
+		currentBatchUsed: 0,
+		maxParallelDeletions: maxParallel,
+		isWaitingForBatch: true,
+		createdAt: Date.now(),
+		lastActivity: Date.now()
+	};
+	
+	deletionSessions.set(sessionId, session);
+	
+	// Mark user as deleting
+	updateUserActivity(sessionId, true);
+	
+	privacyLogger.info(`Started deletion session for ${sessionId.slice(0, 8)}...: ${totalPlanned} total planned, ${firstBatchSize} first batch, ${maxParallel} parallel`);
+	
+	broadcastQuotaUpdate();
+	
+	return {
+		success: true,
+		batchSize: firstBatchSize,
+		maxParallelDeletions: maxParallel
+	};
+}
+
+/**
+ * Report batch completion and request next batch
+ * Client must call this after completing each batch
+ * Returns the next batch size, or 0 if deletion should stop
+ */
+export function reportBatchComplete(sessionId: string, successCount: number, failedCount: number): {
+	success: boolean;
+	quotaUsed: number;
+	nextBatchSize: number;
+	maxParallelDeletions: number;
+	shouldContinue: boolean;
+	message?: string;
+} {
+	checkDayReset();
+	checkMinuteReset();
+	
+	const session = deletionSessions.get(sessionId);
+	
+	if (!session) {
+		return {
+			success: false,
+			quotaUsed: 0,
+			nextBatchSize: 0,
+			maxParallelDeletions: 0,
+			shouldContinue: false,
+			message: 'No active deletion session'
+		};
+	}
+	
+	// Calculate actual quota used (only successful deletions cost quota)
+	const batchQuotaUsed = successCount * QUOTA_COSTS.commentsDelete;
+	
+	// Update global quota
+	quotaUsage.totalUsed += batchQuotaUsed;
+	currentMinuteUsage.used += batchQuotaUsed;
+	
+	// Update session
+	session.currentBatchUsed += batchQuotaUsed;
+	session.totalConfirmed += batchQuotaUsed;
+	session.lastActivity = Date.now();
+	session.isWaitingForBatch = false;
+	
+	// Save to disk
+	saveQuotaToDisk();
+	
+	privacyLogger.info(`Batch complete for ${sessionId.slice(0, 8)}...: ${successCount} success, ${failedCount} failed, ${batchQuotaUsed} quota used`);
+	
+	// Check if we should continue
+	const remainingPlanned = session.totalPlanned - session.totalConfirmed;
+	
+	if (remainingPlanned <= 0) {
+		// All planned deletions complete
+		endDeletionSession(sessionId);
+		broadcastQuotaUpdate();
+		return {
+			success: true,
+			quotaUsed: batchQuotaUsed,
+			nextBatchSize: 0,
+			maxParallelDeletions: 0,
+			shouldContinue: false,
+			message: 'All deletions complete'
+		};
+	}
+	
+	// Calculate next batch
+	const dailyLimit = quotaConfig.dailyLimit;
+	const chunkSize = quotaConfig.reservationChunkSize;
+	const smallOpReserve = Math.floor(dailyLimit * (quotaConfig.smallOperationReservePercent / 100));
+	
+	const sessionReserved = calculateTotalSessionReserved();
+	const effectiveUsed = quotaUsage.totalUsed + quotaUsage.totalReserved + sessionReserved;
+	const availableForDeletion = Math.max(0, dailyLimit - effectiveUsed - smallOpReserve);
+	
+	if (availableForDeletion <= 0) {
+		// Quota exhausted
+		endDeletionSession(sessionId);
+		broadcastQuotaUpdate();
+		return {
+			success: true,
+			quotaUsed: batchQuotaUsed,
+			nextBatchSize: 0,
+			maxParallelDeletions: 0,
+			shouldContinue: false,
+			message: 'Quota exhausted'
+		};
+	}
+	
+	// Calculate next batch size
+	const nextBatchSize = Math.min(chunkSize, availableForDeletion, remainingPlanned);
+	const maxParallel = calculateParallelDeletions(sessionId);
+	
+	// Update session for next batch
+	session.currentBatchSize = nextBatchSize;
+	session.currentBatchUsed = 0;
+	session.maxParallelDeletions = maxParallel;
+	session.isWaitingForBatch = true;
+	
+	broadcastQuotaUpdate();
+	
+	return {
+		success: true,
+		quotaUsed: batchQuotaUsed,
+		nextBatchSize,
+		maxParallelDeletions: maxParallel,
+		shouldContinue: true
+	};
+}
+
+/**
+ * End a deletion session (called when all deletions complete or user cancels)
+ */
+export function endDeletionSession(sessionId: string): void {
+	const session = deletionSessions.get(sessionId);
+	
+	if (session) {
+		const unused = session.currentBatchSize - session.currentBatchUsed;
+		if (unused > 0) {
+			privacyLogger.info(`Ended deletion session for ${sessionId.slice(0, 8)}...: released ${unused} unused units`);
+		}
+		deletionSessions.delete(sessionId);
+	}
+	
+	// Mark user as not deleting
+	const user = connectedUsers.get(sessionId);
+	if (user) {
+		user.isDeleting = false;
+	}
+	
+	broadcastQuotaUpdate();
+}
+
+/**
+ * Get the current deletion session status for a user
+ */
+export function getDeletionSessionStatus(sessionId: string): {
+	hasSession: boolean;
+	totalPlanned: number;
+	totalConfirmed: number;
+	currentBatchSize: number;
+	maxParallelDeletions: number;
+} | null {
+	const session = deletionSessions.get(sessionId);
+	if (!session) return null;
+	
+	return {
+		hasSession: true,
+		totalPlanned: session.totalPlanned,
+		totalConfirmed: session.totalConfirmed,
+		currentBatchSize: session.currentBatchSize,
+		maxParallelDeletions: session.maxParallelDeletions
+	};
+}
+
 // Run cleanup periodically
 setInterval(() => {
 	cleanupStaleReservations();
 	cleanupInactiveUsers();
+	cleanupStaleDeletionSessions();
 }, 60 * 1000); // Every minute

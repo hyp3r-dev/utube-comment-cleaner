@@ -1290,49 +1290,138 @@
 		let quotaExceeded = false;
 		
 		try {
-			// Try to reserve quota if server-managed
-			const reservation = await quotaStore.reserve(totalQuotaNeeded);
+			// Start deletion session with server - this returns the first batch size
+			const session = await quotaStore.startDeletionSession(totalQuotaNeeded);
 			
-			// Get the allowed parallel count from server or use default
-			const maxParallel = reservation.maxParallelDeletions || $quotaRemaining.maxParallelDeletions || 5;
+			if (!session.success) {
+				toasts.warning(session.message || 'Cannot start deletion - quota may be exhausted');
+				isDeletingInBackground = false;
+				return;
+			}
+			
+			let currentBatchSize = session.batchSize || 0;
+			let maxParallel = session.maxParallelDeletions || $quotaRemaining.maxParallelDeletions || 5;
 			const useParallel = maxParallel > 1 && totalCount > 1;
 			
-			if (useParallel) {
-				// Parallel deletion mode - faster but UI shows multiple items being deleted at once
-				const commentIds = commentsToDelete.map(c => c.id);
+			// Process deletions in batches, waiting for server confirmation between each batch
+			let processedIndex = 0;
+			
+			while (processedIndex < commentsToDelete.length && !quotaExceeded) {
+				// Calculate how many comments to delete in this batch (based on quota units)
+				const commentsInBatch = Math.min(
+					Math.floor(currentBatchSize / QUOTA_COSTS.commentsDelete),
+					commentsToDelete.length - processedIndex
+				);
 				
-				// Mark first batch as deleting
-				const firstBatch = commentIds.slice(0, maxParallel);
-				for (const id of firstBatch) {
-					deleteStatuses = new Map(deleteStatuses);
-					deleteStatuses.set(id, { status: 'deleting' });
+				if (commentsInBatch <= 0) {
+					// No more quota available
+					quotaExceeded = true;
+					break;
 				}
 				
-				// Use parallel deletion with progress callback
-				const result = await youtubeService.deleteCommentsParallel(
-					commentIds,
-					maxParallel,
-					(progress, processed, total) => {
-						// Update individual comment status
+				const batchComments = commentsToDelete.slice(processedIndex, processedIndex + commentsInBatch);
+				const batchIds = batchComments.map(c => c.id);
+				
+				// Track batch results
+				let batchSuccess = 0;
+				let batchFailed = 0;
+				
+				if (useParallel && batchIds.length > 1) {
+					// Mark batch as deleting
+					for (const id of batchIds.slice(0, maxParallel)) {
 						deleteStatuses = new Map(deleteStatuses);
-						if (progress.success) {
-							deleteStatuses.set(progress.id, { status: 'success' });
-							successIds.push(progress.id);
-							successCount++;
-						} else {
-							deleteStatuses.set(progress.id, { status: 'failed', error: progress.error });
-							failedItems.push({ id: progress.id, error: progress.error || 'Delete failed' });
-							failedCount++;
+						deleteStatuses.set(id, { status: 'deleting' });
+					}
+					
+					// Process batch in parallel
+					const result = await youtubeService.deleteCommentsParallel(
+						batchIds,
+						maxParallel,
+						(progress, processed, total) => {
+							// Update individual comment status
+							deleteStatuses = new Map(deleteStatuses);
+							if (progress.success) {
+								deleteStatuses.set(progress.id, { status: 'success' });
+								successIds.push(progress.id);
+								successCount++;
+								batchSuccess++;
+							} else {
+								deleteStatuses.set(progress.id, { status: 'failed', error: progress.error });
+								failedItems.push({ id: progress.id, error: progress.error || 'Delete failed' });
+								failedCount++;
+								batchFailed++;
+							}
+							
+							// Mark next items as deleting
+							const nextIndex = processed;
+							const nextBatchEnd = Math.min(nextIndex + maxParallel, total);
+							for (let i = nextIndex; i < nextBatchEnd; i++) {
+								const nextId = batchIds[i];
+								if (nextId && deleteStatuses.get(nextId)?.status === 'pending') {
+									deleteStatuses = new Map(deleteStatuses);
+									deleteStatuses.set(nextId, { status: 'deleting' });
+								}
+							}
+							
+							// Update progress
+							backgroundDeleteProgress = { 
+								deleted: successCount, 
+								total: totalCount, 
+								failed: failedCount 
+							};
 						}
+					);
+					
+					if (result.quotaExceeded) {
+						quotaExceeded = true;
+					}
+				} else {
+					// Sequential deletion for this batch
+					for (const comment of batchComments) {
+						if (quotaExceeded) break;
 						
-						// Mark next items in queue as deleting
-						const nextIndex = processed;
-						const nextBatchEnd = Math.min(nextIndex + maxParallel, total);
-						for (let i = nextIndex; i < nextBatchEnd; i++) {
-							const nextId = commentIds[i];
-							if (nextId && deleteStatuses.get(nextId)?.status === 'pending') {
+						currentDeletingId = comment.id;
+						
+						// Update status to deleting
+						deleteStatuses = new Map(deleteStatuses);
+						deleteStatuses.set(comment.id, { status: 'deleting' });
+						
+						try {
+							// Delete single comment
+							const result = await youtubeService.deleteComments([comment.id]);
+							
+							if (result.success.includes(comment.id)) {
+								// Success
 								deleteStatuses = new Map(deleteStatuses);
-								deleteStatuses.set(nextId, { status: 'deleting' });
+								deleteStatuses.set(comment.id, { status: 'success' });
+								successIds.push(comment.id);
+								successCount++;
+								batchSuccess++;
+							} else if (result.failed.length > 0) {
+								// Failed
+								const failedInfo = result.failed.find(f => f.id === comment.id);
+								const errorMsg = failedInfo?.error || 'Delete failed';
+								deleteStatuses = new Map(deleteStatuses);
+								deleteStatuses.set(comment.id, { status: 'failed', error: errorMsg });
+								failedItems.push({ id: comment.id, error: errorMsg });
+								failedCount++;
+								batchFailed++;
+								
+								if (errorMsg.toLowerCase().includes('quota')) {
+									quotaExceeded = true;
+								}
+							}
+						} catch (e) {
+							// Error
+							const errorMsg = e instanceof Error ? e.message : 'Delete failed';
+							deleteStatuses = new Map(deleteStatuses);
+							deleteStatuses.set(comment.id, { status: 'failed', error: errorMsg });
+							failedItems.push({ id: comment.id, error: errorMsg });
+							failedCount++;
+							batchFailed++;
+							
+							if (errorMsg.toLowerCase().includes('quota')) {
+								quotaExceeded = true;
 							}
 						}
 						
@@ -1342,79 +1431,41 @@
 							total: totalCount, 
 							failed: failedCount 
 						};
+						
+						// Small delay for animation
+						await new Promise(resolve => setTimeout(resolve, ANIMATION_DELAY_MS));
 					}
-				);
+				}
 				
-				quotaExceeded = result.quotaExceeded;
+				processedIndex += commentsInBatch;
 				
-				// Confirm quota usage on server
-				const actualUsed = successCount * QUOTA_COSTS.commentsDelete;
-				await quotaStore.confirmUsage(actualUsed);
-			} else {
-				// Sequential deletion mode - one at a time with animations
-				for (const comment of commentsToDelete) {
-					if (quotaExceeded) break;
+				// **CRITICAL**: Report batch to server and WAIT for next batch authorization
+				// This is the key fix - we must wait for server before continuing
+				if (processedIndex < commentsToDelete.length && !quotaExceeded) {
+					const batchResult = await quotaStore.reportBatchComplete(batchSuccess, batchFailed);
 					
-					currentDeletingId = comment.id;
-					
-					// Update status to deleting
-					deleteStatuses = new Map(deleteStatuses);
-					deleteStatuses.set(comment.id, { status: 'deleting' });
-					
-					try {
-						// Delete single comment
-						const result = await youtubeService.deleteComments([comment.id]);
-						
-						if (result.success.includes(comment.id)) {
-							// Success - animate right
-							deleteStatuses = new Map(deleteStatuses);
-							deleteStatuses.set(comment.id, { status: 'success' });
-							successIds.push(comment.id);
-							successCount++;
-							
-							// Confirm this deletion's quota
-							await quotaStore.confirmUsage(QUOTA_COSTS.commentsDelete);
-						} else if (result.failed.length > 0) {
-							// Failed - animate left, then move to bottom of queue
-							const failedInfo = result.failed.find(f => f.id === comment.id);
-							const errorMsg = failedInfo?.error || 'Delete failed';
-							deleteStatuses = new Map(deleteStatuses);
-							deleteStatuses.set(comment.id, { status: 'failed', error: errorMsg });
-							failedItems.push({ id: comment.id, error: errorMsg });
-							failedCount++;
-							
-							// Check if quota exceeded
-							if (errorMsg.toLowerCase().includes('quota')) {
-								quotaExceeded = true;
-							}
-						}
-					} catch (e) {
-						// Error - animate left
-						const errorMsg = e instanceof Error ? e.message : 'Delete failed';
-						deleteStatuses = new Map(deleteStatuses);
-						deleteStatuses.set(comment.id, { status: 'failed', error: errorMsg });
-						failedItems.push({ id: comment.id, error: errorMsg });
-						failedCount++;
-						
-						if (errorMsg.toLowerCase().includes('quota')) {
+					if (!batchResult.success || !batchResult.shouldContinue) {
+						// Server says stop
+						if (batchResult.message?.toLowerCase().includes('quota')) {
 							quotaExceeded = true;
 						}
+						break;
 					}
 					
-					// Update progress
-					backgroundDeleteProgress = { 
-						deleted: successCount, 
-						total: totalCount, 
-						failed: failedCount 
-					};
-					
-					// Small delay to let animation play
-					await new Promise(resolve => setTimeout(resolve, ANIMATION_DELAY_MS));
+					// Update batch parameters for next iteration
+					currentBatchSize = batchResult.nextBatchSize;
+					maxParallel = batchResult.maxParallelDeletions;
 				}
 			}
 			
-			// Release any unused reservation
-			await quotaStore.releaseReservation();
+			// Final batch report if we processed anything
+			if (processedIndex > 0) {
+				// Report final results (don't need to continue, just confirming)
+				await quotaStore.reportBatchComplete(0, 0);
+			}
+			
+			// End the deletion session
+			await quotaStore.endDeletionSession();
 			
 			// After all deletions, clean up after a short delay
 			await new Promise(resolve => setTimeout(resolve, CLEANUP_DELAY_MS));
@@ -1454,8 +1505,8 @@
 			}
 		} catch (e) {
 			error.set(getErrorMessage(e));
-			// Release reservation on error
-			await quotaStore.releaseReservation();
+			// End deletion session on error
+			await quotaStore.endDeletionSession();
 		} finally {
 			isDeletingInBackground = false;
 			backgroundDeleteProgress = undefined;

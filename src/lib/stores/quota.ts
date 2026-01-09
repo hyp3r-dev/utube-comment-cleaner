@@ -42,6 +42,25 @@ export interface ServerQuotaConfig {
 	reservationChunkSize: number;
 	maxParallelDeletions: number;
 	deleteCost: number;
+	smallOperationReservePercent?: number;
+}
+
+// Deletion session response from server
+export interface DeletionSessionResponse {
+	success: boolean;
+	batchSize?: number;
+	maxParallelDeletions?: number;
+	message?: string;
+}
+
+// Batch completion response from server
+export interface BatchCompleteResponse {
+	success: boolean;
+	quotaUsed: number;
+	nextBatchSize: number;
+	maxParallelDeletions: number;
+	shouldContinue: boolean;
+	message?: string;
 }
 
 // Quota store
@@ -65,6 +84,11 @@ const createQuotaStore = () => {
 	// SSE connection for real-time updates
 	let eventSource: EventSource | null = null;
 	let serverConfig: ServerQuotaConfig | null = null;
+	
+	// Track unconfirmed local usage that hasn't been synced to server yet
+	// This prevents SSE updates from "flashing" the UI back to old values
+	let pendingLocalUsage = 0;
+	let lastServerUsed = 0; // Track server's last known "used" value
 	
 	// Load saved quota data (local fallback)
 	const load = async () => {
@@ -107,6 +131,10 @@ const createQuotaStore = () => {
 				const serverQuota = data.quota;
 				serverConfig = data.config || null;
 				
+				// Initialize the last server used value and clear pending
+				lastServerUsed = serverQuota.used;
+				pendingLocalUsage = 0;
+				
 				update(state => ({
 					...state,
 					used: serverQuota.used,
@@ -143,9 +171,21 @@ const createQuotaStore = () => {
 				try {
 					const serverQuota = JSON.parse(event.data);
 					
+					// Calculate how much the server's "used" value increased
+					const serverUsedDelta = serverQuota.used - lastServerUsed;
+					lastServerUsed = serverQuota.used;
+					
+					// If server's "used" increased, reduce our pending local usage accordingly
+					// This means the server has confirmed some of our local changes
+					if (serverUsedDelta > 0 && pendingLocalUsage > 0) {
+						pendingLocalUsage = Math.max(0, pendingLocalUsage - serverUsedDelta);
+					}
+					
+					// Apply the server state, but add any remaining unconfirmed local usage
+					// This prevents the UI from "flashing" back to old values
 					update(state => ({
 						...state,
-						used: serverQuota.used,
+						used: serverQuota.used + pendingLocalUsage,
 						reserved: serverQuota.reserved || 0,
 						dailyLimit: serverQuota.dailyLimit,
 						perMinuteUsed: serverQuota.perMinuteUsed || 0,
@@ -190,14 +230,23 @@ const createQuotaStore = () => {
 		});
 	};
 	
-	// Add quota usage (local + server)
+	// Add quota usage (local + server) - for small read operations
+	// This tracks pending usage to prevent UI flashing when SSE updates arrive
 	const addUsage = async (units: number) => {
 		const state = get({ subscribe });
+		
+		// Track this as pending local usage (will be confirmed when server updates)
+		if (state.isServerManaged) {
+			pendingLocalUsage += units;
+		}
 		
 		// Update locally first for immediate UI feedback
 		update(s => {
 			const currentDateKey = getPacificDateKey();
 			if (s.lastResetDate !== currentDateKey) {
+				// Day reset - clear pending
+				pendingLocalUsage = units;
+				lastServerUsed = 0;
 				return {
 					...s,
 					used: units,
@@ -216,13 +265,21 @@ const createQuotaStore = () => {
 		// Report to server if server-managed
 		if (state.isServerManaged) {
 			try {
-				await fetch('/api/quota', {
+				const response = await fetch('/api/quota', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ action: 'usage', cost: units })
 				});
+				
+				// If successful, the SSE will update with new server state
+				// The pending tracking will handle the reconciliation
+				if (!response.ok) {
+					// Server rejected - remove from pending
+					pendingLocalUsage = Math.max(0, pendingLocalUsage - units);
+				}
 			} catch (e) {
 				console.error('Failed to report quota usage to server:', e);
+				// On error, keep pending (optimistic)
 			}
 		}
 		
@@ -357,6 +414,153 @@ const createQuotaStore = () => {
 	// Get server config
 	const getServerConfig = (): ServerQuotaConfig | null => serverConfig;
 	
+	// ============================================================
+	// New batch-based deletion workflow
+	// ============================================================
+	
+	/**
+	 * Start a deletion session with the server
+	 * The server will return the first batch size and max parallel deletions
+	 */
+	const startDeletionSession = async (totalPlanned: number): Promise<DeletionSessionResponse> => {
+		const state = get({ subscribe });
+		
+		if (!state.isServerManaged) {
+			// Local mode - allow full deletion without server coordination
+			const available = state.dailyLimit - state.used - state.reserved;
+			const maxDeletable = Math.floor(available / QUOTA_COSTS.commentsDelete);
+			const batchSize = Math.min(totalPlanned, maxDeletable * QUOTA_COSTS.commentsDelete);
+			return {
+				success: batchSize > 0,
+				batchSize,
+				maxParallelDeletions: state.maxParallelDeletions,
+				message: batchSize > 0 ? undefined : 'Quota exhausted'
+			};
+		}
+		
+		try {
+			const response = await fetch('/api/quota', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'start_deletion', totalPlanned })
+			});
+			
+			const data = await response.json();
+			
+			if (data.success) {
+				// Update reserved in local state
+				update(s => ({
+					...s,
+					reserved: (data.quota?.reserved || 0),
+					lastUpdated: Date.now()
+				}));
+			}
+			
+			return {
+				success: data.success,
+				batchSize: data.batchSize || 0,
+				maxParallelDeletions: data.maxParallelDeletions || state.maxParallelDeletions,
+				message: data.message
+			};
+		} catch (e) {
+			console.error('Failed to start deletion session:', e);
+			return {
+				success: false,
+				batchSize: 0,
+				maxParallelDeletions: state.maxParallelDeletions,
+				message: 'Network error'
+			};
+		}
+	};
+	
+	/**
+	 * Report batch completion and request the next batch
+	 * The client MUST wait for this response before proceeding with the next batch
+	 */
+	const reportBatchComplete = async (successCount: number, failedCount: number): Promise<BatchCompleteResponse> => {
+		const state = get({ subscribe });
+		
+		if (!state.isServerManaged) {
+			// Local mode - update local state
+			const quotaUsed = successCount * QUOTA_COSTS.commentsDelete;
+			update(s => ({
+				...s,
+				used: s.used + quotaUsed,
+				lastUpdated: Date.now()
+			}));
+			save();
+			return {
+				success: true,
+				quotaUsed,
+				nextBatchSize: state.dailyLimit - state.used - quotaUsed,
+				maxParallelDeletions: state.maxParallelDeletions,
+				shouldContinue: true
+			};
+		}
+		
+		try {
+			const response = await fetch('/api/quota', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'report_batch', successCount, failedCount })
+			});
+			
+			const data = await response.json();
+			
+			// Update local state from server response
+			if (data.quota) {
+				// Reset pending since server is now authoritative
+				lastServerUsed = data.quota.used;
+				pendingLocalUsage = 0;
+				
+				update(s => ({
+					...s,
+					used: data.quota.used,
+					reserved: data.quota.reserved || 0,
+					lastUpdated: Date.now()
+				}));
+			}
+			
+			return {
+				success: data.success,
+				quotaUsed: data.quotaUsed || 0,
+				nextBatchSize: data.nextBatchSize || 0,
+				maxParallelDeletions: data.maxParallelDeletions || state.maxParallelDeletions,
+				shouldContinue: data.shouldContinue || false,
+				message: data.message
+			};
+		} catch (e) {
+			console.error('Failed to report batch completion:', e);
+			return {
+				success: false,
+				quotaUsed: 0,
+				nextBatchSize: 0,
+				maxParallelDeletions: state.maxParallelDeletions,
+				shouldContinue: false,
+				message: 'Network error'
+			};
+		}
+	};
+	
+	/**
+	 * End the deletion session (called when all deletions complete or user cancels)
+	 */
+	const endDeletionSession = async (): Promise<void> => {
+		const state = get({ subscribe });
+		
+		if (!state.isServerManaged) return;
+		
+		try {
+			await fetch('/api/quota', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'end_deletion' })
+			});
+		} catch (e) {
+			console.error('Failed to end deletion session:', e);
+		}
+	};
+	
 	return {
 		subscribe,
 		load,
@@ -368,7 +572,11 @@ const createQuotaStore = () => {
 		setDailyLimit,
 		syncWithServer,
 		disconnectSSE,
-		getServerConfig
+		getServerConfig,
+		// New batch-based workflow
+		startDeletionSession,
+		reportBatchComplete,
+		endDeletionSession
 	};
 };
 
