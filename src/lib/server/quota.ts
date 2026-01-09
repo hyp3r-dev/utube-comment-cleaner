@@ -125,10 +125,13 @@ export interface QuotaStatusUpdate {
 }
 
 /**
- * Get today's date in YYYY-MM-DD format (UTC)
+ * Get today's date in YYYY-MM-DD format (Pacific Time)
+ * YouTube API quota resets at midnight Pacific Time
  */
-function getToday(): string {
-	return new Date().toISOString().split('T')[0];
+function getPacificDateKey(): string {
+	return new Intl.DateTimeFormat('en-CA', {
+		timeZone: 'America/Los_Angeles'
+	}).format(new Date());
 }
 
 /**
@@ -159,7 +162,7 @@ function loadQuotaFromDisk(): QuotaUsage {
 	
 	// Return default quota
 	return {
-		date: getToday(),
+		date: getPacificDateKey(),
 		totalUsed: 0,
 		totalReserved: 0,
 		lastReset: Date.now()
@@ -191,12 +194,12 @@ function saveQuotaToDisk(): void {
 }
 
 /**
- * Reset quota if it's a new day
+ * Reset quota if it's a new day (Pacific Time)
  */
 function checkDayReset(): void {
-	const today = getToday();
+	const today = getPacificDateKey();
 	if (quotaUsage.date !== today) {
-		privacyLogger.info(`Quota reset for new day: ${today}`);
+		privacyLogger.info(`Quota reset for new day (Pacific Time): ${today}`);
 		quotaUsage = {
 			date: today,
 			totalUsed: 0,
@@ -407,8 +410,9 @@ export function reserveQuota(sessionId: string, totalPlanned: number): {
 /**
  * Confirm quota usage from a reservation
  * Call this after actually consuming the quota
+ * Returns how much was actually confirmed (may be less if no valid reservation)
  */
-export function confirmQuotaUsage(sessionId: string, actualUsed: number): void {
+export function confirmQuotaUsage(sessionId: string, actualUsed: number): number {
 	checkDayReset();
 	checkMinuteReset();
 	
@@ -416,24 +420,28 @@ export function confirmQuotaUsage(sessionId: string, actualUsed: number): void {
 	
 	if (reservation) {
 		// Convert reserved to used
+		// Client can only confirm up to what they have reserved (prevents abuse)
 		const confirmed = Math.min(actualUsed, reservation.reserved - reservation.used);
 		reservation.used += confirmed;
 		
 		// Move from reserved to used in global tracking
 		quotaUsage.totalReserved = Math.max(0, quotaUsage.totalReserved - confirmed);
 		quotaUsage.totalUsed += confirmed;
+		
+		// Track per-minute usage
+		currentMinuteUsage.used += confirmed;
+		
+		saveQuotaToDisk();
+		broadcastQuotaUpdate();
+		
+		privacyLogger.info(`Confirmed ${confirmed} quota usage (total used: ${quotaUsage.totalUsed}/${quotaConfig.dailyLimit})`);
+		return confirmed;
 	} else {
-		// No reservation - just add to used directly
-		quotaUsage.totalUsed += actualUsed;
+		// No reservation - reject the confirmation
+		// Clients must reserve before they can confirm usage
+		privacyLogger.warn(`Quota confirm rejected: no reservation for session ${sessionId.slice(0, 8)}...`);
+		return 0;
 	}
-	
-	// Track per-minute usage
-	currentMinuteUsage.used += actualUsed;
-	
-	saveQuotaToDisk();
-	broadcastQuotaUpdate();
-	
-	privacyLogger.info(`Confirmed ${actualUsed} quota usage (total used: ${quotaUsage.totalUsed}/${quotaConfig.dailyLimit})`);
 }
 
 /**

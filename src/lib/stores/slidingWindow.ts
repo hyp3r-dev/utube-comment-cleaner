@@ -8,10 +8,11 @@ import type { YouTubeComment, CommentFilters, SortField, SortOrder } from '$lib/
 import { queryComments, type CommentQueryOptions, getCommentCount } from '$lib/services/storage';
 import { searchMode, type SearchMode } from './comments';
 
-// Sliding window configuration
-const WINDOW_SIZE = 200; // Keep 200 comments in memory
-const LOAD_THRESHOLD = 0.6; // Load more when scrolled 60% through current window
-const BATCH_SIZE = 100; // Load 100 comments at a time
+// Sliding window configuration - increased for more reliable scrolling
+const WINDOW_SIZE = 500; // Keep 500 comments in memory (increased from 200)
+const LOAD_THRESHOLD = 0.3; // Load more when scrolled 30% from edge (lowered from 60% for earlier loading)
+const BATCH_SIZE = 200; // Load 200 comments at a time (increased from 100)
+const PRELOAD_BUFFER = 100; // Extra buffer when at edges
 
 // Sliding window state
 export const windowedComments = writable<YouTubeComment[]>([]);
@@ -218,23 +219,32 @@ export async function handleScrollPosition(scrollIndex: number): Promise<void> {
 	const comments = get(windowedComments);
 	const total = get(totalAvailable);
 	const start = get(windowStart);
+	const end = get(windowEnd);
+	const loading = get(isLoadingWindow);
 	
-	if (comments.length === 0) return;
+	if (comments.length === 0 || loading) return;
 	
 	currentScrollIndex.set(scrollIndex);
 	
-	// Calculate absolute scroll position
-	const absoluteIndex = start + scrollIndex;
+	// Calculate how close we are to the edges of the window
+	const distanceFromStart = scrollIndex;
+	const distanceFromEnd = comments.length - scrollIndex;
 	
-	// Check if we need to load forward (scrolling down)
-	const forwardThreshold = comments.length * LOAD_THRESHOLD;
-	if (scrollIndex > forwardThreshold && (start + comments.length) < total) {
+	// More aggressive loading thresholds based on window size
+	const earlyLoadThreshold = Math.max(PRELOAD_BUFFER, Math.floor(comments.length * LOAD_THRESHOLD));
+	
+	// Check if we need to load forward (scrolling down / near bottom of window)
+	const needsForward = distanceFromEnd < earlyLoadThreshold && end < total;
+	
+	// Check if we need to load backward (scrolling up / near top of window)
+	const needsBackward = distanceFromStart < earlyLoadThreshold && start > 0;
+	
+	// Load both directions if needed (user might scroll either way)
+	if (needsForward) {
 		await loadForward();
 	}
 	
-	// Check if we need to load backward (scrolling up)
-	const backwardThreshold = comments.length * (1 - LOAD_THRESHOLD);
-	if (scrollIndex < backwardThreshold && start > 0) {
+	if (needsBackward) {
 		await loadBackward();
 	}
 }
