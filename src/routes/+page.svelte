@@ -101,6 +101,8 @@
 	let isCheckingAuth = $state(true);
 	let oauthLoading = $state(false);
 	let hasRefreshToken = $state(false);
+	let canQuickRelogin = $state(false); // True when refresh token available and no access token
+	let isQuickReloginLoading = $state(false);
 	
 	// Legal and compliance settings (from server config)
 	let enableLegal = $state(false);
@@ -386,6 +388,12 @@
 					console.debug('Failed to restore OAuth session:', e);
 				}
 			}
+		}
+		
+		// Check if quick re-login is available (after soft logout)
+		// This sets canQuickRelogin to true if we have a refresh token but no access token
+		if (googleLoginEnabled && !$apiKey) {
+			await checkQuickReloginAvailable();
 		}
 		
 		// Try to check if we have cached comments
@@ -750,24 +758,27 @@
 				});
 				const data = await response.json();
 				
-				// Update hasRefreshToken based on the logout mode
+				// Update hasRefreshToken and canQuickRelogin based on the logout mode
 				// For soft logout, the server keeps the refresh token
 				if (data.mode === 'soft') {
 					hasRefreshToken = true;
+					canQuickRelogin = true; // Enable quick re-login after soft logout
 				} else {
 					hasRefreshToken = false;
+					canQuickRelogin = false;
 				}
 			} catch (e) {
 				console.debug('Logout API call failed:', e);
 				// In case of error, assume full logout behavior
 				hasRefreshToken = mode === 'soft';
+				canQuickRelogin = mode === 'soft';
 			}
 			// Also clear the local auth status cookie
 			document.cookie = 'youtube_auth_status=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
 		}
 		
 		if (mode === 'soft') {
-			toasts.success('Session ended. Click "Sign in with Google" to quickly reconnect.');
+			toasts.success('Session ended. Click "Quick Sign In" to reconnect instantly.');
 		} else {
 			toasts.success('Fully signed out of YouTube. Your comment data is still saved.');
 		}
@@ -786,17 +797,69 @@
 				// Token refreshed, use the access token directly from the response
 				inputApiKey = data.access_token;
 				hasRefreshToken = true;
+				canQuickRelogin = false; // Successfully logged in, no need for quick relogin
 				await handleConnectToken();
 				return true;
 			} else if (data.requiresReauth) {
 				// Refresh token is invalid, user needs to re-authenticate
 				hasRefreshToken = false;
+				canQuickRelogin = false;
 			}
 			
 			return false;
 		} catch (e) {
 			console.error('Token refresh failed:', e);
 			return false;
+		}
+	}
+	
+	/**
+	 * Handle quick re-login using the stored refresh token
+	 * This is used after a soft logout to quickly restore the session
+	 */
+	async function handleQuickRelogin() {
+		isQuickReloginLoading = true;
+		try {
+			const success = await attemptTokenRefresh();
+			if (success) {
+				toasts.success('Successfully reconnected to YouTube!');
+			} else {
+				// Refresh token is invalid, clear the quick relogin state
+				canQuickRelogin = false;
+				toasts.warning('Session expired. Please sign in with Google again.');
+			}
+		} catch (e) {
+			console.error('Quick re-login failed:', e);
+			canQuickRelogin = false;
+			toasts.error('Failed to reconnect. Please sign in with Google again.');
+		} finally {
+			isQuickReloginLoading = false;
+		}
+	}
+	
+	/**
+	 * Check if quick re-login is available (refresh token exists)
+	 */
+	async function checkQuickReloginAvailable(): Promise<void> {
+		if (!googleLoginEnabled) return;
+		
+		try {
+			const response = await fetch('/api/auth/token');
+			const data = await response.json();
+			
+			if (response.ok) {
+				// We have a valid access token, no need for quick relogin
+				canQuickRelogin = false;
+			} else if (response.status === 401 && data.canRefresh) {
+				// No access token but we have a refresh token
+				canQuickRelogin = true;
+				hasRefreshToken = true;
+			} else {
+				canQuickRelogin = false;
+			}
+		} catch (e) {
+			console.debug('Quick relogin check failed:', e);
+			canQuickRelogin = false;
 		}
 	}
 
@@ -1540,17 +1603,45 @@
 					{#if !$apiKey}
 						<div class="token-connect-banner">
 							<div class="banner-content">
-								<div class="banner-icon">🔑</div>
+								<div class="banner-icon">{canQuickRelogin ? '⚡' : '🔑'}</div>
 								<div class="banner-text">
-									<strong>Connect your YouTube account to enrich & delete comments</strong>
-									{#if googleLoginEnabled}
+									{#if canQuickRelogin}
+										<strong>Reconnect to YouTube</strong>
+										<p>Your session is still saved. Click to quickly reconnect without signing in again.</p>
+									{:else if googleLoginEnabled}
+										<strong>Connect your YouTube account to enrich & delete comments</strong>
 										<p>Sign in with your Google account to authorize access</p>
 									{:else}
+										<strong>Connect your YouTube account to enrich & delete comments</strong>
 										<p>Enter your OAuth access token to fetch likes, reply counts, and enable deletion</p>
 									{/if}
 								</div>
 							</div>
-							{#if googleLoginEnabled}
+							{#if canQuickRelogin}
+								<div class="banner-form quick-login-form">
+									<button 
+										class="btn btn-quick-login" 
+										onclick={handleQuickRelogin}
+										disabled={isQuickReloginLoading}
+									>
+										{#if isQuickReloginLoading}
+											<div class="loading-spinner"></div>
+											<span>Reconnecting...</span>
+										{:else}
+											<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+												<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+											</svg>
+											<span>Quick Sign In</span>
+										{/if}
+									</button>
+									<button 
+										class="btn btn-ghost btn-sm"
+										onclick={() => { canQuickRelogin = false; }}
+									>
+										Full sign in instead
+									</button>
+								</div>
+							{:else if googleLoginEnabled}
 								<div class="banner-form">
 									<GoogleSignInButton loading={oauthLoading} />
 								</div>
@@ -2323,6 +2414,53 @@
 	.banner-form .btn {
 		padding: 0.5rem 1rem;
 		font-size: 0.875rem;
+	}
+
+	/* Quick login form and button */
+	.quick-login-form {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.75rem;
+	}
+	
+	.btn-quick-login {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		padding: 0.75rem 1.5rem;
+		background: var(--gradient-primary);
+		color: white;
+		font-weight: 600;
+		border: none;
+		border-radius: var(--radius-md);
+		cursor: pointer;
+		transition: all 0.2s ease;
+		box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+	}
+	
+	.btn-quick-login:hover:not(:disabled) {
+		transform: translateY(-2px);
+		box-shadow: 0 6px 16px rgba(99, 102, 241, 0.4);
+	}
+	
+	.btn-quick-login:disabled {
+		opacity: 0.7;
+		cursor: not-allowed;
+		transform: none;
+	}
+	
+	.btn-quick-login .loading-spinner {
+		width: 16px;
+		height: 16px;
+		border: 2px solid rgba(255, 255, 255, 0.3);
+		border-top-color: white;
+		border-radius: 50%;
+		animation: spin 0.8s linear infinite;
+	}
+	
+	@keyframes spin {
+		to { transform: rotate(360deg); }
 	}
 
 	@media (max-width: 1024px) {
