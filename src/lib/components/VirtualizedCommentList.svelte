@@ -15,12 +15,13 @@
 		onRemoveFromDatabase?: (commentId: string) => void;
 	} = $props();
 
-	// Virtualization settings
+	// Virtualization settings - optimized for smooth scrolling
 	const ESTIMATED_ITEM_HEIGHT = 160; // Average height of a comment card in pixels
 	const GAP_SIZE = 16; // 1rem gap between items
 	const ITEM_WITH_GAP = ESTIMATED_ITEM_HEIGHT + GAP_SIZE;
-	const BUFFER_SIZE = 15; // Number of items to render above/below viewport
-	const MIN_BATCH_SIZE = 30; // Minimum items to render
+	const BUFFER_SIZE = 25; // Number of items to render above/below viewport (increased for smoother scrolling)
+	const MIN_BATCH_SIZE = 50; // Minimum items to render (increased)
+	const SCROLL_REPORT_THRESHOLD = 5; // Report scroll position after this many items change
 
 	let containerRef: HTMLDivElement | undefined = $state();
 	let scrollTop = $state(0);
@@ -106,23 +107,30 @@
 		scrollTop = target.scrollTop;
 		isScrolling = true;
 		
+		// Report scroll position during scrolling (not just at the end)
+		// This ensures the sliding window loads data proactively
+		const currentIndex = currentScrollIndex;
+		if (Math.abs(currentIndex - lastReportedIndex) > SCROLL_REPORT_THRESHOLD) {
+			handleScrollPosition(currentIndex);
+			lastReportedIndex = currentIndex;
+		}
+		
 		// Clear previous timeout
 		if (scrollEndTimeout) {
 			clearTimeout(scrollEndTimeout);
 		}
 		
-		// Set timeout to detect scroll end
+		// Set timeout to detect scroll end and do a final report
 		scrollEndTimeout = setTimeout(() => {
 			isScrolling = false;
 			
-			// Report scroll position to sliding window store for loading more data
-			// Only report if index changed significantly to avoid too many calls
-			const currentIndex = currentScrollIndex;
-			if (Math.abs(currentIndex - lastReportedIndex) > 10) {
-				handleScrollPosition(currentIndex);
-				lastReportedIndex = currentIndex;
+			// Final report when scrolling stops
+			const finalIndex = currentScrollIndex;
+			if (Math.abs(finalIndex - lastReportedIndex) > 0) {
+				handleScrollPosition(finalIndex);
+				lastReportedIndex = finalIndex;
 			}
-		}, 150);
+		}, 100); // Reduced timeout for faster response
 	}
 
 	let resizeObserver: ResizeObserver | null = null;
