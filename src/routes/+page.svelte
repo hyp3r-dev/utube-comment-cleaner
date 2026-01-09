@@ -845,7 +845,14 @@
 		
 		try {
 			const response = await fetch('/api/auth/token');
-			const data = await response.json();
+			
+			// Parse JSON only if response has content
+			let data: { canRefresh?: boolean } = {};
+			try {
+				data = await response.json();
+			} catch {
+				// Response body might not be JSON, ignore
+			}
 			
 			if (response.ok) {
 				// We have a valid access token, no need for quick relogin
