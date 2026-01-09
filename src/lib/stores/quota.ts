@@ -294,6 +294,13 @@ const createQuotaStore = () => {
 			return;
 		}
 		
+		// Update locally first for immediate UI feedback
+		update(s => ({
+			...s,
+			used: s.used + actualUsed,
+			lastUpdated: Date.now()
+		}));
+		
 		try {
 			await fetch('/api/quota', {
 				method: 'POST',
@@ -303,6 +310,9 @@ const createQuotaStore = () => {
 		} catch (e) {
 			console.error('Failed to confirm quota usage:', e);
 		}
+		
+		// Save to local storage for persistence
+		save();
 	};
 	
 	// Release reservation (when operation completes or is cancelled)

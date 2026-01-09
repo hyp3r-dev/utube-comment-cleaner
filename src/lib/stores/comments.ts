@@ -84,8 +84,8 @@ export const filters = writable<CommentFilters>({
 	dateRange: undefined
 });
 
-// Sorting
-export const sortField = writable<SortField>('likeCount');
+// Sorting - default to publishedAt (date) desc to show newest comments first
+export const sortField = writable<SortField>('publishedAt');
 export const sortOrder = writable<SortOrder>('desc');
 
 // Search

@@ -44,8 +44,8 @@
 	});
 
 	const sortOptions = [
-		{ value: 'likeCount', label: 'Likes' },
 		{ value: 'publishedAt', label: 'Date' },
+		{ value: 'likeCount', label: 'Likes' },
 		{ value: 'textLength', label: 'Length' }
 	] as const;
 
