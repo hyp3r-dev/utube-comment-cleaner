@@ -130,11 +130,24 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			
 			case 'usage':
 			default: {
-				// Legacy: Direct quota usage without reservation
+				// Direct quota usage for read operations only (small costs like list operations)
+				// Delete operations MUST go through the reserve/confirm flow
 				const cost = typeof body.cost === 'number' ? body.cost : 0;
 				
 				if (cost <= 0) {
 					return json({ success: false, message: 'Invalid cost' }, { status: 400 });
+				}
+				
+				// Reject large costs - these must go through reservation flow
+				// Delete operations cost 50 units each, so anything >= 50 requires reservation
+				const MAX_DIRECT_COST = 10; // Allow batched list operations
+				if (cost > MAX_DIRECT_COST) {
+					privacyLogger.warn(`Direct quota usage rejected: ${cost} exceeds max direct cost of ${MAX_DIRECT_COST}`);
+					return json({ 
+						success: false, 
+						message: 'Large operations must use the reservation flow',
+						quota: getQuotaStatus()
+					}, { status: 400 });
 				}
 				
 				if (!hasEnoughQuota(cost)) {
