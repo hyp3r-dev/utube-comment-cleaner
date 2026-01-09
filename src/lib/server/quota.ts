@@ -562,8 +562,17 @@ export function getQuotaStatus(): QuotaStatusUpdate {
  */
 function calculateTotalSessionReserved(): number {
 	let total = 0;
+	const now = Date.now();
+	const maxInactivityMs = 5 * 60 * 1000; // 5 minutes max inactivity
+	
 	for (const session of deletionSessions.values()) {
-		// For each session, the reserved amount is the current batch size minus what's been used
+		// Only count sessions that are actively waiting for a batch to complete
+		// Skip sessions that are too old (might be abandoned)
+		if (!session.isWaitingForBatch || (now - session.lastActivity > maxInactivityMs)) {
+			continue;
+		}
+		
+		// For each active session, the reserved amount is the current batch size minus what's been used
 		const batchRemaining = session.currentBatchSize - session.currentBatchUsed;
 		total += Math.max(0, batchRemaining);
 	}

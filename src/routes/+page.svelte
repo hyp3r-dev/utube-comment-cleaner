@@ -1439,11 +1439,12 @@
 				
 				processedIndex += commentsInBatch;
 				
-				// **CRITICAL**: Report batch to server and WAIT for next batch authorization
-				// This is the key fix - we must wait for server before continuing
+				// **CRITICAL**: Report batch to server and WAIT for response
+				// This ensures quota is properly tracked and server controls pacing
+				const batchResult = await quotaStore.reportBatchComplete(batchSuccess, batchFailed);
+				
+				// Check if we should continue to next batch
 				if (processedIndex < commentsToDelete.length && !quotaExceeded) {
-					const batchResult = await quotaStore.reportBatchComplete(batchSuccess, batchFailed);
-					
 					if (!batchResult.success || !batchResult.shouldContinue) {
 						// Server says stop
 						if (batchResult.message?.toLowerCase().includes('quota')) {
@@ -1456,12 +1457,6 @@
 					currentBatchSize = batchResult.nextBatchSize;
 					maxParallel = batchResult.maxParallelDeletions;
 				}
-			}
-			
-			// Final batch report if we processed anything
-			if (processedIndex > 0) {
-				// Report final results (don't need to continue, just confirming)
-				await quotaStore.reportBatchComplete(0, 0);
 			}
 			
 			// End the deletion session

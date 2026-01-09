@@ -191,9 +191,9 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 			}
 			
 			case 'release': {
-				// Release any remaining reservation
+				// Release any remaining reservation (legacy flow)
 				releaseReservation(sessionId);
-				// Also end any deletion session
+				// Also end any deletion session (new batch-based flow)
 				endDeletionSession(sessionId);
 				
 				return json({

@@ -492,7 +492,7 @@ const createQuotaStore = () => {
 			return {
 				success: true,
 				quotaUsed,
-				nextBatchSize: state.dailyLimit - state.used - quotaUsed,
+				nextBatchSize: state.dailyLimit - state.used - state.reserved - quotaUsed,
 				maxParallelDeletions: state.maxParallelDeletions,
 				shouldContinue: true
 			};
