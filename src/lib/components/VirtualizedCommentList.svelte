@@ -17,15 +17,17 @@
 
 	// Virtualization settings
 	const ESTIMATED_ITEM_HEIGHT = 160; // Average height of a comment card in pixels
+	const GAP_SIZE = 16; // 1rem gap between items
+	const ITEM_WITH_GAP = ESTIMATED_ITEM_HEIGHT + GAP_SIZE;
 	const BUFFER_SIZE = 15; // Number of items to render above/below viewport
 	const MIN_BATCH_SIZE = 30; // Minimum items to render
-	const SCROLL_DEBOUNCE_MS = 16; // ~60fps
 
 	let containerRef: HTMLDivElement | undefined = $state();
 	let scrollTop = $state(0);
 	let containerHeight = $state(600); // Default height
-	let scrollTimeout: ReturnType<typeof setTimeout> | null = null;
 	let lastReportedIndex = -1;
+	let isScrolling = $state(false);
+	let scrollEndTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	// Filter out selected comments if hideWhenSelected is true
 	const displayComments = $derived(
@@ -34,7 +36,14 @@
 			: comments
 	);
 
-	// Calculate which items to render based on scroll position
+	// Total estimated height for scrollbar
+	const totalHeight = $derived(
+		displayComments.length > 0 
+			? displayComments.length * ITEM_WITH_GAP - GAP_SIZE 
+			: 0
+	);
+
+	// Calculate which items to render based on scroll position using scrollbar ratio
 	const visibleRange = $derived.by(() => {
 		const totalItems = displayComments.length;
 		if (totalItems === 0) {
@@ -46,11 +55,28 @@
 			return { start: 0, end: totalItems };
 		}
 
-		// Calculate visible range with buffer
-		const startIndex = Math.max(0, Math.floor(scrollTop / ESTIMATED_ITEM_HEIGHT) - BUFFER_SIZE);
-		const visibleCount = Math.ceil(containerHeight / ESTIMATED_ITEM_HEIGHT) + (BUFFER_SIZE * 2);
-		const endIndex = Math.min(totalItems, startIndex + Math.max(visibleCount, MIN_BATCH_SIZE));
-
+		// Calculate the scroll ratio (0.0 to 1.0)
+		const maxScrollTop = totalHeight - containerHeight;
+		const scrollRatio = maxScrollTop > 0 ? scrollTop / maxScrollTop : 0;
+		
+		// Calculate the center index based on scroll ratio
+		// This gives us position-based virtualization
+		const lastIndex = totalItems - 1;
+		const centerIndex = Math.round(scrollRatio * lastIndex);
+		
+		// Calculate visible count based on container height
+		const visibleCount = Math.ceil(containerHeight / ITEM_WITH_GAP) + (BUFFER_SIZE * 2);
+		const halfVisible = Math.floor(visibleCount / 2);
+		
+		// Calculate start and end indices centered around the scroll position
+		let startIndex = Math.max(0, centerIndex - halfVisible);
+		let endIndex = Math.min(totalItems, startIndex + visibleCount);
+		
+		// Adjust if we hit the bottom
+		if (endIndex === totalItems) {
+			startIndex = Math.max(0, totalItems - visibleCount);
+		}
+		
 		return { start: startIndex, end: endIndex };
 	});
 
@@ -60,13 +86,10 @@
 	);
 
 	// Calculate spacer heights for proper scrollbar
-	const topSpacerHeight = $derived(visibleRange.start * ESTIMATED_ITEM_HEIGHT);
+	const topSpacerHeight = $derived(visibleRange.start * ITEM_WITH_GAP);
 	const bottomSpacerHeight = $derived(
-		Math.max(0, (displayComments.length - visibleRange.end) * ESTIMATED_ITEM_HEIGHT)
+		Math.max(0, (displayComments.length - visibleRange.end) * ITEM_WITH_GAP - GAP_SIZE)
 	);
-
-	// Total estimated height for scrollbar
-	const totalHeight = $derived(displayComments.length * ESTIMATED_ITEM_HEIGHT);
 
 	// Whether virtualization is active (only for large lists)
 	const isVirtualized = $derived(displayComments.length > MIN_BATCH_SIZE * 2);
@@ -79,22 +102,27 @@
 	function handleScroll(e: Event) {
 		const target = e.target as HTMLDivElement;
 		
-		// Debounce scroll updates
-		if (scrollTimeout) {
-			clearTimeout(scrollTimeout);
+		// Update scroll position immediately for responsive UI
+		scrollTop = target.scrollTop;
+		isScrolling = true;
+		
+		// Clear previous timeout
+		if (scrollEndTimeout) {
+			clearTimeout(scrollEndTimeout);
 		}
 		
-		scrollTimeout = setTimeout(() => {
-			scrollTop = target.scrollTop;
+		// Set timeout to detect scroll end
+		scrollEndTimeout = setTimeout(() => {
+			isScrolling = false;
 			
-			// Report scroll position to sliding window store
+			// Report scroll position to sliding window store for loading more data
 			// Only report if index changed significantly to avoid too many calls
 			const currentIndex = currentScrollIndex;
 			if (Math.abs(currentIndex - lastReportedIndex) > 10) {
 				handleScrollPosition(currentIndex);
 				lastReportedIndex = currentIndex;
 			}
-		}, SCROLL_DEBOUNCE_MS);
+		}, 150);
 	}
 
 	let resizeObserver: ResizeObserver | null = null;
@@ -119,8 +147,8 @@
 			if (resizeObserver) {
 				resizeObserver.disconnect();
 			}
-			if (scrollTimeout) {
-				clearTimeout(scrollTimeout);
+			if (scrollEndTimeout) {
+				clearTimeout(scrollEndTimeout);
 			}
 		};
 	});

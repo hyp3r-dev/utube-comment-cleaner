@@ -51,6 +51,7 @@
 		sortField,
 		sortOrder,
 		searchQuery,
+		searchMode,
 		loadPersistedSlashQueue
 	} from '$lib/stores/comments';
 	import {
@@ -522,8 +523,10 @@
 				videoPrivacy: $filters.videoPrivacy,
 				moderationStatus: $filters.moderationStatus,
 				searchQuery: $searchQuery || undefined,
+				searchMode: $searchMode,
 				showOnlyWithErrors: $filters.showOnlyWithErrors,
-				channelId: $filters.channelFilter?.channelId
+				channelId: $filters.channelFilter?.channelId,
+				dateRange: $filters.dateRange
 			};
 			
 			// Get ALL matching IDs from IndexedDB
@@ -1388,6 +1391,8 @@
 			backgroundDeleteProgress = undefined;
 			deleteStatuses = new Map();
 			currentDeletingId = undefined;
+			// Sync quota with server to get authoritative value after deletion
+			await quotaStore.syncWithServer();
 			// Note: We don't deselect all here anymore - failed comments stay selected
 			// so users can review them and decide what to do
 		}
