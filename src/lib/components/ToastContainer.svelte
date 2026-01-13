@@ -1,11 +1,35 @@
 <script lang="ts">
 	import { toasts } from '$lib/stores/toast';
 	import Icon from './Icon.svelte';
+	import { animate } from '$lib/utils/motion';
+	
+	// Animate toast entry using Motion library
+	function animateToastIn(element: HTMLElement) {
+		animate(
+			element,
+			{ x: ['100%', '0%'], opacity: [0, 1] },
+			{ duration: 0.35, ease: [0.34, 1.56, 0.64, 1] }
+		);
+	}
+	
+	// Animate toast exit before removal
+	async function handleDismiss(id: string, element: HTMLElement) {
+		await animate(
+			element,
+			{ x: ['0%', '100%'], opacity: [1, 0] },
+			{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }
+		).finished;
+		toasts.remove(id);
+	}
 </script>
 
 <div class="toast-container">
 	{#each $toasts as toast (toast.id)}
-		<div class="toast toast-{toast.type}" role="alert">
+		<div 
+			class="toast toast-{toast.type}" 
+			role="alert"
+			use:animateToastIn
+		>
 			<div class="toast-icon">
 				{#if toast.type === 'success'}
 					✓
@@ -18,7 +42,14 @@
 				{/if}
 			</div>
 			<span class="toast-message">{toast.message}</span>
-			<button class="toast-close" onclick={() => toasts.remove(toast.id)} aria-label="Dismiss">
+			<button 
+				class="toast-close" 
+				onclick={(e) => {
+					const toastEl = (e.currentTarget as HTMLElement).closest('.toast') as HTMLElement;
+					handleDismiss(toast.id, toastEl);
+				}} 
+				aria-label="Dismiss"
+			>
 				<Icon name="close" size={16} />
 			</button>
 		</div>
@@ -46,18 +77,7 @@
 		background: var(--bg-card);
 		border: 1px solid var(--bg-tertiary);
 		box-shadow: var(--shadow-lg);
-		animation: slideIn 0.3s ease;
-	}
-
-	@keyframes slideIn {
-		from {
-			opacity: 0;
-			transform: translateX(100%);
-		}
-		to {
-			opacity: 1;
-			transform: translateX(0);
-		}
+		/* Animation handled by Motion library */
 	}
 
 	.toast-icon {

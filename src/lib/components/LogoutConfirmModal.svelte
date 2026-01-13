@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { animate } from '$lib/utils/motion';
+	
 	let { 
 		onConfirm, 
 		onCancel,
@@ -8,6 +10,24 @@
 		onCancel: () => void;
 		hasRefreshToken?: boolean;
 	} = $props();
+	
+	// Animate overlay fade in
+	function animateOverlay(element: HTMLElement) {
+		animate(element, { opacity: [0, 1] }, { duration: 0.2, ease: [0.4, 0, 0.2, 1] });
+	}
+	
+	// Animate modal slide up
+	function animateModal(element: HTMLElement) {
+		animate(
+			element,
+			{ 
+				opacity: [0, 1],
+				y: ['20px', '0px'],
+				scale: [0.95, 1]
+			},
+			{ duration: 0.3, ease: [0.34, 1.56, 0.64, 1] }
+		);
+	}
 	
 	function handleFullLogout() {
 		onConfirm('full');
@@ -34,8 +54,8 @@
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="modal-overlay" onclick={handleOverlayClick} role="dialog" aria-modal="true" aria-labelledby="logout-title" tabindex="-1">
-	<div class="modal-content">
+<div class="modal-overlay" onclick={handleOverlayClick} role="dialog" aria-modal="true" aria-labelledby="logout-title" tabindex="-1" use:animateOverlay>
+	<div class="modal-content" use:animateModal>
 		<div class="modal-header">
 			<h3 id="logout-title">🔐 Sign Out of YouTube</h3>
 		</div>
@@ -87,12 +107,7 @@
 		z-index: 1000;
 		backdrop-filter: blur(4px);
 		-webkit-backdrop-filter: blur(4px);
-		animation: fadeIn 0.2s ease;
-	}
-	
-	@keyframes fadeIn {
-		from { opacity: 0; }
-		to { opacity: 1; }
+		/* Animation handled by Motion library */
 	}
 	
 	.modal-content {
@@ -103,18 +118,7 @@
 		width: 90%;
 		padding: 1.5rem;
 		box-shadow: var(--shadow-lg);
-		animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-	}
-	
-	@keyframes slideUp {
-		from { 
-			opacity: 0;
-			transform: translateY(20px) scale(0.95);
-		}
-		to { 
-			opacity: 1;
-			transform: translateY(0) scale(1);
-		}
+		/* Animation handled by Motion library */
 	}
 	
 	.modal-header h3 {
