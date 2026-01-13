@@ -1501,6 +1501,10 @@
 			// Move all failed comments to the bottom of the queue
 			if (failedItems.length > 0) {
 				moveToBottomOfQueueBatch(failedItems.map(f => f.id));
+				// Persist the error information to storage
+				await saveComments($comments);
+				// Force reload sliding window to make error filtering work correctly
+				await forceReloadSlidingWindow();
 			}
 			
 			if (wasCancelled) {
