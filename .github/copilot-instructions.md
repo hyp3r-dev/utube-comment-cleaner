@@ -10,6 +10,7 @@
 - **Build Tool**: Vite 7.x
 - **Storage**: IndexedDB via `idb` library (browser-only)
 - **API**: YouTube Data API v3 with OAuth 2.0
+- **Animation**: Motion library (https://motion.dev)
 - **Deployment**: Docker with Node.js adapter
 
 ## Project Structure
@@ -18,11 +19,15 @@
 ├── src/
 │   ├── lib/
 │   │   ├── components/     # Svelte 5 components (.svelte files)
+│   │   │   └── Icon.svelte # Reusable icon component system
 │   │   ├── services/       # YouTube API client, storage service
 │   │   ├── stores/         # Svelte stores for state management
 │   │   ├── styles/         # Global CSS with CSS variables
 │   │   ├── types/          # TypeScript interfaces
-│   │   ├── utils/          # Shared utility functions (formatting, etc.)
+│   │   ├── utils/          # Shared utility functions (formatting, motion, etc.)
+│   │   │   ├── formatting.ts  # Text/date formatting
+│   │   │   ├── timezone.ts    # Timezone utilities
+│   │   │   └── motion.ts      # Animation utilities (Motion library)
 │   │   └── server/         # Server-only code (config, logging)
 │   └── routes/
 │       ├── +page.svelte    # Main application page
@@ -105,8 +110,31 @@ Example:
 Common utility functions are in `src/lib/utils/`:
 - `formatting.ts` - Text/date formatting (`formatDate`, `truncateText`, `escapeHtml`)
 - `timezone.ts` - Timezone utilities
+- `motion.ts` - Animation utilities using Motion library
 
 **Always use shared utilities** instead of duplicating functions across components.
+
+### Icon Component System (IMPORTANT)
+The project uses a centralized icon system instead of inline SVGs. **Always use the Icon component**:
+
+```svelte
+<script lang="ts">
+  import Icon from '$lib/components/Icon.svelte';
+</script>
+
+<!-- Basic usage -->
+<Icon name="search" size={20} />
+<Icon name="close" size={16} class="custom-class" />
+```
+
+Available icon names include: `search`, `close`, `chevronDown`, `chevronLeft`, `externalLink`, `arrowDown`, `logout`, `upload`, `download`, `refresh`, `check`, `checkCircle`, `error`, `errorCircle`, `warning`, `info`, `filter`, `calendar`, `trash`, `heart`, `thumbUp`, `comment`, `comments`, `eye`, `bookmark`, `user`, `users`, `play`, `video`, `youtube`, `settings`, `sparkle`, `chart`, `clock`, `bolt`, `spinner`, `cancel`
+
+To add a new icon:
+1. Open `src/lib/components/Icon.svelte`
+2. Add the icon name to the `IconName` type
+3. Add the SVG path data to the `iconPaths` object
+
+**DO NOT use inline SVGs** - always add icons to the Icon component for consistency and maintainability.
 
 ### Data Flow
 1. User imports Google Takeout → parsed in browser
@@ -147,6 +175,52 @@ Example of performant hover effect:
     0 0 0 1px rgba(99, 102, 241, 0.4);
 }
 ```
+
+### Motion Library (Preferred for New Animations)
+
+For complex or programmatic animations, use the Motion library. The utility functions are in `src/lib/utils/motion.ts`.
+
+**Documentation:** https://motion.dev/docs
+
+**Usage in Svelte components:**
+```svelte
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import { slideInFromLeft, fadeIn, springScale, shake } from '$lib/utils/motion';
+  
+  let element: HTMLElement;
+  
+  onMount(() => {
+    slideInFromLeft(element);
+  });
+  
+  function handleError() {
+    shake(element);
+  }
+</script>
+
+<div bind:this={element}>Content</div>
+```
+
+**Available animation functions:**
+- `slideInFromLeft(element)` - Slide in from left (queue items)
+- `slideOutToLeft(element)` - Slide out to left (removing items)
+- `slideInFromBottom(element)` - Slide up (modals, toasts)
+- `fadeIn(element)` / `fadeOut(element)` - Simple opacity transitions
+- `springScale(element, scale)` - Spring physics scale (button feedback)
+- `popIn(element)` - Pop in with spring (emphasis)
+- `shake(element)` - Error feedback shake
+- `pulse(element)` - Subtle pulsing (loading states)
+- `spin(element)` - Rotation (spinners)
+- `swipeRightSuccess(element)` - Swipe right (success deletion)
+- `swipeLeftFailed(element)` - Shake left (failed deletion)
+- `staggeredSlideIn(elements, delay)` - Staggered list animation
+- `highlight(element)` - Flash highlight effect
+- `collapse(element)` - Shrink to 0 height
+
+**When to use Motion vs CSS:**
+- **Use Motion**: Complex sequences, spring physics, programmatic control, staggered animations
+- **Use CSS**: Simple hover effects, transitions, infinite loops (with caution)
 
 ### Drag & Drop
 - Set `draggable="true"` on the element
@@ -215,6 +289,21 @@ Server-side (set in Docker/deployment):
 - `STALE_DATA_WARNING_DAYS` - Stale warning (default: 14)
 - `ENABLE_LEGAL` - Show legal pages
 - `ENABLE_COOKIE_CONSENT` - Show cookie banner
+- `SMALL_OPERATION_RESERVE_PERCENT` - Quota reserve for small operations (default: 5%)
+
+### Quota System
+
+The app tracks YouTube API quota usage. Key concepts:
+
+- **Daily Limit**: 10,000 units by default (YouTube API quota)
+- **Small Operation Reserve**: 5% of daily limit reserved for login/enrichment operations
+- **Delete Cost**: 50 units per comment deletion
+- **Cancellation**: Users can cancel deletion mid-process; already deleted comments stay deleted
+
+The quota is displayed in `QuotaProgressBar.svelte` and shows:
+- Used quota
+- Reserved quota (for pending operations)
+- Available for deletion (daily limit minus used minus 5% reserve)
 
 ### Simulation Mode
 
