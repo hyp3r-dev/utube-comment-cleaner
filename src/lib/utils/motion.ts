@@ -8,12 +8,12 @@
  * ```svelte
  * <script lang="ts">
  *   import { onMount } from 'svelte';
- *   import { slideIn, fadeIn, springScale } from '$lib/utils/motion';
+ *   import { slideInFromLeft, fadeIn, springScale } from '$lib/utils/motion';
  *   
  *   let element: HTMLElement;
  *   
  *   onMount(() => {
- *     slideIn(element);
+ *     slideInFromLeft(element);
  *   });
  * </script>
  * ```

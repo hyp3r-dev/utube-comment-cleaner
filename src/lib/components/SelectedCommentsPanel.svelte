@@ -5,6 +5,7 @@
 	import type { YouTubeComment } from '$lib/types/comment';
 	import { truncateText } from '$lib/utils/formatting';
 	import ShurikenIcon from './ShurikenIcon.svelte';
+	import Icon from './Icon.svelte';
 	import { onMount } from 'svelte';
 	
 	// Delete result for each comment
@@ -418,9 +419,7 @@
 							onclick={onCancelDelete}
 							title="Cancel deletion - already deleted comments will remain deleted"
 						>
-							<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
-								<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clip-rule="evenodd"/>
-							</svg>
+							<Icon name="cancel" size={18} />
 							<span class="btn-text">
 								Cancel
 								{#if deleteProgress?.deleted !== undefined && deleteProgress?.total !== undefined}
