@@ -3,8 +3,12 @@
 	import Icon from './Icon.svelte';
 	import { animate } from '$lib/utils/motion';
 	
+	// Store references to toast elements for animation
+	const toastElements = new Map<string, HTMLElement>();
+	
 	// Animate toast entry using Motion library
-	function animateToastIn(element: HTMLElement) {
+	function animateToastIn(element: HTMLElement, id: string) {
+		toastElements.set(id, element);
 		animate(
 			element,
 			{ x: ['100%', '0%'], opacity: [0, 1] },
@@ -13,12 +17,16 @@
 	}
 	
 	// Animate toast exit before removal
-	async function handleDismiss(id: string, element: HTMLElement) {
-		await animate(
-			element,
-			{ x: ['0%', '100%'], opacity: [1, 0] },
-			{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }
-		).finished;
+	async function handleDismiss(id: string) {
+		const element = toastElements.get(id);
+		if (element) {
+			await animate(
+				element,
+				{ x: ['0%', '100%'], opacity: [1, 0] },
+				{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }
+			).finished;
+			toastElements.delete(id);
+		}
 		toasts.remove(id);
 	}
 </script>
@@ -28,7 +36,7 @@
 		<div 
 			class="toast toast-{toast.type}" 
 			role="alert"
-			use:animateToastIn
+			use:animateToastIn={toast.id}
 		>
 			<div class="toast-icon">
 				{#if toast.type === 'success'}
@@ -44,10 +52,7 @@
 			<span class="toast-message">{toast.message}</span>
 			<button 
 				class="toast-close" 
-				onclick={(e) => {
-					const toastEl = (e.currentTarget as HTMLElement).closest('.toast') as HTMLElement;
-					handleDismiss(toast.id, toastEl);
-				}} 
+				onclick={() => handleDismiss(toast.id)} 
 				aria-label="Dismiss"
 			>
 				<Icon name="close" size={16} />

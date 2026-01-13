@@ -11,7 +11,9 @@
 
 	let showBanner = $state(false);
 	let hasChecked = $state(false);
-	let bannerElement: HTMLDivElement | undefined = $state();
+	
+	// Non-reactive reference to banner element for exit animation
+	let bannerElementRef: HTMLDivElement | null = null;
 
 	const CONSENT_KEY = 'commentslash_cookie_consent';
 
@@ -31,9 +33,9 @@
 		}
 	});
 
-	// Animate banner entrance
+	// Animate banner entrance and store reference
 	function animateBannerIn(element: HTMLElement) {
-		bannerElement = element as HTMLDivElement;
+		bannerElementRef = element as HTMLDivElement;
 		animate(
 			element,
 			{ 
@@ -50,9 +52,9 @@
 			timestamp: new Date().toISOString()
 		}));
 		
-		if (bannerElement) {
+		if (bannerElementRef) {
 			await animate(
-				bannerElement,
+				bannerElementRef,
 				{ 
 					opacity: [1, 0],
 					y: ['0px', '20px']
