@@ -1,4 +1,6 @@
 <script lang="ts">
+	import Icon from './Icon.svelte';
+	
 	let isGuideExpanded = $state(false);
 	let expandedStep = $state<number | null>(null);
 
@@ -48,11 +50,7 @@
 	<button class="guide-toggle" onclick={toggleGuide}>
 		<div class="toggle-content">
 			<div class="toggle-icon" class:expanded={isGuideExpanded}>
-				<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-					<circle cx="12" cy="12" r="10"/>
-					<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-					<circle cx="12" cy="17" r="0.5" fill="currentColor"/>
-				</svg>
+				<Icon name="questionMark" size={24} strokeWidth={2} />
 			</div>
 			<div class="toggle-text">
 				<span class="toggle-title">How to get your Google Takeout export</span>
@@ -60,9 +58,7 @@
 			</div>
 		</div>
 		<div class="toggle-arrow" class:rotated={isGuideExpanded}>
-			<svg width="24" height="24" viewBox="0 0 20 20" fill="currentColor">
-				<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-			</svg>
+			<Icon name="chevronDown" size={24} />
 		</div>
 	</button>
 
@@ -93,9 +89,7 @@
 							<div class="step-icon">{step.icon}</div>
 							<div class="step-title">{step.title}</div>
 							<div class="step-arrow" class:rotated={expandedStep === i}>
-								<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-									<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-								</svg>
+								<Icon name="chevronDown" size={20} />
 							</div>
 						</button>
 						
@@ -105,10 +99,7 @@
 								{#if step.link}
 									<a href={step.link} target="_blank" rel="noopener noreferrer" class="step-link">
 										<span>Open Google Takeout</span>
-										<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-											<path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
-											<path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
-										</svg>
+										<Icon name="externalLink" size={16} />
 									</a>
 								{/if}
 							</div>

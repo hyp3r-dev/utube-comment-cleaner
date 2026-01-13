@@ -5,6 +5,7 @@
 	import type { YouTubeComment } from '$lib/types/comment';
 	import { truncateText } from '$lib/utils/formatting';
 	import ShurikenIcon from './ShurikenIcon.svelte';
+	import Icon from './Icon.svelte';
 	import { onMount } from 'svelte';
 	
 	// Delete result for each comment
@@ -12,16 +13,20 @@
 	
 	let {
 		onDeleteRequest,
+		onCancelDelete,
 		isDeleting = false,
 		deleteProgress,
 		isConnected = true,
 		quotaExhausted = false
 	}: {
 		onDeleteRequest?: () => void;
+		onCancelDelete?: () => void;
 		isDeleting?: boolean;
 		deleteProgress?: { 
 			currentId?: string;
 			statuses: Map<string, { status: DeleteStatus; error?: string }>;
+			deleted?: number;
+			total?: number;
 		};
 		isConnected?: boolean;
 		quotaExhausted?: boolean;
@@ -223,9 +228,7 @@
 				}}
 				title="Search in queue"
 			>
-				<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
-					<path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
-				</svg>
+				<Icon name="search" size={18} />
 			</button>
 		{/if}
 	</div>
@@ -242,9 +245,7 @@
 			/>
 			{#if queueSearchQuery}
 				<button class="queue-search-clear" onclick={() => queueSearchQuery = ''} aria-label="Clear search">
-					<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-						<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-					</svg>
+					<Icon name="close" size={14} />
 				</button>
 			{/if}
 			{#if queueSearchQuery}
@@ -258,9 +259,7 @@
 			{#if $selectedComments.length === 0}
 				<div class="drop-zone">
 					<div class="drop-icon animate-bounce">
-						<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-							<path d="M19 14l-7 7m0 0l-7-7m7 7V3" stroke-linecap="round" stroke-linejoin="round"/>
-						</svg>
+						<Icon name="arrowDown" size={48} strokeWidth={1.5} />
 					</div>
 					<p>Drag comments here to mark for deletion</p>
 					<span class="hint">Or click the circle button on each comment to add them</span>
@@ -308,28 +307,19 @@
 								<!-- Status indicator -->
 								{#if status === 'deleting'}
 									<div class="status-icon deleting">
-										<svg class="spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-											<circle cx="12" cy="12" r="10" stroke-opacity="0.25"/>
-											<path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"/>
-										</svg>
+										<Icon name="spinner" size={16} strokeWidth={2} class="spinner" />
 									</div>
 								{:else if status === 'success'}
 									<div class="status-icon success">
-										<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-											<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-										</svg>
+										<Icon name="check" size={20} />
 									</div>
 								{:else if status === 'failed'}
 									<div class="status-icon failed" title={getCommentError(comment.id) || 'Delete failed'}>
-										<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-											<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-										</svg>
+										<Icon name="close" size={20} />
 									</div>
 								{:else if hasError}
 									<div class="expand-icon" class:expanded={isExpanded}>
-										<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-											<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-										</svg>
+										<Icon name="chevronDown" size={16} />
 									</div>
 								{:else if !isDeleting}
 									<button 
@@ -337,9 +327,7 @@
 										onclick={(e) => { e.stopPropagation(); handleRemoveWithAnimation(comment.id); }}
 										title="Remove from queue"
 									>
-										<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-											<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-										</svg>
+										<Icon name="close" size={16} />
 									</button>
 								{/if}
 							</div>
@@ -407,7 +395,22 @@
 					Clear All
 				</button>
 				{#if isConnected}
-					{#if isQuotaExhausted}
+					{#if isDeleting}
+						<!-- Show cancel button during deletion -->
+						<button 
+							class="btn btn-cancel cancel-btn" 
+							onclick={onCancelDelete}
+							title="Cancel deletion - already deleted comments will remain deleted"
+						>
+							<Icon name="cancel" size={18} />
+							<span class="btn-text">
+								Cancel
+								{#if deleteProgress?.deleted !== undefined && deleteProgress?.total !== undefined}
+									<span class="progress-indicator">({deleteProgress.deleted}/{deleteProgress.total})</span>
+								{/if}
+							</span>
+						</button>
+					{:else if isQuotaExhausted}
 						<!-- Quota exhausted - show disabled warning button -->
 						<button 
 							class="btn btn-warning delete-btn-disabled" 
@@ -1055,6 +1058,44 @@
 		border: 1px solid rgba(251, 191, 36, 0.4);
 		color: var(--warning);
 		cursor: not-allowed;
+	}
+
+	/* Cancel button during deletion */
+	.btn-cancel {
+		background: rgba(251, 191, 36, 0.2);
+		border: 1px solid rgba(251, 191, 36, 0.5);
+		color: var(--warning);
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.btn-cancel:hover {
+		background: rgba(251, 191, 36, 0.3);
+		border-color: var(--warning);
+		transform: scale(1.02);
+	}
+
+	.cancel-btn {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		animation: pulseWarning 1.5s ease-in-out infinite;
+	}
+
+	@keyframes pulseWarning {
+		0%, 100% {
+			box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.3);
+		}
+		50% {
+			box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.1);
+		}
+	}
+
+	.progress-indicator {
+		font-size: 0.65rem;
+		opacity: 0.9;
+		font-weight: 600;
+		font-family: monospace;
 	}
 
 	.quota-timer {

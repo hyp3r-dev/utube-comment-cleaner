@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { searchQuery, filteredComments, comments, searchMode, type SearchMode } from '$lib/stores/comments';
+	import Icon from './Icon.svelte';
 	
 	let inputElement: HTMLInputElement;
 	let isFocused = $state(false);
@@ -105,14 +106,10 @@
 		<div class="search-icon-wrapper">
 			{#if isSearching}
 				<div class="search-spinner">
-					<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-						<circle cx="12" cy="12" r="10" stroke-dasharray="31.416" stroke-dashoffset="10" />
-					</svg>
+					<Icon name="spinner" size={20} strokeWidth={2} />
 				</div>
 			{:else}
-				<svg class="search-icon" width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-					<path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
-				</svg>
+				<Icon name="search" size={20} class="search-icon" />
 			{/if}
 		</div>
 		
@@ -146,9 +143,7 @@
 					aria-label="Clear search"
 					type="button"
 				>
-					<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-						<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-					</svg>
+					<Icon name="error" size={16} />
 				</button>
 			{/if}
 			
@@ -162,9 +157,7 @@
 					type="button"
 					title={`Search mode: ${currentModeLabel}`}
 				>
-					<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-						<path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
-					</svg>
+					<Icon name="settings" size={16} />
 				</button>
 				
 				<!-- Settings popup -->
@@ -185,9 +178,7 @@
 									<span class="mode-icon">{mode.icon}</span>
 									<span class="mode-label">{mode.label}</span>
 									{#if $searchMode === mode.value}
-										<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor" class="check-icon">
-											<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
-										</svg>
+										<Icon name="check" size={14} class="check-icon" />
 									{/if}
 								</button>
 							{/each}
@@ -204,9 +195,7 @@
 				type="button"
 				disabled={isSearching}
 			>
-				<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-					<path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
-				</svg>
+				<Icon name="search" size={16} />
 			</button>
 		</div>
 	</div>

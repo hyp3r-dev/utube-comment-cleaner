@@ -3,6 +3,7 @@
 	import { truncateText } from '$lib/utils/formatting';
 	import SlashAnimation from './SlashAnimation.svelte';
 	import ShurikenIcon from './ShurikenIcon.svelte';
+	import { animate } from '$lib/utils/motion';
 	
 	let {
 		comments,
@@ -21,6 +22,24 @@
 	} = $props();
 
 	let showSlashAnimation = $state(false);
+
+	// Animate backdrop fade in
+	function animateBackdrop(element: HTMLElement) {
+		animate(element, { opacity: [0, 1] }, { duration: 0.2, ease: [0.4, 0, 0.2, 1] });
+	}
+
+	// Animate modal slide up
+	function animateModal(element: HTMLElement) {
+		animate(
+			element,
+			{ 
+				opacity: [0, 1],
+				y: ['20px', '0px'],
+				scale: [0.95, 1]
+			},
+			{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }
+		);
+	}
 
 	function handleConfirmClick() {
 		if (!isConnected) return;
@@ -44,10 +63,11 @@
 	aria-modal="true"
 	aria-labelledby="modal-title"
 	tabindex="-1"
+	use:animateBackdrop
 >
 	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<div class="modal" onclick={(e) => e.stopPropagation()} role="document">
+	<div class="modal" onclick={(e) => e.stopPropagation()} role="document" use:animateModal>
 		{#if showSlashAnimation}
 			<SlashAnimation onComplete={handleSlashComplete} />
 		{/if}
@@ -142,12 +162,7 @@
 		justify-content: center;
 		z-index: 1000;
 		padding: 1rem;
-		animation: fadeIn 0.2s ease;
-	}
-
-	@keyframes fadeIn {
-		from { opacity: 0; }
-		to { opacity: 1; }
+		/* Animation handled by Motion library */
 	}
 
 	.modal {
@@ -161,18 +176,7 @@
 		overflow: hidden;
 		display: flex;
 		flex-direction: column;
-		animation: slideUp 0.3s ease;
-	}
-
-	@keyframes slideUp {
-		from {
-			opacity: 0;
-			transform: translateY(20px) scale(0.95);
-		}
-		to {
-			opacity: 1;
-			transform: translateY(0) scale(1);
-		}
+		/* Animation handled by Motion library */
 	}
 
 	.modal-header {

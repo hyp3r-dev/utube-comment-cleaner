@@ -2,6 +2,7 @@
 	import { filters, sortField, sortOrder, resetFilters, clearChannelFilter, setDateRange, clearDateRange } from '$lib/stores/comments';
 	import SearchBar from './SearchBar.svelte';
 	import DateRangePicker from './DateRangePicker.svelte';
+	import Icon from './Icon.svelte';
 	import type { SortField, CommentLabel } from '$lib/types/comment';
 	import { onMount } from 'svelte';
 	import { getCommentDateBounds } from '$lib/services/storage';
@@ -174,17 +175,13 @@
 				class:active={hasActiveFilters}
 				onclick={() => isExpanded = !isExpanded}
 			>
-				<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-					<path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" />
-				</svg>
+				<Icon name="filter" size={20} />
 				<span>Filters</span>
 				{#if hasActiveFilters}
 					<span class="filter-badge">!</span>
 				{/if}
 				<span class="filter-arrow" class:rotated={isExpanded}>
-					<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-						<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-					</svg>
+					<Icon name="chevronDown" size={16} />
 				</span>
 			</button>
 		</div>
@@ -194,30 +191,22 @@
 			<div class="action-buttons">
 				<!-- Export JSON - arrow pointing UP (data going out) -->
 				<button class="btn btn-ghost btn-sm" onclick={onExportJson} title="Export as JSON">
-					<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-						<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
-					</svg>
+					<Icon name="upload" size={16} />
 					<span class="btn-text">JSON</span>
 				</button>
 				<!-- Export ZIP - arrow pointing UP (data going out) -->
 				<button class="btn btn-ghost btn-sm" onclick={onExportZip} title="Export as ZIP">
-					<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-						<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
-					</svg>
+					<Icon name="upload" size={16} />
 					<span class="btn-text">ZIP</span>
 				</button>
 				<!-- Import - arrow pointing DOWN (data coming in) -->
 				<button class="btn btn-ghost btn-sm" onclick={onImport} title="Import JSON/ZIP">
-					<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-						<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
-					</svg>
+					<Icon name="download" size={16} />
 					<span class="btn-text">Import</span>
 				</button>
 				<!-- Wipe data -->
 				<button class="btn btn-ghost btn-sm btn-danger-text" onclick={onWipeData} title="Wipe all data">
-					<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-						<path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
-					</svg>
+					<Icon name="trash" size={16} />
 				</button>
 			</div>
 		</div>
@@ -236,9 +225,7 @@
 					{option.label}
 					{#if $sortField === option.value}
 						<span class="sort-direction" class:asc={$sortOrder === 'asc'}>
-							<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
-								<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-							</svg>
+							<Icon name="chevronDown" size={12} />
 						</span>
 					{/if}
 				</button>
@@ -278,9 +265,7 @@
 						title="Click to clear character filter"
 					>
 						<span class="badge-text">{characterFilterText}</span>
-						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" class="badge-close">
-							<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-						</svg>
+						<Icon name="close" size={12} class="badge-close" />
 					</button>
 				{/if}
 				{#if hasLikesFilter}
@@ -290,9 +275,7 @@
 						title="Click to clear likes filter"
 					>
 						<span class="badge-text">{likesFilterText}</span>
-						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" class="badge-close">
-							<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-						</svg>
+						<Icon name="close" size={12} class="badge-close" />
 					</button>
 				{/if}
 				{#if hasLabelFilter}
@@ -308,9 +291,7 @@
 								{:else if label === 'externally_deleted'}🗑️ Deleted
 								{/if}
 							</span>
-							<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" class="badge-close">
-								<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-							</svg>
+							<Icon name="close" size={12} class="badge-close" />
 						</button>
 					{/each}
 				{/if}
@@ -320,13 +301,9 @@
 						onclick={clearDateRange}
 						title="Click to clear date filter"
 					>
-						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" class="badge-icon">
-							<path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
-						</svg>
+						<Icon name="calendar" size={12} class="badge-icon" />
 						<span class="badge-text">{dateFilterText()}</span>
-						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" class="badge-close">
-							<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-						</svg>
+						<Icon name="close" size={12} class="badge-close" />
 					</button>
 				{/if}
 				{#if hasChannelFilter}
@@ -335,13 +312,9 @@
 						onclick={clearChannelFilter}
 						title="Click to clear channel filter"
 					>
-						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" class="badge-icon">
-							<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clip-rule="evenodd"/>
-						</svg>
+						<Icon name="user" size={12} class="badge-icon" />
 						<span class="badge-text">{$filters.channelFilter?.channelTitle}</span>
-						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" class="badge-close">
-							<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-						</svg>
+						<Icon name="close" size={12} class="badge-close" />
 					</button>
 				{/if}
 			</div>

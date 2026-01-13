@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { animate } from '$lib/utils/motion';
+	
 	let { 
 		enabled = false,
 		showLegalLinks = true
@@ -8,8 +10,10 @@
 	} = $props();
 
 	let showBanner = $state(false);
-	let isAnimatingOut = $state(false);
 	let hasChecked = $state(false);
+	
+	// Non-reactive reference to banner element for exit animation
+	let bannerElementRef: HTMLDivElement | null = null;
 
 	const CONSENT_KEY = 'commentslash_cookie_consent';
 
@@ -29,20 +33,41 @@
 		}
 	});
 
-	function dismissBanner() {
-		isAnimatingOut = true;
+	// Animate banner entrance and store reference
+	function animateBannerIn(element: HTMLElement) {
+		bannerElementRef = element as HTMLDivElement;
+		animate(
+			element,
+			{ 
+				opacity: [0, 1],
+				y: ['20px', '0px']
+			},
+			{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }
+		);
+	}
+
+	async function dismissBanner() {
 		localStorage.setItem(CONSENT_KEY, JSON.stringify({
 			acknowledged: true,
 			timestamp: new Date().toISOString()
 		}));
-		setTimeout(() => {
-			showBanner = false;
-		}, 300);
+		
+		if (bannerElementRef) {
+			await animate(
+				bannerElementRef,
+				{ 
+					opacity: [1, 0],
+					y: ['0px', '20px']
+				},
+				{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }
+			).finished;
+		}
+		showBanner = false;
 	}
 </script>
 
 {#if showBanner}
-	<div class="cookie-banner" class:animating-out={isAnimatingOut}>
+	<div class="cookie-banner" use:animateBannerIn>
 		<div class="banner-content">
 			<div class="banner-icon">🍪</div>
 			<div class="banner-text">
@@ -81,33 +106,7 @@
 		gap: 1.5rem;
 		max-width: 700px;
 		width: calc(100% - 2rem);
-		animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-	}
-
-	.cookie-banner.animating-out {
-		animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-	}
-
-	@keyframes slideUp {
-		from {
-			opacity: 0;
-			transform: translateX(-50%) translateY(20px);
-		}
-		to {
-			opacity: 1;
-			transform: translateX(-50%) translateY(0);
-		}
-	}
-
-	@keyframes slideDown {
-		from {
-			opacity: 1;
-			transform: translateX(-50%) translateY(0);
-		}
-		to {
-			opacity: 0;
-			transform: translateX(-50%) translateY(20px);
-		}
+		/* Animation handled by Motion library */
 	}
 
 	.banner-content {

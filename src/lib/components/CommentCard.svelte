@@ -2,6 +2,7 @@
 	import type { YouTubeComment } from '$lib/types/comment';
 	import { selectedIds, selectComment, setChannelFilter } from '$lib/stores/comments';
 	import { formatDate, escapeHtml, truncateText } from '$lib/utils/formatting';
+	import Icon from './Icon.svelte';
 	
 	let { 
 		comment,
@@ -143,13 +144,9 @@
 			title={isSelected ? 'Remove from slash queue' : 'Add to slash queue'}
 		>
 			{#if isSelected}
-				<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-					<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-				</svg>
+				<Icon name="checkCircle" size={20} />
 			{:else}
-				<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-					<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm0-2a6 6 0 100-12 6 6 0 000 12z" clip-rule="evenodd" />
-				</svg>
+				<Icon name="circle" size={20} />
 			{/if}
 		</button>
 		
@@ -166,9 +163,7 @@
 		</div>
 
 		<div class="drag-handle" title="Drag to slash queue">
-			<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-				<path d="M4 4h2v2H4V4zm6 0h2v2h-2V4zM4 7h2v2H4V7zm6 0h2v2h-2V7zm-6 3h2v2H4v-2zm6 0h2v2h-2v-2z"/>
-			</svg>
+			<Icon name="dragHandle" size={16} />
 		</div>
 	</div>
 
@@ -187,9 +182,7 @@
 					<!-- Channel info (if available from enrichment) -->
 					{#if comment.videoChannelTitle}
 						<div class="channel-info">
-							<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-								<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clip-rule="evenodd"/>
-							</svg>
+							<Icon name="user" size={14} />
 							{#if isExpanded && comment.videoChannelId}
 								<a 
 									href="https://www.youtube.com/channel/{comment.videoChannelId}" 
@@ -199,10 +192,7 @@
 									onclick={(e) => e.stopPropagation()}
 								>
 									{comment.videoChannelTitle}
-									<svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor" class="external-link-icon">
-										<path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/>
-										<path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/>
-									</svg>
+									<Icon name="externalLink" size={10} class="external-link-icon" />
 								</a>
 								<!-- Filter by channel button -->
 								<button
@@ -210,9 +200,7 @@
 									onclick={handleFilterByChannel}
 									title="Filter comments by this channel"
 								>
-									<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
-										<path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clip-rule="evenodd" />
-									</svg>
+									<Icon name="filter" size={12} />
 								</button>
 							{:else}
 								<span class="channel-title-text">{truncateText(comment.videoChannelTitle, 25)}</span>
@@ -222,10 +210,7 @@
 					<!-- Video info -->
 					{#if comment.videoTitle}
 						<div class="video-title-info">
-							<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-								<path d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm0 2h12v8H4V6z"/>
-								<path d="M8 8l4 2-4 2V8z"/>
-							</svg>
+							<Icon name="video" size={14} />
 							{#if isExpanded}
 								<a 
 									href="https://www.youtube.com/watch?v={comment.videoId}" 
@@ -235,10 +220,7 @@
 									onclick={(e) => e.stopPropagation()}
 								>
 									{comment.videoTitle}
-									<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" class="external-link-icon">
-										<path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/>
-										<path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/>
-									</svg>
+									<Icon name="externalLink" size={12} class="external-link-icon" />
 								</a>
 							{:else}
 								<span class="video-title-text">{truncateText(comment.videoTitle, 40)}</span>
@@ -249,10 +231,7 @@
 			{:else if comment.videoId}
 				<!-- Show video ID with link to watch even if no title available -->
 				<div class="video-info video-info-id">
-					<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-						<path d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm0 2h12v8H4V6z"/>
-						<path d="M8 8l4 2-4 2V8z"/>
-					</svg>
+					<Icon name="video" size={14} />
 					<a 
 						href="https://www.youtube.com/watch?v={comment.videoId}" 
 						target="_blank" 
@@ -262,10 +241,7 @@
 						title="Open video on YouTube"
 					>
 						{comment.videoId}
-						<svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor" class="external-link-icon">
-							<path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/>
-							<path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/>
-						</svg>
+						<Icon name="externalLink" size={10} class="external-link-icon" />
 					</a>
 				</div>
 			{/if}
@@ -286,9 +262,7 @@
 						onclick={handleRemoveFromDatabase}
 						title="Remove this comment from your local database only (does not delete from YouTube)"
 					>
-						<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-							<path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>
-						</svg>
+						<Icon name="trash" size={14} />
 						Remove from database
 					</button>
 				{/if}
@@ -298,25 +272,19 @@
 
 	<div class="card-footer">
 		<div class="stat" title="Likes">
-			<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-				<path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z"/>
-			</svg>
+			<Icon name="thumbUp" size={16} />
 			<span>{comment.likeCount}</span>
 		</div>
 
 		{#if comment.totalReplyCount !== undefined && comment.totalReplyCount > 0}
 			<div class="stat" title="Replies">
-				<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-					<path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd"/>
-				</svg>
+				<Icon name="reply" size={16} />
 				<span>{comment.totalReplyCount}</span>
 			</div>
 		{/if}
 
 		<div class="stat" title="Character count">
-			<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-				<path fill-rule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a1 1 0 01-1.581.814L10 14.197l-4.419 2.617A1 1 0 014 16V4z" clip-rule="evenodd"/>
-			</svg>
+			<Icon name="document" size={16} />
 			<span>{comment.textOriginal.length} chars</span>
 		</div>
 

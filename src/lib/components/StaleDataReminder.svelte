@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { isTakeoutStale, loadLastTakeoutImport, storageConfig } from '$lib/services/storage';
+	import Icon from './Icon.svelte';
 
 	let showReminder = $state(false);
 	let daysSinceImport = $state(0);
@@ -38,9 +39,7 @@
 	<div class="stale-reminder">
 		<div class="reminder-content">
 			<div class="reminder-icon">
-				<svg width="24" height="24" viewBox="0 0 20 20" fill="currentColor">
-					<path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
-				</svg>
+				<Icon name="calendar" size={24} />
 			</div>
 			<div class="reminder-text">
 				<strong>Your comment data may be outdated</strong>
@@ -51,9 +50,7 @@
 			</div>
 		</div>
 		<button class="dismiss-btn" onclick={dismissReminder} aria-label="Dismiss">
-			<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-				<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd" />
-			</svg>
+			<Icon name="close" size={16} />
 		</button>
 	</div>
 {/if}

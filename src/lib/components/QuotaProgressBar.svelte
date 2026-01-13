@@ -7,6 +7,7 @@
 		DEFAULT_DAILY_QUOTA 
 	} from '$lib/stores/quota';
 	import { getTimeUntilPacificMidnight } from '$lib/utils/timezone';
+	import Icon from './Icon.svelte';
 
 	let isExpanded = $state(false);
 	let isPinned = $state(false); // When true, only closes on outside click
@@ -103,6 +104,11 @@
 	const pendingPercent = $derived($quotaPercentage.pending);
 	const totalPercent = $derived(usedPercent + reservedPercent);
 	
+	// Small operation reserve (5% by default for login, enrichment, etc.)
+	const smallOperationReservePercent = $derived($quotaStore.smallOperationReservePercent);
+	const smallOperationReserveUnits = $derived(Math.floor(dailyLimit * (smallOperationReservePercent / 100)));
+	const availableForDeletion = $derived(Math.max(0, dailyLimit - usedUnits - reservedUnits - smallOperationReserveUnits));
+	
 	// Trigger bolt animation when quota changes
 	$effect(() => {
 		if (usedUnits !== lastUsedValue && lastUsedValue > 0) {
@@ -131,9 +137,7 @@
 		title="API Quota Usage - Click to pin"
 	>
 		<div class="quota-icon" class:animating={isBoltAnimating}>
-			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke-linecap="round" stroke-linejoin="round"/>
-			</svg>
+			<Icon name="bolt" size={16} strokeWidth={2} />
 		</div>
 		
 		<div class="quota-mini-progress">
@@ -217,8 +221,12 @@
 					<span class="stat-value">{dailyLimit.toLocaleString()} units</span>
 				</div>
 				<div class="stat-row">
-					<span>Remaining</span>
-					<span class="stat-value remaining">{Math.max(0, dailyLimit - usedUnits - reservedUnits - pendingUnits).toLocaleString()} units</span>
+					<span>Available for Deletion</span>
+					<span class="stat-value remaining">{availableForDeletion.toLocaleString()} units</span>
+				</div>
+				<div class="stat-row reserve-row" title="{smallOperationReservePercent}% reserved for login and enrichment operations">
+					<span>Reserved for Operations</span>
+					<span class="stat-value reserve">{smallOperationReserveUnits.toLocaleString()} units ({smallOperationReservePercent}%)</span>
 				</div>
 				{#if isServerManaged}
 					<div class="stat-row">
@@ -531,6 +539,19 @@
 
 	.stat-value.remaining {
 		color: var(--success);
+	}
+
+	.stat-value.reserve {
+		color: var(--accent-tertiary);
+		font-size: 0.7rem;
+	}
+
+	.reserve-row {
+		font-size: 0.75rem;
+		opacity: 0.9;
+		border-top: 1px dashed rgba(255, 255, 255, 0.1);
+		padding-top: 0.35rem;
+		margin-top: 0.35rem;
 	}
 
 	.stat-value.users {

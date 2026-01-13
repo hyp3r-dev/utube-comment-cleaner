@@ -90,6 +90,7 @@
 	// Background deletion state
 	let isDeletingInBackground = $state(false);
 	let backgroundDeleteProgress = $state<{ deleted: number; total: number; failed: number } | undefined>();
+	let deletionCancelRequested = $state(false); // Flag to request cancellation
 	
 	// Individual delete progress for animated queue feedback
 	type DeleteStatus = 'pending' | 'deleting' | 'success' | 'failed';
@@ -1244,6 +1245,13 @@
 	const CLEANUP_DELAY_MS = 600;
 	const PARALLEL_ANIMATION_DELAY_MS = 100; // Shorter delay for parallel deletions
 
+	// Handle cancellation request for deletion
+	function handleCancelDelete() {
+		if (!isDeletingInBackground) return;
+		deletionCancelRequested = true;
+		toasts.info('Cancellation requested... finishing current batch.');
+	}
+
 	// Background delete for selected comments with animated progress
 	// Supports both sequential and parallel deletion modes
 	async function handleBackgroundDelete() {
@@ -1251,6 +1259,7 @@
 		
 		showDeleteModal = false;
 		isDeletingInBackground = true;
+		deletionCancelRequested = false; // Reset cancellation flag
 		
 		// Get ordered list of comment IDs from the queue
 		let commentsToDelete = [...$selectedComments];
@@ -1305,8 +1314,15 @@
 			
 			// Process deletions in batches, waiting for server confirmation between each batch
 			let processedIndex = 0;
+			let wasCancelled = false;
 			
-			while (processedIndex < commentsToDelete.length && !quotaExceeded) {
+			while (processedIndex < commentsToDelete.length && !quotaExceeded && !wasCancelled) {
+				// Check for cancellation at the start of each batch
+				if (deletionCancelRequested) {
+					wasCancelled = true;
+					break;
+				}
+				
 				// Calculate how many comments to delete in this batch (based on quota units)
 				const commentsInBatch = Math.min(
 					Math.floor(currentBatchSize / QUOTA_COSTS.commentsDelete),
@@ -1378,7 +1394,10 @@
 				} else {
 					// Sequential deletion for this batch
 					for (const comment of batchComments) {
-						if (quotaExceeded) break;
+						if (quotaExceeded || deletionCancelRequested) {
+							if (deletionCancelRequested) wasCancelled = true;
+							break;
+						}
 						
 						currentDeletingId = comment.id;
 						
@@ -1444,7 +1463,7 @@
 				const batchResult = await quotaStore.reportBatchComplete(batchSuccess, batchFailed);
 				
 				// Check if we should continue to next batch
-				if (processedIndex < commentsToDelete.length && !quotaExceeded) {
+				if (processedIndex < commentsToDelete.length && !quotaExceeded && !wasCancelled) {
 					if (!batchResult.success || !batchResult.shouldContinue) {
 						// Server says stop
 						if (batchResult.message?.toLowerCase().includes('quota')) {
@@ -1482,9 +1501,16 @@
 			// Move all failed comments to the bottom of the queue
 			if (failedItems.length > 0) {
 				moveToBottomOfQueueBatch(failedItems.map(f => f.id));
+				// Persist the error information to storage
+				await saveComments($comments);
+				// Force reload sliding window to make error filtering work correctly
+				await forceReloadSlidingWindow();
 			}
 			
-			if (quotaExceeded) {
+			if (wasCancelled) {
+				const remainingCount = $selectedComments.length;
+				toasts.warning(`Deletion cancelled. ${successCount} of ${totalCount} comment(s) were deleted before cancellation. ${remainingCount} remain in queue.`);
+			} else if (quotaExceeded) {
 				const remainingCount = $selectedComments.length;
 				toasts.warning(`Quota exhausted after ${successCount} deletion(s). ${remainingCount} remain in queue for when quota resets.`);
 			} else if (failedCount > 0) {
@@ -1507,6 +1533,7 @@
 			backgroundDeleteProgress = undefined;
 			deleteStatuses = new Map();
 			currentDeletingId = undefined;
+			deletionCancelRequested = false; // Reset cancellation flag
 			// Sync quota with server to get authoritative value after deletion
 			await quotaStore.syncWithServer();
 			// Note: We don't deselect all here anymore - failed comments stay selected
@@ -1889,11 +1916,14 @@
 							</button>
 							<div class="sidebar-content">
 								<SelectedCommentsPanel 
-									onDeleteRequest={() => showDeleteModal = true} 
+									onDeleteRequest={() => showDeleteModal = true}
+									onCancelDelete={handleCancelDelete}
 									isDeleting={isDeletingInBackground}
 									deleteProgress={{
 										currentId: currentDeletingId,
-										statuses: deleteStatuses
+										statuses: deleteStatuses,
+										deleted: backgroundDeleteProgress?.deleted,
+										total: backgroundDeleteProgress?.total
 									}}
 									isConnected={!!$apiKey}
 									quotaExhausted={$quotaRemaining.isExhausted}
