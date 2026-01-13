@@ -7,6 +7,7 @@
 		DEFAULT_DAILY_QUOTA 
 	} from '$lib/stores/quota';
 	import { getTimeUntilPacificMidnight } from '$lib/utils/timezone';
+	import Icon from './Icon.svelte';
 
 	let isExpanded = $state(false);
 	let isPinned = $state(false); // When true, only closes on outside click
@@ -136,9 +137,7 @@
 		title="API Quota Usage - Click to pin"
 	>
 		<div class="quota-icon" class:animating={isBoltAnimating}>
-			<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-				<path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" stroke-linecap="round" stroke-linejoin="round"/>
-			</svg>
+			<Icon name="bolt" size={16} strokeWidth={2} />
 		</div>
 		
 		<div class="quota-mini-progress">
