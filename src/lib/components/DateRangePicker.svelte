@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import Icon from './Icon.svelte';
 
 	let {
 		startDate = '',
@@ -66,20 +67,11 @@
 		class:expanded={isExpanded}
 		onclick={() => isExpanded = !isExpanded}
 	>
-		<svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-			<path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/>
-		</svg>
+		<Icon name="calendar" size={16} />
 		<span class="trigger-text">{displayText()}</span>
-		<svg 
-			width="12" 
-			height="12" 
-			viewBox="0 0 20 20" 
-			fill="currentColor" 
-			class="chevron"
-			class:rotated={isExpanded}
-		>
-			<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/>
-		</svg>
+		<span class="chevron" class:rotated={isExpanded}>
+			<Icon name="chevronDown" size={12} />
+		</span>
 	</button>
 
 	{#if isExpanded}
@@ -102,9 +94,7 @@
 								onclick={handleSetOldest}
 								title="Set to oldest comment date"
 							>
-								<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-									<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clip-rule="evenodd"/>
-								</svg>
+								<Icon name="arrowDown" size={14} />
 								Oldest
 							</button>
 						{/if}
@@ -124,9 +114,7 @@
 			</div>
 			{#if hasDateFilter}
 				<button class="clear-dates-btn" onclick={clearDates}>
-					<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
-						<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
-					</svg>
+					<Icon name="close" size={12} />
 					Clear dates
 				</button>
 			{/if}
