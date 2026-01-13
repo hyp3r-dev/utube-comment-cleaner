@@ -12,16 +12,20 @@
 	
 	let {
 		onDeleteRequest,
+		onCancelDelete,
 		isDeleting = false,
 		deleteProgress,
 		isConnected = true,
 		quotaExhausted = false
 	}: {
 		onDeleteRequest?: () => void;
+		onCancelDelete?: () => void;
 		isDeleting?: boolean;
 		deleteProgress?: { 
 			currentId?: string;
 			statuses: Map<string, { status: DeleteStatus; error?: string }>;
+			deleted?: number;
+			total?: number;
 		};
 		isConnected?: boolean;
 		quotaExhausted?: boolean;
@@ -407,7 +411,24 @@
 					Clear All
 				</button>
 				{#if isConnected}
-					{#if isQuotaExhausted}
+					{#if isDeleting}
+						<!-- Show cancel button during deletion -->
+						<button 
+							class="btn btn-cancel cancel-btn" 
+							onclick={onCancelDelete}
+							title="Cancel deletion - already deleted comments will remain deleted"
+						>
+							<svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
+								<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clip-rule="evenodd"/>
+							</svg>
+							<span class="btn-text">
+								Cancel
+								{#if deleteProgress?.deleted !== undefined && deleteProgress?.total !== undefined}
+									<span class="progress-indicator">({deleteProgress.deleted}/{deleteProgress.total})</span>
+								{/if}
+							</span>
+						</button>
+					{:else if isQuotaExhausted}
 						<!-- Quota exhausted - show disabled warning button -->
 						<button 
 							class="btn btn-warning delete-btn-disabled" 
@@ -1055,6 +1076,44 @@
 		border: 1px solid rgba(251, 191, 36, 0.4);
 		color: var(--warning);
 		cursor: not-allowed;
+	}
+
+	/* Cancel button during deletion */
+	.btn-cancel {
+		background: rgba(251, 191, 36, 0.2);
+		border: 1px solid rgba(251, 191, 36, 0.5);
+		color: var(--warning);
+		cursor: pointer;
+		transition: all 0.2s ease;
+	}
+
+	.btn-cancel:hover {
+		background: rgba(251, 191, 36, 0.3);
+		border-color: var(--warning);
+		transform: scale(1.02);
+	}
+
+	.cancel-btn {
+		display: flex;
+		align-items: center;
+		gap: 0.5rem;
+		animation: pulseWarning 1.5s ease-in-out infinite;
+	}
+
+	@keyframes pulseWarning {
+		0%, 100% {
+			box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.3);
+		}
+		50% {
+			box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.1);
+		}
+	}
+
+	.progress-indicator {
+		font-size: 0.65rem;
+		opacity: 0.9;
+		font-weight: 600;
+		font-family: monospace;
 	}
 
 	.quota-timer {
