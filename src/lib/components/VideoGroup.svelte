@@ -2,6 +2,7 @@
 	import type { YouTubeComment } from '$lib/types/comment';
 	import { selectedIds } from '$lib/stores/comments';
 	import CommentCard from './CommentCard.svelte';
+	import Icon from './Icon.svelte';
 	import { truncateText } from '$lib/utils/formatting';
 	
 	let { 
@@ -71,10 +72,7 @@
 			title="Open video on YouTube"
 		>
 			<div class="video-icon">
-				<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-					<path d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm0 2h12v8H4V6z"/>
-					<path d="M8 8l4 2-4 2V8z"/>
-				</svg>
+				<Icon name="video" size={20} />
 			</div>
 		</a>
 		
@@ -86,9 +84,7 @@
 				<!-- Channel name (if available) -->
 				{#if videoChannelTitle}
 					<div class="channel-name">
-						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
-							<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clip-rule="evenodd"/>
-						</svg>
+						<Icon name="user" size={12} />
 						{#if videoChannelId}
 							<a 
 								href="https://www.youtube.com/channel/{videoChannelId}" 
@@ -113,24 +109,18 @@
 				</h4>
 				<div class="group-stats">
 					<span class="stat">
-						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
-							<path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clip-rule="evenodd"/>
-						</svg>
+						<Icon name="reply" size={12} />
 						{commentCount} comment{commentCount !== 1 ? 's' : ''}
 					</span>
 					<span class="stat">
-						<svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor">
-							<path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z"/>
-						</svg>
+						<Icon name="thumbUp" size={12} />
 						{totalLikes} total likes
 					</span>
 				</div>
 			</div>
 			
 			<div class="expand-icon" class:rotated={!isExpanded}>
-				<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-					<path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-				</svg>
+				<Icon name="chevronDown" size={20} />
 			</div>
 		</button>
 	</div>
