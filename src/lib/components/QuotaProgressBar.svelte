@@ -103,6 +103,11 @@
 	const pendingPercent = $derived($quotaPercentage.pending);
 	const totalPercent = $derived(usedPercent + reservedPercent);
 	
+	// Small operation reserve (5% by default for login, enrichment, etc.)
+	const smallOperationReservePercent = $derived($quotaStore.smallOperationReservePercent);
+	const smallOperationReserveUnits = $derived(Math.floor(dailyLimit * (smallOperationReservePercent / 100)));
+	const availableForDeletion = $derived(Math.max(0, dailyLimit - usedUnits - reservedUnits - smallOperationReserveUnits));
+	
 	// Trigger bolt animation when quota changes
 	$effect(() => {
 		if (usedUnits !== lastUsedValue && lastUsedValue > 0) {
@@ -217,8 +222,12 @@
 					<span class="stat-value">{dailyLimit.toLocaleString()} units</span>
 				</div>
 				<div class="stat-row">
-					<span>Remaining</span>
-					<span class="stat-value remaining">{Math.max(0, dailyLimit - usedUnits - reservedUnits - pendingUnits).toLocaleString()} units</span>
+					<span>Available for Deletion</span>
+					<span class="stat-value remaining">{availableForDeletion.toLocaleString()} units</span>
+				</div>
+				<div class="stat-row reserve-row" title="{smallOperationReservePercent}% reserved for login and enrichment operations">
+					<span>Reserved for Operations</span>
+					<span class="stat-value reserve">{smallOperationReserveUnits.toLocaleString()} units ({smallOperationReservePercent}%)</span>
 				</div>
 				{#if isServerManaged}
 					<div class="stat-row">
@@ -531,6 +540,19 @@
 
 	.stat-value.remaining {
 		color: var(--success);
+	}
+
+	.stat-value.reserve {
+		color: var(--accent-tertiary);
+		font-size: 0.7rem;
+	}
+
+	.reserve-row {
+		font-size: 0.75rem;
+		opacity: 0.9;
+		border-top: 1px dashed rgba(255, 255, 255, 0.1);
+		padding-top: 0.35rem;
+		margin-top: 0.35rem;
 	}
 
 	.stat-value.users {

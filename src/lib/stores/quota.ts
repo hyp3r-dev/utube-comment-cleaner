@@ -35,6 +35,7 @@ export interface QuotaState {
 	lastResetDate: string;
 	lastUpdated: number;
 	isServerManaged: boolean; // True if server-side quota tracking is enabled
+	smallOperationReservePercent: number; // Percentage reserved for small operations (5% default)
 }
 
 // Server-side quota configuration
@@ -76,7 +77,8 @@ const createQuotaStore = () => {
 		maxParallelDeletions: 5,
 		lastResetDate: getPacificDateKey(),
 		lastUpdated: Date.now(),
-		isServerManaged: false
+		isServerManaged: false,
+		smallOperationReservePercent: 5 // Default 5% reserve for small operations
 	};
 	
 	const { subscribe, set, update } = writable<QuotaState>(initialState);
@@ -147,7 +149,8 @@ const createQuotaStore = () => {
 					maxParallelDeletions: serverConfig?.maxParallelDeletions || state.maxParallelDeletions,
 					lastResetDate: serverQuota.date,
 					lastUpdated: Date.now(),
-					isServerManaged: true
+					isServerManaged: true,
+					smallOperationReservePercent: serverConfig?.smallOperationReservePercent || state.smallOperationReservePercent
 				}));
 				
 				// Connect to SSE for real-time updates
