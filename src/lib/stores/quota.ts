@@ -633,19 +633,21 @@ export function calculateDeleteQuotaCost(commentCount: number): number {
 
 // Helper to calculate how many comments can be deleted with remaining quota
 export function calculateMaxDeletableComments(quotaState: QuotaState): number {
-	// Account for both used and reserved quota
+	// Account for both used, reserved quota, AND the 5% small operation reserve
+	const smallOperationReserve = Math.floor(quotaState.dailyLimit * (quotaState.smallOperationReservePercent / 100));
 	const effectiveUsed = quotaState.used + quotaState.reserved;
-	const remainingQuota = Math.max(0, quotaState.dailyLimit - effectiveUsed);
+	const remainingQuota = Math.max(0, quotaState.dailyLimit - effectiveUsed - smallOperationReserve);
 	return Math.floor(remainingQuota / QUOTA_COSTS.commentsDelete);
 }
 
-// Derived store for quota remaining (now accounts for reserved)
+// Derived store for quota remaining (now accounts for reserved and small operation reserve)
 export const quotaRemaining = derived(
 	quotaStore,
 	($quota) => {
-		// Account for both used and reserved quota
+		// Account for both used, reserved quota, AND the 5% small operation reserve
+		const smallOperationReserve = Math.floor($quota.dailyLimit * ($quota.smallOperationReservePercent / 100));
 		const effectiveUsed = $quota.used + $quota.reserved;
-		const remaining = Math.max(0, $quota.dailyLimit - effectiveUsed);
+		const remaining = Math.max(0, $quota.dailyLimit - effectiveUsed - smallOperationReserve);
 		const maxDeletable = Math.floor(remaining / QUOTA_COSTS.commentsDelete);
 		const isExhausted = remaining < QUOTA_COSTS.commentsDelete;
 		return {

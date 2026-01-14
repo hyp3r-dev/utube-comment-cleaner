@@ -1,71 +1,116 @@
 <script lang="ts">
+	import YouTubeAccountInfobox from './YouTubeAccountInfobox.svelte';
+	
 	type ConnectionStatus = 'disconnected' | 'connected' | 'working' | 'error' | 'deleting';
 	
 	let { 
 		status = 'disconnected',
-		onConnect
+		channelTitle = '',
+		channelId = '',
+		onConnect,
+		onReenrich,
+		isReenriching = false,
+		reenrichProgress
 	}: { 
 		status?: ConnectionStatus;
+		channelTitle?: string;
+		channelId?: string;
 		onConnect?: () => void;
+		onReenrich?: () => void;
+		isReenriching?: boolean;
+		reenrichProgress?: { enriched: number; total: number };
 	} = $props();
+	
+	let showInfobox = $state(false);
+	
+	function handleClick(e: MouseEvent) {
+		if (status === 'disconnected') {
+			onConnect?.();
+		} else if (status === 'connected' || status === 'working') {
+			// Toggle the infobox for connected/working state
+			e.stopPropagation();
+			showInfobox = !showInfobox;
+		}
+	}
+	
+	function handleCloseInfobox() {
+		showInfobox = false;
+	}
 </script>
 
-<button 
-	class="youtube-status" 
-	class:disconnected={status === 'disconnected'}
-	class:connected={status === 'connected'}
-	class:working={status === 'working'}
-	class:error={status === 'error'}
-	onclick={onConnect}
-	title={
-		status === 'disconnected' ? 'YouTube: Not connected' :
-		status === 'connected' ? 'YouTube: Connected (idle)' :
-		status === 'working' ? 'YouTube: Processing...' :
-		'YouTube: Connection error'
-	}
-	aria-label={
-		status === 'disconnected' ? 'YouTube connection status: disconnected' :
-		status === 'connected' ? 'YouTube connection status: connected' :
-		status === 'working' ? 'YouTube connection status: working' :
-		'YouTube connection status: error'
-	}
->
-	<div class="icon-container">
-		<!-- YouTube icon -->
-		<svg class="youtube-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-			<path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-		</svg>
+<div class="youtube-status-container">
+	<button 
+		class="youtube-status" 
+		class:disconnected={status === 'disconnected'}
+		class:connected={status === 'connected'}
+		class:working={status === 'working'}
+		class:error={status === 'error'}
+		class:infobox-open={showInfobox}
+		onclick={handleClick}
+		title={
+			status === 'disconnected' ? 'YouTube: Not connected - Click to connect' :
+			status === 'connected' ? 'YouTube: Connected - Click for account options' :
+			status === 'working' ? 'YouTube: Processing... - Click for account options' :
+			'YouTube: Connection error'
+		}
+		aria-label={
+			status === 'disconnected' ? 'YouTube connection status: disconnected' :
+			status === 'connected' ? 'YouTube connection status: connected' :
+			status === 'working' ? 'YouTube connection status: working' :
+			'YouTube connection status: error'
+		}
+	>
+		<div class="icon-container">
+			<!-- YouTube icon -->
+			<svg class="youtube-icon" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+				<path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+			</svg>
+			
+			<!-- Status ring/animation -->
+			<div class="status-ring"></div>
+			
+			<!-- Working spinner with shurikens -->
+			{#if status === 'working'}
+				<div class="working-spinner"></div>
+				<!-- Spinning shurikens orbiting around the icon -->
+				<div class="shuriken shuriken-1" aria-hidden="true">
+					<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+						<path d="M12 2L14 10L22 12L14 14L12 22L10 14L2 12L10 10L12 2Z"/>
+					</svg>
+				</div>
+				<div class="shuriken shuriken-2" aria-hidden="true">
+					<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+						<path d="M12 2L14 10L22 12L14 14L12 22L10 14L2 12L10 10L12 2Z"/>
+					</svg>
+				</div>
+				<div class="shuriken shuriken-3" aria-hidden="true">
+					<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+						<path d="M12 2L14 10L22 12L14 14L12 22L10 14L2 12L10 10L12 2Z"/>
+					</svg>
+				</div>
+			{/if}
+		</div>
 		
-		<!-- Status ring/animation -->
-		<div class="status-ring"></div>
-		
-		<!-- Working spinner with shurikens -->
-		{#if status === 'working'}
-			<div class="working-spinner"></div>
-			<!-- Spinning shurikens orbiting around the icon -->
-			<div class="shuriken shuriken-1" aria-hidden="true">
-				<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-					<path d="M12 2L14 10L22 12L14 14L12 22L10 14L2 12L10 10L12 2Z"/>
-				</svg>
-			</div>
-			<div class="shuriken shuriken-2" aria-hidden="true">
-				<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-					<path d="M12 2L14 10L22 12L14 14L12 22L10 14L2 12L10 10L12 2Z"/>
-				</svg>
-			</div>
-			<div class="shuriken shuriken-3" aria-hidden="true">
-				<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-					<path d="M12 2L14 10L22 12L14 14L12 22L10 14L2 12L10 10L12 2Z"/>
-				</svg>
-			</div>
-		{/if}
-	</div>
+		<!-- Status dot -->
+		<span class="status-dot"></span>
+	</button>
 	
-	<!-- Status dot -->
-	<span class="status-dot"></span>
-</button>
+	{#if showInfobox && (status === 'connected' || status === 'working')}
+		<YouTubeAccountInfobox 
+			{channelTitle}
+			{channelId}
+			onClose={handleCloseInfobox}
+			{onReenrich}
+			{isReenriching}
+			{reenrichProgress}
+		/>
+	{/if}
+</div>
 
 <style>
+	.youtube-status-container {
+		position: relative;
+	}
 	.youtube-status {
 		position: relative;
 		display: flex;
@@ -103,6 +148,13 @@
 
 	.youtube-status.connected:hover {
 		background: rgba(34, 197, 94, 0.1);
+	}
+
+	/* Connected with infobox open */
+	.youtube-status.connected.infobox-open {
+		background: rgba(34, 197, 94, 0.15);
+		border-color: rgba(34, 197, 94, 0.5);
+		box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
 	}
 
 	/* Working state */

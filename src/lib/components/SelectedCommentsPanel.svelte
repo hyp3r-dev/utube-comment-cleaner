@@ -806,7 +806,7 @@
 		flex-shrink: 0;
 	}
 
-	.status-icon.deleting .spinner {
+	.status-icon.deleting :global(.spinner) {
 		animation: spin 1s linear infinite;
 	}
 

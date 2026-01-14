@@ -172,4 +172,4 @@ docker pull ghcr.io/hyp3r-dev/utube-comment-cleaner:latest
 
 ## License
 
-MIT License - see [LICENSE](LICENSE)
+Apache License 2.0 - see [LICENSE](LICENSE)
