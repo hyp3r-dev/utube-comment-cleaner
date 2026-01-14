@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { canReenrich, loadLastEnrichment, saveLastEnrichment } from '$lib/services/storage';
+	import { canReenrich, loadLastEnrichment, saveLastEnrichment, REENRICHMENT_COOLDOWN_HOURS } from '$lib/services/storage';
 	import { formatDate } from '$lib/utils/formatting';
 	import Icon from './Icon.svelte';
 	import { fadeIn, pulse, springScale } from '$lib/utils/motion';
@@ -27,6 +27,9 @@
 	let isLoading = $state(true);
 	let containerRef: HTMLDivElement | undefined = $state();
 	let reenrichBtnRef: HTMLButtonElement | undefined = $state();
+	
+	// Constants for display formatting
+	const HOURS_PER_DAY = 24;
 	
 	onMount(async () => {
 		await loadReenrichStatus();
@@ -72,9 +75,9 @@
 	// Format hours remaining nicely
 	const hoursRemainingText = $derived(() => {
 		if (hoursUntilReenrich <= 1) return 'Less than 1 hour';
-		if (hoursUntilReenrich < 24) return `${hoursUntilReenrich} hours`;
-		const days = Math.floor(hoursUntilReenrich / 24);
-		const hours = hoursUntilReenrich % 24;
+		if (hoursUntilReenrich < HOURS_PER_DAY) return `${hoursUntilReenrich} hours`;
+		const days = Math.floor(hoursUntilReenrich / HOURS_PER_DAY);
+		const hours = hoursUntilReenrich % HOURS_PER_DAY;
 		return days === 1 ? `1 day ${hours}h` : `${days} days ${hours}h`;
 	});
 </script>

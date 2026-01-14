@@ -5,6 +5,9 @@ const DB_NAME = 'commentslash-db';
 const DB_VERSION = 1;
 const STORE_NAME = 'comments';
 
+// Re-enrichment cooldown period in hours (users can re-enrich once per day)
+export const REENRICHMENT_COOLDOWN_HOURS = 24;
+
 // Configuration loaded from localStorage (set by server config)
 // Default to 30 days retention and 14 days stale warning
 const getRetentionDays = (): number => {
@@ -256,13 +259,12 @@ export async function canReenrich(): Promise<{ canReenrich: boolean; hoursUntilA
 	
 	const now = Date.now();
 	const hoursSinceEnrichment = (now - lastEnrichment) / (1000 * 60 * 60);
-	const hoursRequired = 24;
 	
-	if (hoursSinceEnrichment >= hoursRequired) {
+	if (hoursSinceEnrichment >= REENRICHMENT_COOLDOWN_HOURS) {
 		return { canReenrich: true, hoursUntilAllowed: 0, lastEnrichment };
 	}
 	
-	const hoursUntilAllowed = Math.ceil(hoursRequired - hoursSinceEnrichment);
+	const hoursUntilAllowed = Math.ceil(REENRICHMENT_COOLDOWN_HOURS - hoursSinceEnrichment);
 	return { canReenrich: false, hoursUntilAllowed, lastEnrichment };
 }
 
