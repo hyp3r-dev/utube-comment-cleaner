@@ -29,7 +29,7 @@
 		YouTubeAPIError 
 	} from '$lib/services/youtube';
 	import { parseTakeoutFile, readFileAsText, parseZipFile, parseMultipleFiles } from '$lib/services/takeout';
-	import { saveComments, deleteComments as deleteFromStorage, clearAllData, clearCommentsOnly, saveLastTakeoutImport, getCommentCount, getFilteredCommentIds, loadComments } from '$lib/services/storage';
+	import { saveComments, deleteComments as deleteFromStorage, clearAllData, clearCommentsOnly, saveLastTakeoutImport, getCommentCount, getFilteredCommentIds, loadComments, saveLastEnrichment, canReenrich } from '$lib/services/storage';
 	import {
 		apiKey,
 		isAuthenticated,
@@ -110,6 +110,13 @@
 	let enableCookieConsent = $state(false);
 	let enableImpressum = $state(false);
 	
+	// YouTube account info (from token validation)
+	let youtubeChannelTitle = $state('');
+	let youtubeChannelId = $state('');
+	
+	// Re-enrichment state
+	let isReenriching = $state(false);
+	let reenrichProgress = $state<{ enriched: number; total: number } | undefined>();
 
 
 	// Group comments by video ID
@@ -212,7 +219,7 @@
 	type ConnectionStatus = 'disconnected' | 'connected' | 'working' | 'error' | 'deleting';
 	const youtubeConnectionStatus: ConnectionStatus = $derived.by(() => {
 		if (!$apiKey) return 'disconnected';
-		if (isEnriching || isDeletingInBackground) return 'working';
+		if (isEnriching || isDeletingInBackground || isReenriching) return 'working';
 		if ($error && $error.includes('token')) return 'error';
 		return 'connected';
 	});
@@ -709,6 +716,10 @@
 			apiKey.set(inputApiKey.trim());
 			error.set(null);
 			
+			// Store channel info for the UI
+			youtubeChannelTitle = validationResult.channelTitle || '';
+			youtubeChannelId = validationResult.channelId || '';
+			
 			// Show success message
 			toasts.success(`Connected to YouTube as "${validationResult.channelTitle}". You can now enrich and delete comments.`);
 		} catch (e) {
@@ -928,6 +939,60 @@
 		} finally {
 			isEnriching = false;
 			enrichProgress = undefined;
+		}
+	}
+
+	async function handleReenrichComments() {
+		if (!youtubeService || $comments.length === 0) return;
+		
+		// Check if re-enrichment is allowed (once per day)
+		const reenrichStatus = await canReenrich();
+		if (!reenrichStatus.canReenrich) {
+			toasts.warning(`Re-enrichment is limited to once per day. Available in ${reenrichStatus.hoursUntilAllowed} hours.`);
+			return;
+		}
+		
+		// Only re-enrich comments that have already been enriched
+		const enrichedComments = $comments.filter(c => c.isEnriched);
+		if (enrichedComments.length === 0) {
+			toasts.info('No enriched comments to update. Run initial enrichment first.');
+			return;
+		}
+		
+		isReenriching = true;
+		reenrichProgress = { enriched: 0, total: enrichedComments.length };
+		error.set(null);
+		
+		try {
+			const result = await youtubeService.reEnrichComments(
+				enrichedComments, 
+				// Progress callback
+				(enriched, total) => {
+					reenrichProgress = { enriched, total };
+				},
+				// Real-time batch update callback
+				(batchUpdates) => {
+					// Update comments in place for immediate UI feedback
+					updateComments(batchUpdates);
+				}
+			);
+			
+			// Save the last enrichment time
+			await saveLastEnrichment();
+			
+			// Final save to storage after all batches complete
+			await saveComments($comments);
+			
+			if (result.errors.length > 0) {
+				toasts.warning(`Updated ${enrichedComments.length - result.errors.length} comment(s). ${result.errors.length} had update errors (may be deleted).`);
+			} else {
+				toasts.success(`Successfully updated like counts for ${enrichedComments.length} comments!`);
+			}
+		} catch (e) {
+			error.set(getErrorMessage(e));
+		} finally {
+			isReenriching = false;
+			reenrichProgress = undefined;
 		}
 	}
 
@@ -1566,12 +1631,17 @@
 				{#if $comments.length > 0}
 					<YouTubeStatusIcon 
 						status={youtubeConnectionStatus} 
+						channelTitle={youtubeChannelTitle}
+						channelId={youtubeChannelId}
 						onConnect={() => {
 							if (!$apiKey) {
 								// Scroll to connect section or show modal
 								document.querySelector('.token-connect-banner')?.scrollIntoView({ behavior: 'smooth' });
 							}
-						}} 
+						}}
+						onReenrich={handleReenrichComments}
+						{isReenriching}
+						{reenrichProgress}
 					/>
 				{/if}
 				

@@ -59,7 +59,7 @@ You agree to:
 ## 7. Intellectual Property
 
 - The Service and its original content are owned by the CommentSlash project
-- The Service is open source under the MIT License
+- The Service is open source under the Apache License 2.0
 - Your comments and data remain your property
 
 ## 8. API Quotas and Limitations

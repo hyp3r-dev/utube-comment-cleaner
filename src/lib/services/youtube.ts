@@ -942,4 +942,182 @@ export class YouTubeService {
 		
 		return Array.from(enrichedComments.values());
 	}
+
+	/**
+	 * Re-enrich already enriched comments to update like counts
+	 * Unlike full enrichment, this skips video info (titles, channels) since they don't change
+	 * Comments that fail re-enrichment are marked with 'update_error' label
+	 */
+	async reEnrichComments(
+		comments: YouTubeComment[],
+		onProgress?: (enriched: number, total: number) => void,
+		onBatchComplete?: (enrichedBatch: Map<string, Partial<YouTubeComment>>) => void
+	): Promise<{ updated: YouTubeComment[]; errors: Array<{ id: string; error: string }> }> {
+		const updatedComments: YouTubeComment[] = [];
+		const errors: Array<{ id: string; error: string }> = [];
+		const commentIds = comments.map(c => c.id);
+		const commentMap = new Map(comments.map(c => [c.id, c]));
+		
+		// Handle simulation mode
+		if (isSimulatedToken(this.accessToken)) {
+			console.log('[SIMULATION] Simulating re-enrichment for', comments.length, 'comments');
+			
+			const batchUpdates = new Map<string, Partial<YouTubeComment>>();
+			
+			for (const comment of comments) {
+				await simulateDelay(20);
+				
+				const likeCount = getSimulatedLikeCount(comment.id);
+				
+				const enrichedData: Partial<YouTubeComment> = {
+					likeCount,
+					lastEnrichmentAttempt: new Date().toISOString()
+				};
+				
+				batchUpdates.set(comment.id, enrichedData);
+				
+				updatedComments.push({
+					...comment,
+					...enrichedData
+				});
+			}
+			
+			if (onBatchComplete && batchUpdates.size > 0) {
+				onBatchComplete(batchUpdates);
+			}
+			
+			onProgress?.(comments.length, comments.length);
+			
+			return { updated: updatedComments, errors };
+		}
+		
+		const batchSize = 50;
+		let processed = 0;
+		
+		for (let i = 0; i < commentIds.length; i += batchSize) {
+			const batch = commentIds.slice(i, i + batchSize);
+			const batchUpdates = new Map<string, Partial<YouTubeComment>>();
+			
+			try {
+				const url = new URL(`${YOUTUBE_API_BASE}/comments`);
+				url.searchParams.set('part', 'snippet');
+				url.searchParams.set('id', batch.join(','));
+				url.searchParams.set('textFormat', 'plainText');
+				
+				const response = await fetch(url.toString(), {
+					headers: {
+						'Authorization': `Bearer ${this.accessToken}`
+					}
+				});
+				
+				// Track quota usage
+				quotaStore.addUsage(QUOTA_COSTS.commentsList);
+				
+				if (!response.ok) {
+					const errorData = await response.json() as YouTubeErrorResponse;
+					this.parseAndThrowError(errorData);
+				}
+				
+				const data = await response.json();
+				const returnedIds = new Set<string>();
+				
+				// Process returned comments - only update like count
+				for (const item of data.items || []) {
+					const id = item.id;
+					returnedIds.add(id);
+					const original = commentMap.get(id);
+					
+					if (original) {
+						const enrichedData: Partial<YouTubeComment> = {
+							likeCount: item.snippet?.likeCount ?? original.likeCount,
+							lastEnrichmentAttempt: new Date().toISOString(),
+							// Clear any previous update error
+							lastEnrichmentError: undefined
+						};
+						
+						// Remove 'update_error' label if present
+						if (original.labels?.includes('update_error')) {
+							const labels = original.labels.filter(l => l !== 'update_error');
+							enrichedData.labels = labels.length > 0 ? labels : undefined;
+						}
+						
+						batchUpdates.set(id, enrichedData);
+						
+						updatedComments.push({
+							...original,
+							...enrichedData
+						});
+					}
+				}
+				
+				// Comments not returned = may be deleted, privated, or otherwise unavailable
+				for (const id of batch) {
+					if (!returnedIds.has(id)) {
+						const original = commentMap.get(id);
+						if (original) {
+							// Mark with update_error label
+							const existingLabels = original.labels || [];
+							const labels = existingLabels.includes('update_error')
+								? existingLabels
+								: [...existingLabels, 'update_error' as const];
+							
+							const updateData: Partial<YouTubeComment> = {
+								labels,
+								lastEnrichmentError: 'Comment not found - may be deleted or unavailable',
+								lastEnrichmentAttempt: new Date().toISOString()
+							};
+							
+							batchUpdates.set(id, updateData);
+							errors.push({ id, error: 'Comment not found - may be deleted or unavailable' });
+							
+							updatedComments.push({
+								...original,
+								...updateData
+							});
+						}
+					}
+				}
+				
+				// Fire real-time update callback
+				if (onBatchComplete && batchUpdates.size > 0) {
+					onBatchComplete(batchUpdates);
+				}
+				
+			} catch (e) {
+				// If batch fails, mark all with errors
+				for (const id of batch) {
+					const original = commentMap.get(id);
+					if (original) {
+						const errorMessage = e instanceof Error ? e.message : 'Re-enrichment failed';
+						const existingLabels = original.labels || [];
+						const labels = existingLabels.includes('update_error')
+							? existingLabels
+							: [...existingLabels, 'update_error' as const];
+						
+						errors.push({ id, error: errorMessage });
+						
+						updatedComments.push({
+							...original,
+							labels,
+							lastEnrichmentError: errorMessage,
+							lastEnrichmentAttempt: new Date().toISOString()
+						});
+					}
+				}
+				
+				// Re-throw if it's a critical error
+				if (e instanceof QuotaExceededError || e instanceof TokenExpiredError) {
+					throw e;
+				}
+			}
+			
+			processed += batch.length;
+			onProgress?.(processed, commentIds.length);
+			
+			// Rate limit between batches
+			await this.delay(this.rateLimitDelay);
+		}
+		
+		return { updated: updatedComments, errors };
+	}
 }

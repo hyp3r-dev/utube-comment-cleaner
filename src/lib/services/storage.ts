@@ -230,6 +230,43 @@ export async function loadLastTakeoutImport(): Promise<number | null> {
 }
 
 /**
+ * Save the last enrichment date
+ */
+export async function saveLastEnrichment(): Promise<void> {
+	await saveMetadata('lastEnrichment', Date.now());
+}
+
+/**
+ * Load the last enrichment date
+ */
+export async function loadLastEnrichment(): Promise<number | null> {
+	return loadMetadata<number>('lastEnrichment');
+}
+
+/**
+ * Check if re-enrichment is available (at least 24 hours since last enrichment)
+ */
+export async function canReenrich(): Promise<{ canReenrich: boolean; hoursUntilAllowed: number; lastEnrichment: number | null }> {
+	const lastEnrichment = await loadLastEnrichment();
+	
+	if (!lastEnrichment) {
+		// Never enriched before, allow enrichment
+		return { canReenrich: true, hoursUntilAllowed: 0, lastEnrichment: null };
+	}
+	
+	const now = Date.now();
+	const hoursSinceEnrichment = (now - lastEnrichment) / (1000 * 60 * 60);
+	const hoursRequired = 24;
+	
+	if (hoursSinceEnrichment >= hoursRequired) {
+		return { canReenrich: true, hoursUntilAllowed: 0, lastEnrichment };
+	}
+	
+	const hoursUntilAllowed = Math.ceil(hoursRequired - hoursSinceEnrichment);
+	return { canReenrich: false, hoursUntilAllowed, lastEnrichment };
+}
+
+/**
  * Slash queue persistence interface
  */
 export interface SlashQueueData {

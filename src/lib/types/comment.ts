@@ -1,5 +1,5 @@
 // Comment label types for categorization
-export type CommentLabel = 'api_error' | 'unenrichable' | 'externally_deleted';
+export type CommentLabel = 'api_error' | 'unenrichable' | 'externally_deleted' | 'update_error';
 
 export interface YouTubeComment {
 	id: string;
@@ -34,6 +34,10 @@ export interface YouTubeComment {
 	lastDeleteError?: string;
 	// Timestamp of last delete attempt
 	lastDeleteAttempt?: string;
+	// Last error that occurred when trying to re-enrich this comment (update error)
+	lastEnrichmentError?: string;
+	// Timestamp of last enrichment attempt
+	lastEnrichmentAttempt?: string;
 }
 
 export interface CommentFilters {
