@@ -93,8 +93,8 @@
 	.cookie-banner {
 		position: fixed;
 		bottom: 1.5rem;
-		left: 50%;
-		transform: translateX(-50%);
+		left: 1rem;
+		right: 1rem;
 		z-index: 1000;
 		background: var(--bg-card);
 		border: 1px solid var(--bg-tertiary);
@@ -105,7 +105,7 @@
 		align-items: center;
 		gap: 1.5rem;
 		max-width: 700px;
-		width: calc(100% - 2rem);
+		margin: 0 auto;
 		/* Animation handled by Motion library */
 	}
 
@@ -159,6 +159,8 @@
 		.cookie-banner {
 			flex-direction: column;
 			align-items: stretch;
+			left: 0.75rem;
+			right: 0.75rem;
 			bottom: 0.75rem;
 			padding: 1rem;
 		}
