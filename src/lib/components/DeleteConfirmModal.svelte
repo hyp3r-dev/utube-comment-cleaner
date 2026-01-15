@@ -77,7 +77,7 @@
 				<ShurikenIcon size={48} animate={true} className="modal-shuriken" />
 			</div>
 			<h2 id="modal-title">Confirm Slash</h2>
-			<p>Are you sure you want to slash these comments? This action cannot be undone.</p>
+			<p>Are you sure you want to <strong>delete</strong> these comments? This action cannot be undone.</p>
 		</div>
 
 		{#if !isDeleting}
