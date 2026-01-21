@@ -187,8 +187,10 @@ jobs:
           push: ${{ steps.build_mode.outputs.push_to_ghcr == 'true' || steps.build_mode.outputs.push_to_dockerhub == 'true' }}
           tags: ${{ steps.docker_tags.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # GitHub Actions cache: mode=min only caches final layers (reduces storage ~80%)
+          # Previous mode=max cached all intermediate layers (~500MB storage usage)
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=min
           build-args: |
             VERSION=${{ steps.new_version.outputs.version }}
 
