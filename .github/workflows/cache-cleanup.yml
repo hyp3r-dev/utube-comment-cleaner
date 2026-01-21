@@ -18,12 +18,14 @@ jobs:
         run: |
           echo "Cleaning up GitHub Actions caches older than 7 days..."
           
-          # Get repository info
           REPO="${{ github.repository }}"
+          RETENTION_DAYS=7
+          RETENTION_SECONDS=$((RETENTION_DAYS * 86400))  # 7 days * 86400 seconds/day = 604800
           
-          # List all caches
-          gh cache list --repo $REPO --limit 100 --json id,key,createdAt | \
-          jq -r '.[] | select(.createdAt | fromdateiso8601 < (now - 604800)) | .id' | \
+          # List and delete old caches (using limit 500 to handle repositories with many caches)
+          gh cache list --repo $REPO --limit 500 --json id,key,createdAt | \
+          jq -r --argjson retention "$RETENTION_SECONDS" \
+            '.[] | select(.createdAt | fromdateiso8601 < (now - $retention)) | .id' | \
           while read cache_id; do
             echo "Deleting cache: $cache_id"
             gh cache delete $cache_id --repo $REPO || true
