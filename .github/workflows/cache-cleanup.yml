@@ -1,0 +1,42 @@
+name: Cache Cleanup
+
+on:
+  # Run weekly to clean up old caches
+  schedule:
+    - cron: '0 0 * * 0'  # Every Sunday at midnight UTC
+  # Allow manual triggering
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    
+    steps:
+      - name: Cleanup old caches
+        run: |
+          echo "Cleaning up GitHub Actions caches older than 7 days..."
+          
+          # Get repository info
+          REPO="${{ github.repository }}"
+          
+          # List all caches
+          gh cache list --repo $REPO --limit 100 --json id,key,createdAt | \
+          jq -r '.[] | select(.createdAt | fromdateiso8601 < (now - 604800)) | .id' | \
+          while read cache_id; do
+            echo "Deleting cache: $cache_id"
+            gh cache delete $cache_id --repo $REPO || true
+          done
+          
+          echo "Cache cleanup complete!"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Show remaining caches
+        run: |
+          echo "## Remaining GitHub Actions Caches" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          gh cache list --repo ${{ github.repository }} --limit 20 >> $GITHUB_STEP_SUMMARY || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
