@@ -1,8 +1,22 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import Logo from '$lib/components/Logo.svelte';
-	
+
 	type Language = 'en' | 'de';
 	let currentLang = $state<Language>('en');
+	let contactEmail = $state<string>('');
+
+	onMount(async () => {
+		try {
+			const response = await fetch('/api/impressum');
+			if (response.ok) {
+				const data = await response.json();
+				contactEmail = data.contactEmail || '';
+			}
+		} catch (e) {
+			console.error('Failed to load contact info:', e);
+		}
+	});
 </script>
 
 <svelte:head>
@@ -54,6 +68,7 @@
 				<section>
 					<h2>1. Introduction</h2>
 					<p>CommentSlash ("we", "our", or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and safeguard your information when you use our web application.</p>
+					<p><strong>This application uses YouTube API Services.</strong> By using this application, you acknowledge and agree that your use is also subject to the <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google Privacy Policy</a>.</p>
 				</section>
 
 				<section>
@@ -120,7 +135,7 @@
 				<section>
 					<h2>6. Data Retention</h2>
 					<ul>
-						<li><strong>Browser Storage:</strong> Data stored in IndexedDB automatically expires after 30 days by default. After 14 days, you will receive a reminder that your data may be outdated. You can refresh the data lifetime at any time or configure these values via server settings.</li>
+						<li><strong>Browser Storage:</strong> Data stored in IndexedDB automatically expires after 30 days per YouTube API Terms of Service. After 14 days, you will receive a reminder that your data may be outdated. Re-import your Google Takeout to refresh your data.</li>
 						<li><strong>OAuth Tokens:</strong> Access tokens are stored only for the duration of your session. You can log out at any time to clear your token while preserving your comment data.</li>
 						<li><strong>Server Logs:</strong> Minimal server logs are retained for up to 8 hours and contain no personally identifiable information.</li>
 					</ul>
@@ -172,8 +187,15 @@
 
 				<section>
 					<h2>12. Contact Us</h2>
+					{#if contactEmail}
+					<p>If you have questions about this Privacy Policy, please contact us at:<br/>
+					Email: <a href="mailto:{contactEmail}">{contactEmail}</a></p>
+					<p>You can also open an issue at:<br/>
+					<a href="https://github.com/hyp3r-dev/utube-comment-cleaner/issues" target="_blank" rel="noopener noreferrer">https://github.com/hyp3r-dev/utube-comment-cleaner/issues</a></p>
+					{:else}
 					<p>If you have questions about this Privacy Policy, please open an issue at:<br/>
 					<a href="https://github.com/hyp3r-dev/utube-comment-cleaner/issues" target="_blank" rel="noopener noreferrer">https://github.com/hyp3r-dev/utube-comment-cleaner/issues</a></p>
+					{/if}
 				</section>
 				{:else}
 				<!-- GERMAN VERSION -->
@@ -183,6 +205,7 @@
 				<section>
 					<h2>1. Einleitung</h2>
 					<p>CommentSlash ("wir", "unser" oder "uns") verpflichtet sich zum Schutz Ihrer Privatsphäre. Diese Datenschutzerklärung erläutert, wie wir Ihre Informationen erfassen, verwenden und schützen, wenn Sie unsere Webanwendung nutzen.</p>
+					<p><strong>Diese Anwendung nutzt YouTube API Services.</strong> Durch die Nutzung dieser Anwendung erkennen Sie an und stimmen zu, dass Ihre Nutzung auch der <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google Datenschutzerklärung</a> unterliegt.</p>
 				</section>
 
 				<section>
@@ -249,7 +272,7 @@
 				<section>
 					<h2>6. Datenspeicherung</h2>
 					<ul>
-						<li><strong>Browser-Speicher:</strong> In IndexedDB gespeicherte Daten laufen standardmäßig nach 30 Tagen automatisch ab. Nach 14 Tagen erhalten Sie eine Erinnerung, dass Ihre Daten möglicherweise veraltet sind. Sie können die Datenlebensdauer jederzeit aktualisieren oder diese Werte über Servereinstellungen konfigurieren.</li>
+						<li><strong>Browser-Speicher:</strong> In IndexedDB gespeicherte Daten laufen gemäß den YouTube API-Nutzungsbedingungen nach 30 Tagen automatisch ab. Nach 14 Tagen erhalten Sie eine Erinnerung, dass Ihre Daten möglicherweise veraltet sind. Importieren Sie Ihren Google Takeout erneut, um Ihre Daten zu aktualisieren.</li>
 						<li><strong>OAuth-Token:</strong> Zugriffstoken werden nur für die Dauer Ihrer Sitzung gespeichert. Sie können sich jederzeit abmelden, um Ihr Token zu löschen, während Ihre Kommentardaten erhalten bleiben.</li>
 						<li><strong>Server-Logs:</strong> Minimale Server-Logs werden bis zu 8 Stunden aufbewahrt und enthalten keine persönlich identifizierbaren Informationen.</li>
 					</ul>
@@ -301,8 +324,15 @@
 
 				<section>
 					<h2>12. Kontakt</h2>
+					{#if contactEmail}
+					<p>Bei Fragen zu dieser Datenschutzerklärung kontaktieren Sie uns bitte unter:<br/>
+					E-Mail: <a href="mailto:{contactEmail}">{contactEmail}</a></p>
+					<p>Sie können auch ein Issue öffnen unter:<br/>
+					<a href="https://github.com/hyp3r-dev/utube-comment-cleaner/issues" target="_blank" rel="noopener noreferrer">https://github.com/hyp3r-dev/utube-comment-cleaner/issues</a></p>
+					{:else}
 					<p>Bei Fragen zu dieser Datenschutzerklärung öffnen Sie bitte ein Issue unter:<br/>
 					<a href="https://github.com/hyp3r-dev/utube-comment-cleaner/issues" target="_blank" rel="noopener noreferrer">https://github.com/hyp3r-dev/utube-comment-cleaner/issues</a></p>
+					{/if}
 				</section>
 				{/if}
 			</article>

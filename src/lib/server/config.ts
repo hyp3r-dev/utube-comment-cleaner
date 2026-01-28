@@ -74,6 +74,18 @@ export const legalConfig = {
 };
 
 /**
+ * Contact configuration
+ * Required for YouTube API ToS compliance (III.A.2i)
+ * Provides contact information for users
+ */
+export const contactConfig = {
+	// Primary contact email - falls back to impressum email if not set
+	get email(): string {
+		return env.CONTACT_EMAIL || env.IMPRESSUM_EMAIL || '';
+	}
+};
+
+/**
  * Impressum (legal notice) configuration
  * Required in some jurisdictions (e.g., Germany)
  */
@@ -81,39 +93,39 @@ export const impressumConfig = {
 	get enabled(): boolean {
 		return env.ENABLE_IMPRESSUM === 'true';
 	},
-	
+
 	get serviceName(): string {
 		return env.IMPRESSUM_SERVICE_NAME || 'CommentSlash';
 	},
-	
+
 	get representativeName(): string {
 		return env.IMPRESSUM_REPRESENTATIVE_NAME || '';
 	},
-	
+
 	get addressLine1(): string {
 		return env.IMPRESSUM_ADDRESS_LINE1 || '';
 	},
-	
+
 	get addressLine2(): string {
 		return env.IMPRESSUM_ADDRESS_LINE2 || '';
 	},
-	
+
 	get city(): string {
 		return env.IMPRESSUM_CITY || '';
 	},
-	
+
 	get postalCode(): string {
 		return env.IMPRESSUM_POSTAL_CODE || '';
 	},
-	
+
 	get country(): string {
 		return env.IMPRESSUM_COUNTRY || '';
 	},
-	
+
 	get email(): string {
 		return env.IMPRESSUM_EMAIL || '';
 	},
-	
+
 	get phone(): string {
 		return env.IMPRESSUM_PHONE || '';
 	}

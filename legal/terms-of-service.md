@@ -6,6 +6,8 @@
 
 By accessing or using CommentSlash ("the Service"), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the Service.
 
+**Important:** By using this Service, you are also agreeing to be bound by the [YouTube Terms of Service](https://www.youtube.com/t/terms).
+
 ## 2. Description of Service
 
 CommentSlash is a web application that helps users manage and delete their YouTube comments. The Service allows you to:

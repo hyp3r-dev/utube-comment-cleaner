@@ -2,6 +2,7 @@
 	import { stats, filteredComments, selectedIds } from '$lib/stores/comments';
 </script>
 
+<!-- Note: Total Likes removed per YouTube API ToS III.E.4h (no derived/aggregated metrics) -->
 <div class="stats-bar">
 	<div class="stat animate-fade-in" style="animation-delay: 0ms">
 		<div class="stat-icon">📝</div>
@@ -28,14 +29,6 @@
 	</div>
 
 	<div class="stat animate-fade-in" style="animation-delay: 300ms">
-		<div class="stat-icon">❤️</div>
-		<div class="stat-content">
-			<span class="stat-value">{$stats.totalLikes.toLocaleString()}</span>
-			<span class="stat-label">Total Likes</span>
-		</div>
-	</div>
-
-	<div class="stat animate-fade-in" style="animation-delay: 400ms">
 		<div class="stat-icon">📊</div>
 		<div class="stat-content">
 			<span class="stat-value">{$stats.avgLength}</span>

@@ -1,8 +1,22 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import Logo from '$lib/components/Logo.svelte';
-	
+
 	type Language = 'en' | 'de';
 	let currentLang = $state<Language>('en');
+	let contactEmail = $state<string>('');
+
+	onMount(async () => {
+		try {
+			const response = await fetch('/api/impressum');
+			if (response.ok) {
+				const data = await response.json();
+				contactEmail = data.contactEmail || '';
+			}
+		} catch (e) {
+			console.error('Failed to load contact info:', e);
+		}
+	});
 </script>
 
 <svelte:head>
@@ -54,6 +68,7 @@
 				<section>
 					<h2>1. Acceptance of Terms</h2>
 					<p>By accessing or using CommentSlash ("the Service"), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the Service.</p>
+					<p><strong>Important:</strong> By using this Service, you are also agreeing to be bound by the <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer">YouTube Terms of Service</a>.</p>
 				</section>
 
 				<section>
@@ -132,7 +147,7 @@
 					<ul>
 						<li>Your comment data is stored locally in your browser for up to 30 days by default</li>
 						<li>You will receive a stale data warning after 14 days</li>
-						<li>You can refresh the data lifetime or clear your data at any time</li>
+						<li>You can clear your data at any time or re-import to start fresh</li>
 						<li>These retention periods may be configured by the server administrator</li>
 					</ul>
 				</section>
@@ -205,8 +220,15 @@
 
 				<section>
 					<h2>17. Contact</h2>
+					{#if contactEmail}
+					<p>For questions about these Terms, please contact us at:<br/>
+					Email: <a href="mailto:{contactEmail}">{contactEmail}</a></p>
+					<p>You can also open an issue at:<br/>
+					<a href="https://github.com/hyp3r-dev/utube-comment-cleaner/issues" target="_blank" rel="noopener noreferrer">https://github.com/hyp3r-dev/utube-comment-cleaner/issues</a></p>
+					{:else}
 					<p>For questions about these Terms, please open an issue at:<br/>
 					<a href="https://github.com/hyp3r-dev/utube-comment-cleaner/issues" target="_blank" rel="noopener noreferrer">https://github.com/hyp3r-dev/utube-comment-cleaner/issues</a></p>
+					{/if}
 				</section>
 				{:else}
 				<!-- GERMAN VERSION -->
@@ -216,6 +238,7 @@
 				<section>
 					<h2>1. Annahme der Bedingungen</h2>
 					<p>Durch den Zugriff auf oder die Nutzung von CommentSlash ("der Dienst") erklären Sie sich mit diesen Nutzungsbedingungen einverstanden. Wenn Sie diesen Bedingungen nicht zustimmen, nutzen Sie den Dienst bitte nicht.</p>
+					<p><strong>Wichtig:</strong> Mit der Nutzung dieses Dienstes erklären Sie sich auch mit den <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer">YouTube Nutzungsbedingungen</a> einverstanden.</p>
 				</section>
 
 				<section>
@@ -294,7 +317,7 @@
 					<ul>
 						<li>Ihre Kommentardaten werden lokal in Ihrem Browser standardmäßig bis zu 30 Tage gespeichert</li>
 						<li>Nach 14 Tagen erhalten Sie eine Warnung über möglicherweise veraltete Daten</li>
-						<li>Sie können die Datenlebensdauer jederzeit aktualisieren oder Ihre Daten löschen</li>
+						<li>Sie können Ihre Daten jederzeit löschen oder durch einen neuen Import aktualisieren</li>
 						<li>Diese Aufbewahrungsfristen können vom Serveradministrator konfiguriert werden</li>
 					</ul>
 				</section>
@@ -367,8 +390,15 @@
 
 				<section>
 					<h2>17. Kontakt</h2>
+					{#if contactEmail}
+					<p>Bei Fragen zu diesen Bedingungen kontaktieren Sie uns bitte unter:<br/>
+					E-Mail: <a href="mailto:{contactEmail}">{contactEmail}</a></p>
+					<p>Sie können auch ein Issue öffnen unter:<br/>
+					<a href="https://github.com/hyp3r-dev/utube-comment-cleaner/issues" target="_blank" rel="noopener noreferrer">https://github.com/hyp3r-dev/utube-comment-cleaner/issues</a></p>
+					{:else}
 					<p>Bei Fragen zu diesen Bedingungen öffnen Sie bitte ein Issue unter:<br/>
 					<a href="https://github.com/hyp3r-dev/utube-comment-cleaner/issues" target="_blank" rel="noopener noreferrer">https://github.com/hyp3r-dev/utube-comment-cleaner/issues</a></p>
+					{/if}
 				</section>
 				{/if}
 			</article>

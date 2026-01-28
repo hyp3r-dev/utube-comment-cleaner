@@ -4,6 +4,7 @@
 	import Icon from './Icon.svelte';
 </script>
 
+<!-- Note: Total Likes removed per YouTube API ToS III.E.4h (no derived/aggregated metrics) -->
 <div class="navbar-stats">
 	<div class="stat-badge" title="Total Comments">
 		<span class="stat-icon">
@@ -24,13 +25,6 @@
 			<Icon name="checkCircle" size={14} />
 		</span>
 		<span class="stat-value">{$selectedIds.size}</span>
-	</div>
-
-	<div class="stat-badge" title="Total Likes">
-		<span class="stat-icon">
-			<Icon name="heart" size={14} />
-		</span>
-		<span class="stat-value">{$stats.totalLikes.toLocaleString()}</span>
 	</div>
 
 	<div class="stat-badge" title="Average Comment Length">
@@ -102,10 +96,9 @@
 		}
 	}
 
-	/* Hide some stats on very small screens */
+	/* Hide last stat on very small screens */
 	@media (max-width: 480px) {
-		.stat-badge:nth-child(4),
-		.stat-badge:nth-child(5) {
+		.stat-badge:nth-child(4) {
 			display: none;
 		}
 	}

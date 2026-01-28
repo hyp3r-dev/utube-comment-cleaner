@@ -51,7 +51,7 @@
 		onConfirm();
 	}
 
-	const totalLikes = $derived(comments.reduce((sum, c) => sum + c.likeCount, 0));
+	// Note: totalLikes removed per YouTube API ToS III.E.4h (no derived/aggregated metrics)
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -86,10 +86,6 @@
 					<div class="summary-row">
 						<span class="label">Comments to delete</span>
 						<span class="value">{comments.length}</span>
-					</div>
-					<div class="summary-row">
-						<span class="label">Total likes you'll lose</span>
-						<span class="value likes">{totalLikes} ❤️</span>
 					</div>
 				</div>
 

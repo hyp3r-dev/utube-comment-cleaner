@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { getDataLifetimeInfo, refreshDataLifetime, type DataLifetimeInfo } from '$lib/services/storage';
+	import { getDataLifetimeInfo, type DataLifetimeInfo } from '$lib/services/storage';
 	import { comments } from '$lib/stores/comments';
 	import { formatDate } from '$lib/utils/formatting';
 	import Icon from './Icon.svelte';
@@ -8,7 +8,6 @@
 	let lifetimeInfo = $state<DataLifetimeInfo | null>(null);
 	let showTooltip = $state(false);
 	let isPinned = $state(false); // When true, only closes on outside click
-	let isRefreshing = $state(false);
 	let containerRef: HTMLDivElement | undefined = $state();
 	let closeTimeout: ReturnType<typeof setTimeout> | null = null;
 
@@ -39,17 +38,6 @@
 
 	async function loadLifetimeInfo() {
 		lifetimeInfo = await getDataLifetimeInfo();
-	}
-
-	async function handleRefresh() {
-		if (isRefreshing) return;
-		isRefreshing = true;
-		try {
-			await refreshDataLifetime();
-			await loadLifetimeInfo();
-		} finally {
-			isRefreshing = false;
-		}
 	}
 
 	function handleIndicatorClick(e: MouseEvent) {
@@ -127,16 +115,7 @@
 					</p>
 				</div>
 				<div class="tooltip-footer">
-					<button 
-						class="reset-btn" 
-						onclick={handleRefresh}
-						disabled={isRefreshing}
-					>
-						<span class:spinning={isRefreshing}>
-							<Icon name="refresh" size={14} />
-						</span>
-						{isRefreshing ? 'Resetting...' : 'Reset Timer'}
-					</button>
+					<p class="expiry-notice">Data expires automatically after 30 days per YouTube API Terms of Service. Re-import your Google Takeout to refresh.</p>
 				</div>
 			</div>
 		{/if}
@@ -185,12 +164,6 @@
 
 	.lifetime-indicator svg {
 		flex-shrink: 0;
-	}
-
-	/* Counter-clockwise spin animation for reset button (going back in time) */
-	@keyframes spinCounterClockwise {
-		from { transform: rotate(0deg); }
-		to { transform: rotate(-360deg); }
 	}
 
 	.days-remaining {
@@ -261,43 +234,11 @@
 		border-top: 1px solid var(--bg-tertiary);
 	}
 
-	.reset-btn {
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		gap: 0.4rem;
-		width: 100%;
-		padding: 0.5rem 0.75rem;
-		background: var(--bg-tertiary);
-		color: var(--text-secondary);
-		border-radius: var(--radius-sm);
-		font-size: 0.75rem;
-		font-weight: 500;
-		cursor: pointer;
-		transition: all 0.2s ease;
-	}
-
-	.reset-btn:hover:not(:disabled) {
-		background: var(--accent-primary);
-		color: white;
-	}
-
-	.reset-btn:disabled {
-		opacity: 0.6;
-		cursor: not-allowed;
-	}
-
-	.reset-btn svg {
-		/* Ensure rotation is centered */
-		transform-origin: center;
-		/* Disable transitions to prevent ghosting when animation starts/stops */
-		transition: none;
-	}
-	
-	.reset-btn svg.spinning {
-		animation: spinCounterClockwise 1s linear infinite;
-		/* Hint browser to prepare for animation */
-		will-change: transform;
+	.expiry-notice {
+		font-size: 0.7rem;
+		color: var(--text-muted);
+		line-height: 1.4;
+		margin: 0;
 	}
 
 	@media (max-width: 768px) {

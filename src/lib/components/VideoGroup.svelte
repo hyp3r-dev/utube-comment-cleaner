@@ -31,7 +31,7 @@
 	
 	const displayTitle = $derived(videoTitle || `Video: ${videoId}`);
 	const commentCount = $derived(comments.length);
-	const totalLikes = $derived(comments.reduce((sum, c) => sum + c.likeCount, 0));
+	// Note: totalLikes removed per YouTube API ToS III.E.4h (no derived/aggregated metrics)
 	
 	// Count visible comments (not in slash queue) when hideSelectedComments is enabled
 	const visibleCount = $derived(
@@ -111,10 +111,6 @@
 					<span class="stat">
 						<Icon name="reply" size={12} />
 						{commentCount} comment{commentCount !== 1 ? 's' : ''}
-					</span>
-					<span class="stat">
-						<Icon name="thumbUp" size={12} />
-						{totalLikes} total likes
 					</span>
 				</div>
 			</div>

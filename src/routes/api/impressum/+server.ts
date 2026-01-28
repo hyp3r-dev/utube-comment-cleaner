@@ -1,7 +1,7 @@
-// Impressum configuration endpoint
+// Impressum and contact configuration endpoint
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { impressumConfig } from '$lib/server/config';
+import { impressumConfig, contactConfig } from '$lib/server/config';
 
 export const GET: RequestHandler = async () => {
 return json({
@@ -14,6 +14,8 @@ city: impressumConfig.city,
 postalCode: impressumConfig.postalCode,
 country: impressumConfig.country,
 email: impressumConfig.email,
-phone: impressumConfig.phone
+phone: impressumConfig.phone,
+// Contact email for YouTube API ToS compliance
+contactEmail: contactConfig.email
 });
 };

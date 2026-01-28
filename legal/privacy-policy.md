@@ -6,6 +6,8 @@
 
 CommentSlash ("we", "our", or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and safeguard your information when you use our web application.
 
+**This application uses YouTube API Services.** By using this application, you acknowledge and agree that your use is also subject to the [Google Privacy Policy](https://policies.google.com/privacy).
+
 ## 2. Data Controller
 
 For users in the European Union (including Germany), the data controller is:
