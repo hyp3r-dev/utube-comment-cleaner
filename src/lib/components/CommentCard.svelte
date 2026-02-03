@@ -207,10 +207,10 @@
 							{/if}
 						</div>
 					{/if}
-					<!-- Video info -->
+					<!-- Video info (using link icon per YouTube API ToS III.F.2a,b) -->
 					{#if comment.videoTitle}
 						<div class="video-title-info">
-							<Icon name="video" size={14} />
+							<Icon name="link" size={14} />
 							{#if isExpanded}
 								<a 
 									href="https://www.youtube.com/watch?v={comment.videoId}" 
@@ -229,9 +229,9 @@
 					{/if}
 				</div>
 			{:else if comment.videoId}
-				<!-- Show video ID with link to watch even if no title available -->
+				<!-- Show video ID with link (using link icon per YouTube API ToS III.F.2a,b) -->
 				<div class="video-info video-info-id">
-					<Icon name="video" size={14} />
+					<Icon name="link" size={14} />
 					<a 
 						href="https://www.youtube.com/watch?v={comment.videoId}" 
 						target="_blank" 
