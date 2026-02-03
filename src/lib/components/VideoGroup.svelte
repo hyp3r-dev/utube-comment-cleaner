@@ -64,15 +64,16 @@
 <div class="video-group" class:collapsed={!isExpanded} class:fading-out={isAnimatingOut}>
 	<div class="group-header-wrapper">
 		<!-- YouTube video link icon -->
-		<a 
-			href="https://www.youtube.com/watch?v={videoId}" 
-			target="_blank" 
+		<!-- Note: Using external link icon instead of video/play icon per YouTube API ToS III.F.2a,b -->
+		<a
+			href="https://www.youtube.com/watch?v={videoId}"
+			target="_blank"
 			rel="noopener noreferrer"
 			class="video-icon-link"
 			title="Open video on YouTube"
 		>
 			<div class="video-icon">
-				<Icon name="video" size={20} />
+				<Icon name="externalLink" size={20} />
 			</div>
 		</a>
 		
@@ -178,23 +179,24 @@
 		text-decoration: none;
 	}
 	
+	/* Note: Using neutral accent colors instead of YouTube-red per ToS III.F.2a,b */
 	.video-icon {
 		width: 40px;
 		height: 40px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: rgba(239, 68, 68, 0.1);
-		color: #ef4444;
+		background: rgba(99, 102, 241, 0.1);
+		color: var(--accent-primary);
 		border-radius: var(--radius-md);
 		flex-shrink: 0;
 		transition: all 0.2s ease;
 	}
-	
+
 	.video-icon-link:hover .video-icon {
-		background: rgba(239, 68, 68, 0.25);
+		background: rgba(99, 102, 241, 0.25);
 		transform: scale(1.05);
-		box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+		box-shadow: 0 0 12px rgba(99, 102, 241, 0.3);
 	}
 	
 	.group-header {

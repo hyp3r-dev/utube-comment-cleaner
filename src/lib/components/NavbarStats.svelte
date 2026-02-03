@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { stats, selectedIds } from '$lib/stores/comments';
-	import { totalAvailable } from '$lib/stores/slidingWindow';
 	import Icon from './Icon.svelte';
 </script>
 
@@ -13,12 +12,7 @@
 		<span class="stat-value">{$stats.total}</span>
 	</div>
 
-	<div class="stat-badge" title="Visible Comments (matching filters)">
-		<span class="stat-icon">
-			<Icon name="eye" size={14} />
-		</span>
-		<span class="stat-value">{$totalAvailable}</span>
-	</div>
+	<!-- Note: Visible Comments (eye icon) removed - selected count shown in bottom bar -->
 
 	<div class="stat-badge" title="Selected Comments (in slash queue)">
 		<span class="stat-icon">
