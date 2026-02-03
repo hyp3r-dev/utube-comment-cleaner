@@ -89,12 +89,13 @@
 	aria-modal="true"
 	aria-label="YouTube Account Information"
 >
+	<!-- Note: Using neutral checkCircle icon instead of YouTube logo per ToS III.F.2a,b -->
 	<div class="infobox-header">
 		<div class="header-icon">
-			<Icon name="youtube" size={24} />
+			<Icon name="checkCircle" size={24} />
 		</div>
 		<div class="header-text">
-			<strong>YouTube Connected</strong>
+			<strong>API Connected</strong>
 		</div>
 		<button 
 			class="close-btn" 
