@@ -16,18 +16,12 @@
 		hideSelectedFromList = true,
 		onGroupByVideoChange,
 		onHideSelectedChange,
-		onExportJson,
-		onExportZip,
-		onImport,
 		onWipeData
 	}: {
 		groupByVideo?: boolean;
 		hideSelectedFromList?: boolean;
 		onGroupByVideoChange?: (value: boolean) => void;
 		onHideSelectedChange?: (value: boolean) => void;
-		onExportJson?: () => void;
-		onExportZip?: () => void;
-		onImport?: () => void;
 		onWipeData?: () => void;
 	} = $props();
 
@@ -187,23 +181,10 @@
 		</div>
 		
 		<!-- Actions integrated into the search row -->
+		<!-- Note: Export/Import buttons removed per YouTube API ToS III.E.4a-g
+		     (exporting and re-importing could bypass 30-day data expiry) -->
 		<div class="search-actions">
 			<div class="action-buttons">
-				<!-- Export JSON - arrow pointing UP (data going out) -->
-				<button class="btn btn-ghost btn-sm" onclick={onExportJson} title="Export as JSON">
-					<Icon name="upload" size={16} />
-					<span class="btn-text">JSON</span>
-				</button>
-				<!-- Export ZIP - arrow pointing UP (data going out) -->
-				<button class="btn btn-ghost btn-sm" onclick={onExportZip} title="Export as ZIP">
-					<Icon name="upload" size={16} />
-					<span class="btn-text">ZIP</span>
-				</button>
-				<!-- Import - arrow pointing DOWN (data coming in) -->
-				<button class="btn btn-ghost btn-sm" onclick={onImport} title="Import JSON/ZIP">
-					<Icon name="download" size={16} />
-					<span class="btn-text">Import</span>
-				</button>
 				<!-- Wipe data -->
 				<button class="btn btn-ghost btn-sm btn-danger-text" onclick={onWipeData} title="Wipe all data">
 					<Icon name="trash" size={16} />

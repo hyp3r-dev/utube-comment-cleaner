@@ -602,45 +602,15 @@
 		loadingProgress.set({ loaded: 0, total: 1 });
 
 		try {
-			// Check if it's a single file that might be a CommentSlash export
-			if (fileArray.length === 1) {
-				const file = fileArray[0];
-				
-				// Check for CommentSlash JSON export
-				if (file.name.endsWith('.json')) {
-					const jsonString = await readFileAsText(file);
-					const importData = JSON.parse(jsonString);
-					
-					if (isValidCommentSlashExport(importData)) {
-						await finalizeCommentSlashImport(importData.comments);
-						return;
-					}
-				}
-				
-				// Check for CommentSlash ZIP export (contains comments.json)
-				if (file.name.endsWith('.zip')) {
-					const zip = await JSZip.loadAsync(file);
-					const jsonFile = zip.file('comments.json');
-					
-					if (jsonFile) {
-						const jsonString = await jsonFile.async('string');
-						const importData = JSON.parse(jsonString);
-						
-						if (isValidCommentSlashExport(importData)) {
-							await finalizeCommentSlashImport(importData.comments);
-							return;
-						}
-					}
-				}
-			}
-			
-			// Fall back to Google Takeout parsing
+			// Note: CommentSlash export re-import removed per YouTube API ToS III.E.4a-g
+			// (re-importing exported data could bypass 30-day data expiry)
+			// Only Google Takeout imports are supported
 			const importedComments = await parseMultipleFiles(fileArray, (progress) => {
 				loadingProgress.set(progress);
 			});
 			
 			if (importedComments.length === 0) {
-				error.set('No comments found in the uploaded file(s). Make sure you uploaded a valid Google Takeout export or CommentSlash export.');
+				error.set('No comments found in the uploaded file(s). Make sure you uploaded a valid Google Takeout export (ZIP or CSV).');
 				isLoading.set(false);
 				return;
 			}
@@ -1713,7 +1683,7 @@
 								<p class="drop-text">
 									Drag & drop your export here
 								</p>
-								<p class="drop-subtext">Supports Google Takeout (<strong>ZIP</strong> or <strong>CSV</strong>) and CommentSlash exports (<strong>JSON</strong>)</p>
+								<p class="drop-subtext">Supports Google Takeout (<strong>ZIP</strong> or <strong>CSV</strong>)</p>
 								<button class="btn btn-primary" onclick={() => fileInput?.click()}>
 									<svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
 										<path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clip-rule="evenodd" />
@@ -1871,14 +1841,11 @@
 						class="hidden-input"
 					/>
 
-					<FilterPanel 
+					<FilterPanel
 						{groupByVideo}
 						{hideSelectedFromList}
 						onGroupByVideoChange={(v) => groupByVideo = v}
 						onHideSelectedChange={(v) => hideSelectedFromList = v}
-						onExportJson={() => handleExportComments(false)}
-						onExportZip={() => handleExportComments(true)}
-						onImport={() => importJsonInput?.click()}
 						onWipeData={() => showWipeConfirm = true}
 					/>
 
