@@ -182,7 +182,6 @@
 		return !!comment.lastDeleteError;
 	}
 
-	const totalLikes = $derived($selectedComments.reduce((sum, c) => sum + c.likeCount, 0));
 	const deleteCost = $derived(calculateDeleteQuotaCost($selectedComments.length));
 	
 	// Quota-aware deletion logic
@@ -296,7 +295,6 @@
 								<div class="item-content">
 									<p class="item-text">{truncateText(comment.textOriginal, 60)}</p>
 									<div class="item-meta">
-										<span class="likes">❤️ {comment.likeCount}</span>
 										<span class="chars">{comment.textOriginal.length} chars</span>
 										{#if hasError}
 											<span class="error-badge">❌ Error</span>
@@ -356,18 +354,7 @@
 					{/each}
 				</div>
 
-				<div class="summary">
-					<div class="summary-stats">
-						<div class="stat">
-							<span class="stat-value">{$selectedComments.length}</span>
-							<span class="stat-label">Comments</span>
-						</div>
-						<div class="stat">
-							<span class="stat-value">{totalLikes}</span>
-							<span class="stat-label">Total Likes</span>
-						</div>
-					</div>
-				</div>
+				<!-- Note: Summary stats (Comments count + Total Likes) removed per YouTube API ToS III.E.4h -->
 			{/if}
 		</div>
 
@@ -942,34 +929,7 @@
 		color: var(--error);
 	}
 
-	.summary {
-		margin-top: 1rem;
-		padding-top: 1rem;
-		border-top: 1px solid var(--bg-tertiary);
-	}
-
-	.summary-stats {
-		display: flex;
-		gap: 1.5rem;
-	}
-
-	.stat {
-		display: flex;
-		flex-direction: column;
-	}
-
-	.stat-value {
-		font-size: 1.25rem;
-		font-weight: 700;
-		color: var(--accent-tertiary);
-	}
-
-	.stat-label {
-		font-size: 0.7rem;
-		color: var(--text-muted);
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-	}
+	/* Note: .summary, .summary-stats, .stat, .stat-value, .stat-label removed per YouTube API ToS III.E.4h */
 
 	.panel-footer {
 		display: flex;

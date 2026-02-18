@@ -10,7 +10,7 @@
 	import LoadingSpinner from '$lib/components/LoadingSpinner.svelte';
 	import DeleteConfirmModal from '$lib/components/DeleteConfirmModal.svelte';
 	import LogoutConfirmModal from '$lib/components/LogoutConfirmModal.svelte';
-	import NavbarStats from '$lib/components/NavbarStats.svelte';
+
 	import YouTubeStatusIcon from '$lib/components/YouTubeStatusIcon.svelte';
 	import QuotaProgressBar from '$lib/components/QuotaProgressBar.svelte';
 	import ToastContainer from '$lib/components/ToastContainer.svelte';
@@ -1582,10 +1582,7 @@
 		<div class="container header-content">
 			<Logo size={36} />
 			
-			<!-- Navbar stats - only show when we have comments loaded (even if current filter shows 0) -->
-			{#if $comments.length > 0}
-				<NavbarStats />
-			{/if}
+			<!-- Note: NavbarStats removed per YouTube API ToS III.E.4h (no derived/aggregated metrics) -->
 			
 			<div class="header-actions">
 				{#if $isAuthenticated || $comments.length > 0}

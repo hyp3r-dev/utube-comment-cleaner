@@ -209,8 +209,8 @@ export const selectedComments = derived(
 // Statistics
 export const stats = derived(comments, ($comments) => ({
 	total: $comments.length,
-	totalLikes: $comments.reduce((sum, c) => sum + c.likeCount, 0),
-	avgLength: $comments.length > 0 
+	// Note: totalLikes removed per YouTube API ToS III.E.4h (no derived/aggregated metrics)
+	avgLength: $comments.length > 0
 		? Math.round($comments.reduce((sum, c) => sum + c.textOriginal.length, 0) / $comments.length)
 		: 0,
 	publicVideos: $comments.filter(c => c.videoPrivacyStatus === 'public').length,
